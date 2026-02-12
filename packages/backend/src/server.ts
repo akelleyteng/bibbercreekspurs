@@ -9,19 +9,11 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
-import { buildSchema, Query, Resolver } from 'type-graphql';
+import { buildSchema } from 'type-graphql';
 import db from './models/database';
 import { logger } from './utils/logger';
 import { getEnvVar } from './config/env';
-
-// Placeholder resolver for testing
-@Resolver()
-class HealthResolver {
-  @Query(() => String)
-  health(): string {
-    return 'OK';
-  }
-}
+import { AuthResolver } from './graphql/resolvers/Auth.resolver';
 
 export async function createApp(includeGraphQL: boolean = false): Promise<Express> {
   const app = express();
@@ -81,8 +73,8 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
   // Add GraphQL middleware if requested (for testing)
   if (includeGraphQL) {
     const schema = await buildSchema({
-      resolvers: [HealthResolver],
-      validate: false,
+      resolvers: [AuthResolver],
+      validate: false, // Disable for now - manual validation in resolvers
     });
 
     const apolloServer = new ApolloServer({
@@ -124,8 +116,8 @@ export async function startServer(): Promise<http.Server> {
 
   // Build GraphQL schema
   const schema = await buildSchema({
-    resolvers: [HealthResolver],
-    validate: false,
+    resolvers: [AuthResolver],
+    validate: false, // Disable for now - manual validation in resolvers
   });
 
   // Create Apollo Server
