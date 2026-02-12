@@ -74,7 +74,7 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
   if (includeGraphQL) {
     const schema = await buildSchema({
       resolvers: [AuthResolver],
-      validate: false, // Disable for now - manual validation in resolvers
+      validate: true, // Enable class-validator validation
     });
 
     const apolloServer = new ApolloServer({
@@ -117,7 +117,7 @@ export async function startServer(): Promise<http.Server> {
   // Build GraphQL schema
   const schema = await buildSchema({
     resolvers: [AuthResolver],
-    validate: false, // Disable for now - manual validation in resolvers
+    validate: true, // Enable class-validator validation
   });
 
   // Create Apollo Server

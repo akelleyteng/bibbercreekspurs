@@ -5,8 +5,8 @@ import db from '../models/database';
 import { logger } from '../utils/logger';
 import { Role } from '@4hclub/shared';
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+// Load environment variables from current working directory
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 async function seed() {
   try {
