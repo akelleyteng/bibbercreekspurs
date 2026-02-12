@@ -24,6 +24,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@4hclub/shared$': '<rootDir>/../../packages/shared/src/index.ts',
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   verbose: true,
