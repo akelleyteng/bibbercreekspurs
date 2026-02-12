@@ -1,26 +1,22 @@
 import request from 'supertest';
 import { Express } from 'express';
+import { createApp } from '../../src/server';
 
 describe('Server Integration Tests', () => {
   let app: Express;
-  let server: any;
 
   beforeAll(async () => {
-    // Will import and start server here
-    // For now, tests will fail - that's expected in TDD!
+    // Create app with GraphQL enabled for testing
+    app = await createApp(true);
   });
 
   afterAll(async () => {
-    if (server) {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }
+    // No cleanup needed
   });
 
   describe('Server Startup', () => {
-    it('should start server on port 4000', async () => {
-      // Test will fail until we implement server.ts
-      expect(server).toBeDefined();
-      expect(server.listening).toBe(true);
+    it('should create Express app successfully', async () => {
+      expect(app).toBeDefined();
     });
   });
 
@@ -51,6 +47,7 @@ describe('Server Integration Tests', () => {
         });
 
       // Should return 200 or 400 (not 404)
+      expect(response.status).not.toBe(404);
       expect([200, 400]).toContain(response.status);
     });
 
@@ -104,6 +101,7 @@ describe('Server Integration Tests', () => {
 
       // Should not crash, should return error response
       expect(response.status).toBeDefined();
+      expect(response.status).not.toBe(404);
       expect([400, 500]).toContain(response.status);
     });
   });

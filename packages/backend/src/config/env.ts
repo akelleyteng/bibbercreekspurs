@@ -15,10 +15,8 @@ interface EnvConfig {
   REDIS_URL: string;
 
   // JWT
-  JWT_ACCESS_SECRET: string;
+  JWT_SECRET: string;
   JWT_REFRESH_SECRET: string;
-  JWT_ACCESS_EXPIRY: string;
-  JWT_REFRESH_EXPIRY: string;
 
   // Google Cloud Platform
   GCP_PROJECT_ID: string;
@@ -53,7 +51,7 @@ interface EnvConfig {
   LOG_LEVEL: string;
 }
 
-function getEnvVar(key: string, defaultValue?: string): string {
+export function getEnvVar(key: string, defaultValue?: string): string {
   const value = process.env[key] || defaultValue;
   if (!value && !defaultValue) {
     throw new Error(`Missing required environment variable: ${key}`);
@@ -73,10 +71,8 @@ export const env: EnvConfig = {
   REDIS_URL: getEnvVar('REDIS_URL'),
 
   // JWT
-  JWT_ACCESS_SECRET: getEnvVar('JWT_ACCESS_SECRET'),
+  JWT_SECRET: getEnvVar('JWT_SECRET'),
   JWT_REFRESH_SECRET: getEnvVar('JWT_REFRESH_SECRET'),
-  JWT_ACCESS_EXPIRY: getEnvVar('JWT_ACCESS_EXPIRY', '15m'),
-  JWT_REFRESH_EXPIRY: getEnvVar('JWT_REFRESH_EXPIRY', '7d'),
 
   // Google Cloud Platform
   GCP_PROJECT_ID: getEnvVar('GCP_PROJECT_ID'),

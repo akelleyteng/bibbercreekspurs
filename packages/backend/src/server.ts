@@ -9,17 +9,21 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
-import { buildSchema } from 'type-graphql';
-import Database from './models/database';
+import { buildSchema, Query, Resolver } from 'type-graphql';
+import db from './models/database';
 import { logger } from './utils/logger';
 import { getEnvVar } from './config/env';
 
 // Placeholder resolver for testing
+@Resolver()
 class HealthResolver {
-  // Will add real resolvers later
+  @Query(() => String)
+  health(): string {
+    return 'OK';
+  }
 }
 
-export async function createApp(): Promise<Express> {
+export async function createApp(includeGraphQL: boolean = false): Promise<Express> {
   const app = express();
 
   // Security middleware
@@ -57,7 +61,7 @@ export async function createApp(): Promise<Express> {
   app.get('/health', async (req: Request, res: Response) => {
     try {
       // Check database connection
-      const dbHealth = await Database.getInstance().healthCheck();
+      const dbHealth = await db.healthCheck();
 
       res.status(200).json({
         status: 'ok',
@@ -73,6 +77,43 @@ export async function createApp(): Promise<Express> {
       });
     }
   });
+
+  // Add GraphQL middleware if requested (for testing)
+  if (includeGraphQL) {
+    const schema = await buildSchema({
+      resolvers: [HealthResolver],
+      validate: false,
+    });
+
+    const apolloServer = new ApolloServer({
+      schema,
+    });
+
+    await apolloServer.start();
+
+    app.use(
+      '/graphql',
+      cors<cors.CorsRequest>({
+        origin: getEnvVar('FRONTEND_URL', 'http://localhost:5173'),
+        credentials: true,
+      }),
+      express.json(),
+      expressMiddleware(apolloServer, {
+        context: async ({ req, res }) => ({ req, res }),
+      })
+    );
+
+    // 404 handler (after GraphQL)
+    app.use((req: Request, res: Response) => {
+      res.status(404).json({ error: 'Not found' });
+    });
+
+    // Error handler
+    app.use((err: Error, req: Request, res: Response, next: any) => {
+      logger.error('Server error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+  }
 
   return app;
 }
