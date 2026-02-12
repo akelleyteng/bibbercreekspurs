@@ -67,34 +67,34 @@ export const env: EnvConfig = {
   // Database
   DATABASE_URL: getEnvVar('DATABASE_URL'),
 
-  // Redis
-  REDIS_URL: getEnvVar('REDIS_URL'),
+  // Redis (optional for now - will add later)
+  REDIS_URL: getEnvVar('REDIS_URL', 'redis://localhost:6379'),
 
-  // JWT
-  JWT_SECRET: getEnvVar('JWT_SECRET'),
+  // JWT (use JWT_ACCESS_SECRET if JWT_SECRET not set)
+  JWT_SECRET: getEnvVar('JWT_SECRET', process.env.JWT_ACCESS_SECRET || ''),
   JWT_REFRESH_SECRET: getEnvVar('JWT_REFRESH_SECRET'),
 
-  // Google Cloud Platform
-  GCP_PROJECT_ID: getEnvVar('GCP_PROJECT_ID'),
-  GCP_STORAGE_BUCKET: getEnvVar('GCP_STORAGE_BUCKET'),
+  // Google Cloud Platform (optional for now)
+  GCP_PROJECT_ID: getEnvVar('GCP_PROJECT_ID', ''),
+  GCP_STORAGE_BUCKET: getEnvVar('GCP_STORAGE_BUCKET', ''),
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
 
-  // Gmail API
-  GMAIL_USER: getEnvVar('GMAIL_USER'),
-  GMAIL_CLIENT_ID: getEnvVar('GMAIL_CLIENT_ID'),
-  GMAIL_CLIENT_SECRET: getEnvVar('GMAIL_CLIENT_SECRET'),
-  GMAIL_REFRESH_TOKEN: getEnvVar('GMAIL_REFRESH_TOKEN'),
+  // Gmail API (optional - will configure later)
+  GMAIL_USER: getEnvVar('GMAIL_USER', ''),
+  GMAIL_CLIENT_ID: getEnvVar('GMAIL_CLIENT_ID', ''),
+  GMAIL_CLIENT_SECRET: getEnvVar('GMAIL_CLIENT_SECRET', ''),
+  GMAIL_REFRESH_TOKEN: getEnvVar('GMAIL_REFRESH_TOKEN', ''),
 
-  // Google APIs (Drive, Calendar)
-  GOOGLE_OAUTH_CLIENT_ID: getEnvVar('GOOGLE_OAUTH_CLIENT_ID'),
-  GOOGLE_OAUTH_CLIENT_SECRET: getEnvVar('GOOGLE_OAUTH_CLIENT_SECRET'),
-  GOOGLE_DRIVE_FOLDER_ID: getEnvVar('GOOGLE_DRIVE_FOLDER_ID'),
+  // Google APIs (Drive, Calendar) - optional for now
+  GOOGLE_OAUTH_CLIENT_ID: getEnvVar('GOOGLE_OAUTH_CLIENT_ID', ''),
+  GOOGLE_OAUTH_CLIENT_SECRET: getEnvVar('GOOGLE_OAUTH_CLIENT_SECRET', ''),
+  GOOGLE_DRIVE_FOLDER_ID: getEnvVar('GOOGLE_DRIVE_FOLDER_ID', ''),
 
-  // Facebook
-  FACEBOOK_APP_ID: getEnvVar('FACEBOOK_APP_ID'),
-  FACEBOOK_APP_SECRET: getEnvVar('FACEBOOK_APP_SECRET'),
-  FACEBOOK_PAGE_ID: getEnvVar('FACEBOOK_PAGE_ID'),
-  FACEBOOK_PAGE_ACCESS_TOKEN: getEnvVar('FACEBOOK_PAGE_ACCESS_TOKEN'),
+  // Facebook (optional - will configure later)
+  FACEBOOK_APP_ID: getEnvVar('FACEBOOK_APP_ID', ''),
+  FACEBOOK_APP_SECRET: getEnvVar('FACEBOOK_APP_SECRET', ''),
+  FACEBOOK_PAGE_ID: getEnvVar('FACEBOOK_PAGE_ID', ''),
+  FACEBOOK_PAGE_ACCESS_TOKEN: getEnvVar('FACEBOOK_PAGE_ACCESS_TOKEN', ''),
 
   // Frontend
   FRONTEND_URL: getEnvVar('FRONTEND_URL'),
