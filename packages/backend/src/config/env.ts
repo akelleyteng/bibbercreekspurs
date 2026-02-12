@@ -52,11 +52,10 @@ interface EnvConfig {
 }
 
 export function getEnvVar(key: string, defaultValue?: string): string {
-  const value = process.env[key] || defaultValue;
-  if (!value && !defaultValue) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-  return value!;
+  const value = process.env[key];
+  if (value !== undefined) return value;
+  if (defaultValue !== undefined) return defaultValue;
+  throw new Error(`Missing required environment variable: ${key}`);
 }
 
 export const env: EnvConfig = {

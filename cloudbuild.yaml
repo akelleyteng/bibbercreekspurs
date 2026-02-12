@@ -1,0 +1,22 @@
+steps:
+  # Build the Docker image from packages/backend
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/hclub-backend'
+      - '-f'
+      - 'packages/backend/Dockerfile'
+      - '.'
+    timeout: 1200s
+
+  # Push the image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/hclub-backend'
+
+images:
+  - 'gcr.io/$PROJECT_ID/hclub-backend'
+
+timeout: 1200s
