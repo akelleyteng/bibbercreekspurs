@@ -1,4 +1,4 @@
-import { EventStatus, RegistrationStatus, Visibility } from '../enums/visibility.enum';
+import { RegistrationStatus, Visibility } from '../enums/visibility.enum';
 
 export interface Event {
   id: string;

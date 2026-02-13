@@ -1,7 +1,8 @@
+import { format } from 'date-fns';
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+
 import { mockEvents } from '../data/mockData';
-import { format } from 'date-fns';
 
 export default function EventDetailPage() {
   const { id } = useParams();

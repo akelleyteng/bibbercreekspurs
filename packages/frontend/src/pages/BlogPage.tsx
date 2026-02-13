@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
-import { mockBlogPosts } from '../data/mockData';
 import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
+
+import { mockBlogPosts } from '../data/mockData';
 
 export default function BlogPage() {
   return (

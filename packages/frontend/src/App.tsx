@@ -1,20 +1,21 @@
 import { Routes, Route } from 'react-router-dom';
-import PublicLayout from './layouts/PublicLayout';
+
 import MemberLayout from './layouts/MemberLayout';
+import PublicLayout from './layouts/PublicLayout';
+import AdminPage from './pages/AdminPage';
+import BlogDetailPage from './pages/BlogDetailPage';
+import BlogPage from './pages/BlogPage';
+import CalendarPage from './pages/CalendarPage';
+import DashboardPage from './pages/DashboardPage';
+import DriveFilesPage from './pages/DriveFilesPage';
+import EventDetailPage from './pages/EventDetailPage';
+import EventsPage from './pages/EventsPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import SocialFeedPage from './pages/SocialFeedPage';
-import EventsPage from './pages/EventsPage';
-import EventDetailPage from './pages/EventDetailPage';
-import BlogPage from './pages/BlogPage';
-import BlogDetailPage from './pages/BlogDetailPage';
 import MembersPage from './pages/MembersPage';
 import OfficersPage from './pages/OfficersPage';
-import CalendarPage from './pages/CalendarPage';
-import DriveFilesPage from './pages/DriveFilesPage';
-import AdminPage from './pages/AdminPage';
+import RegisterPage from './pages/RegisterPage';
+import SocialFeedPage from './pages/SocialFeedPage';
 
 function App() {
   return (

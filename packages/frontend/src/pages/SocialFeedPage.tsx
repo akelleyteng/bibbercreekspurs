@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { mockPosts, mockCurrentUser } from '../data/mockData';
 import { ReactionType } from '@4hclub/shared';
 import { formatDistanceToNow } from 'date-fns';
+import { useState } from 'react';
+
+import { mockPosts, mockCurrentUser } from '../data/mockData';
 
 export default function SocialFeedPage() {
   const [posts, setPosts] = useState(mockPosts);

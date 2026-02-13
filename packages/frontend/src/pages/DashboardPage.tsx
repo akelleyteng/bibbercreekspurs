@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+
 import { mockEvents, mockPosts } from '../data/mockData';
 
 export default function DashboardPage() {

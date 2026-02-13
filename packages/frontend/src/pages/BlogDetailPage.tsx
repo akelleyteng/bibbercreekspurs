@@ -1,6 +1,7 @@
-import { useParams, Link } from 'react-router-dom';
-import { mockBlogPosts } from '../data/mockData';
 import { format } from 'date-fns';
+import { useParams, Link } from 'react-router-dom';
+
+import { mockBlogPosts } from '../data/mockData';
 
 export default function BlogDetailPage() {
   const { slug } = useParams();

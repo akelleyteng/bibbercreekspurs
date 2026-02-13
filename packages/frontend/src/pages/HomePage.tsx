@@ -1,4 +1,6 @@
+import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
+
 import {
   mockEvents,
   mockBlogPosts,
@@ -6,7 +8,6 @@ import {
   mockTestimonials,
   mockHomeContent,
 } from '../data/mockData';
-import { format } from 'date-fns';
 
 export default function HomePage() {
   const upcomingEvents = mockEvents.filter((e) => e.visibility === 'PUBLIC').slice(0, 3);

@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
-import { mockEvents } from '../data/mockData';
 import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
+
+import { mockEvents } from '../data/mockData';
 
 export default function EventsPage() {
   const upcomingEvents = mockEvents;

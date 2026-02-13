@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { mockEvents } from '../data/mockData';
 import {
   format,
   startOfMonth,
@@ -13,7 +11,10 @@ import {
   isSameDay,
   isToday,
 } from 'date-fns';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+
+import { mockEvents } from '../data/mockData';
 
 type ViewType = 'month' | 'week' | 'day';
 

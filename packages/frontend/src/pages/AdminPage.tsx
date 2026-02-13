@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { mockHomeContent, mockSponsors, mockTestimonials, mockEvents } from '../data/mockData';
 import { format } from 'date-fns';
+import { useState } from 'react';
+
 import EventModal from '../components/EventModal';
 import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
+import { mockHomeContent, mockSponsors, mockTestimonials, mockEvents } from '../data/mockData';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'home' | 'events' | 'sponsors' | 'testimonials'>('home');
