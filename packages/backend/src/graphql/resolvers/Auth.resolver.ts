@@ -52,8 +52,8 @@ export class AuthResolver {
       // Set refresh token in httpOnly cookie
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       });
@@ -95,6 +95,7 @@ export class AuthResolver {
   async login(
     @Arg('email') email: string,
     @Arg('password') password: string,
+    @Arg('rememberMe', { nullable: true, defaultValue: false }) rememberMe: boolean,
     @Ctx() { res }: Context
   ): Promise<AuthPayload> {
     try {
@@ -116,16 +117,20 @@ export class AuthResolver {
         });
       }
 
-      // Generate tokens
+      // Generate tokens (30-day refresh token if rememberMe, otherwise 7-day)
       const accessToken = generateAccessToken(userWithPassword.id, userWithPassword.email);
-      const refreshToken = generateRefreshToken(userWithPassword.id);
+      const refreshToken = generateRefreshToken(userWithPassword.id, rememberMe);
+
+      const cookieMaxAge = rememberMe
+        ? 30 * 24 * 60 * 60 * 1000 // 30 days
+        : 7 * 24 * 60 * 60 * 1000; // 7 days
 
       // Set refresh token in httpOnly cookie
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        secure: true,
+        sameSite: 'none',
+        maxAge: cookieMaxAge,
         path: '/',
       });
 
@@ -262,8 +267,8 @@ export class AuthResolver {
     // Clear refresh token cookie
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/',
     });
 

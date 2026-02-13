@@ -1,12 +1,20 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // If already authenticated, redirect to dashboard
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,10 +27,11 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           query: `
-            mutation Login($email: String!, $password: String!) {
-              login(email: $email, password: $password) {
+            mutation Login($email: String!, $password: String!, $rememberMe: Boolean) {
+              login(email: $email, password: $password, rememberMe: $rememberMe) {
                 accessToken
                 user {
                   id
@@ -38,6 +47,7 @@ export default function LoginPage() {
           variables: {
             email,
             password,
+            rememberMe,
           },
         }),
       });
@@ -59,10 +69,11 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(user));
 
         // Check if password reset is required
+        // Use window.location to trigger full reload so AuthProvider picks up the new session
         if (user.passwordResetRequired) {
-          navigate('/change-password');
+          window.location.href = '/change-password';
         } else {
-          navigate('/dashboard');
+          window.location.href = '/dashboard';
         }
       }
     } catch (err) {
@@ -139,6 +150,8 @@ export default function LoginPage() {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">

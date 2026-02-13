@@ -1,11 +1,12 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 
-import { mockCurrentUser } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 
 // Member layout with user menu dropdown (Profile/Help/Logout)
 export default function MemberLayout() {
   const location = useLocation();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -28,8 +29,25 @@ export default function MemberLayout() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Show loading spinner while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
   // For admins, use admin routes for Events and Blog to keep sidebar
-  const isAdmin = mockCurrentUser.role === 'ADMIN';
+  const isAdmin = user.role === 'ADMIN';
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
@@ -62,7 +80,7 @@ export default function MemberLayout() {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-700" aria-label="Current user">
-                {mockCurrentUser.firstName} {mockCurrentUser.lastName}
+                {user.firstName} {user.lastName}
               </span>
 
               {/* User Menu Dropdown */}
@@ -74,8 +92,8 @@ export default function MemberLayout() {
                   aria-expanded={isUserMenuOpen}
                   aria-haspopup="true"
                 >
-                  {mockCurrentUser.firstName[0]}
-                  {mockCurrentUser.lastName[0]}
+                  {user.firstName[0]}
+                  {user.lastName[0]}
                 </button>
 
                 {/* Dropdown Menu */}
@@ -99,14 +117,16 @@ export default function MemberLayout() {
                         ❓ Help
                       </Link>
                       <hr className="my-1 border-gray-200" />
-                      <Link
-                        to="/login"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      <button
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         role="menuitem"
-                        onClick={() => setIsUserMenuOpen(false)}
+                        onClick={async () => {
+                          setIsUserMenuOpen(false);
+                          await logout();
+                        }}
                       >
                         🚪 Log Out
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -137,7 +157,7 @@ export default function MemberLayout() {
             ))}
 
             {/* Admin Section */}
-            {mockCurrentUser.role === 'ADMIN' && (
+            {user.role === 'ADMIN' && (
               <>
                 <div className="pt-6 pb-2" role="separator">
                   <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">

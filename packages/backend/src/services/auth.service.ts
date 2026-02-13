@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 const SALT_ROUNDS = 10;
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
+const REMEMBER_ME_TOKEN_EXPIRY = '30d';
 
 interface TokenPayload {
   userId: string;
@@ -41,9 +42,10 @@ export function generateAccessToken(userId: string, email: string): string {
 /**
  * Generate a JWT refresh token for obtaining new access tokens
  * @param userId - User's unique identifier
- * @returns JWT refresh token (expires in 7 days)
+ * @param rememberMe - If true, token expires in 30 days; otherwise 7 days
+ * @returns JWT refresh token
  */
-export function generateRefreshToken(userId: string): string {
+export function generateRefreshToken(userId: string, rememberMe: boolean = false): string {
   const secret = getEnvVar('JWT_REFRESH_SECRET');
 
   const payload: TokenPayload = {
@@ -52,10 +54,10 @@ export function generateRefreshToken(userId: string): string {
   };
 
   const token = jwt.sign(payload, secret, {
-    expiresIn: REFRESH_TOKEN_EXPIRY,
+    expiresIn: rememberMe ? REMEMBER_ME_TOKEN_EXPIRY : REFRESH_TOKEN_EXPIRY,
   });
 
-  logger.debug(`Refresh token generated for user: ${userId}`);
+  logger.debug(`Refresh token generated for user: ${userId} (rememberMe: ${rememberMe})`);
   return token;
 }
 
