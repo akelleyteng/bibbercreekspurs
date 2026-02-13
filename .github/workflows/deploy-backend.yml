@@ -76,7 +76,7 @@ jobs:
             --service-account hclub-backend-sa@bibbercreekspurs-4h.iam.gserviceaccount.com \
             --add-cloudsql-instances bibbercreekspurs-4h:us-central1:hclub-db \
             --set-env-vars "NODE_ENV=production,FRONTEND_URL=https://bibbercreekspurs4h.org" \
-            --set-secrets "DATABASE_URL=database-url:latest,JWT_ACCESS_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest" \
+            --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest" \
             --memory 512Mi \
             --cpu 1 \
             --timeout 300 \
