@@ -9,8 +9,8 @@ COPY package*.json ./
 COPY packages/backend/package*.json ./packages/backend/
 COPY packages/shared/package*.json ./packages/shared/
 
-# Install dependencies (use legacy-peer-deps for GraphQL v15 compatibility)
-RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared --legacy-peer-deps
+# Install dependencies
+RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared
 
 # Copy root tsconfig (needed by shared package)
 COPY tsconfig.json ./tsconfig.json
@@ -36,7 +36,7 @@ COPY packages/backend/package*.json ./packages/backend/
 COPY packages/shared/package*.json ./packages/shared/
 
 # Install production dependencies only
-RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared --omit=dev --legacy-peer-deps
+RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared --omit=dev
 
 # Copy built shared package from builder
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -52,7 +52,7 @@ COPY packages/backend/tsconfig.json ./packages/backend/
 
 # Install ts-node locally for running TypeScript in production
 WORKDIR /app/packages/backend
-RUN npm install ts-node typescript --save --legacy-peer-deps
+RUN npm install ts-node typescript --save
 
 # Expose port (Cloud Run sets PORT env variable dynamically)
 EXPOSE 8080
