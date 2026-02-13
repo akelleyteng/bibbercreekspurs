@@ -56,10 +56,16 @@ export class AuthPayload {
 
   @Field()
   accessToken!: string;
+
+  @Field({ nullable: true })
+  refreshToken?: string;
 }
 
 @ObjectType()
 export class RefreshTokenPayload {
   @Field()
   accessToken!: string;
+
+  @Field(() => User)
+  user!: User;
 }

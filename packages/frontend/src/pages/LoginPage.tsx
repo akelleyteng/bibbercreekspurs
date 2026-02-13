@@ -33,6 +33,7 @@ export default function LoginPage() {
             mutation Login($email: String!, $password: String!, $rememberMe: Boolean) {
               login(email: $email, password: $password, rememberMe: $rememberMe) {
                 accessToken
+                refreshToken
                 user {
                   id
                   email
@@ -62,11 +63,16 @@ export default function LoginPage() {
       }
 
       if (result.data?.login) {
-        const { accessToken, user } = result.data.login;
+        const { accessToken, refreshToken, user } = result.data.login;
 
         // Store token and user info
         localStorage.setItem('token', accessToken);
         localStorage.setItem('user', JSON.stringify(user));
+
+        // Store refresh token in localStorage for auto-login on return visits
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        }
 
         // Check if password reset is required
         // Use window.location to trigger full reload so AuthProvider picks up the new session

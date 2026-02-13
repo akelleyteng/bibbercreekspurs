@@ -41,7 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        credentials: 'include',
         body: JSON.stringify({
           query: `
             query Me {
@@ -68,28 +67,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const tryRefreshToken = useCallback(async (): Promise<string | null> => {
+  const tryRefreshToken = useCallback(async (): Promise<{ accessToken: string; user: User } | null> => {
+    // Get the stored refresh token from localStorage (set when "Remember Me" was checked)
+    const storedRefreshToken = localStorage.getItem('refreshToken');
+    if (!storedRefreshToken) {
+      return null;
+    }
+
     try {
       const response = await fetch(GRAPHQL_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           query: `
-            mutation RefreshToken {
-              refreshToken {
+            mutation RefreshToken($token: String) {
+              refreshToken(token: $token) {
                 accessToken
+                user {
+                  id
+                  email
+                  firstName
+                  lastName
+                  role
+                  passwordResetRequired
+                }
               }
             }
           `,
+          variables: {
+            token: storedRefreshToken,
+          },
         }),
       });
 
       const result = await response.json();
-      if (result.data?.refreshToken?.accessToken) {
-        return result.data.refreshToken.accessToken;
+      if (result.data?.refreshToken) {
+        return result.data.refreshToken;
       }
       return null;
     } catch {
@@ -100,12 +115,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // On mount: try to restore the session
   useEffect(() => {
     async function initAuth() {
-      // First, check if we have a token in localStorage
+      // First, check if we have an access token in localStorage
       const existingToken = localStorage.getItem('token');
       const existingUser = localStorage.getItem('user');
 
       if (existingToken && existingUser) {
-        // Try to use the existing token to fetch the user
+        // Try to use the existing access token to fetch the user
         const userData = await fetchCurrentUser(existingToken);
         if (userData) {
           setUser(userData);
@@ -115,22 +130,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Token is expired or missing — try refreshing via the httpOnly cookie
-      const newToken = await tryRefreshToken();
-      if (newToken) {
-        localStorage.setItem('token', newToken);
-        const userData = await fetchCurrentUser(newToken);
-        if (userData) {
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-          setIsLoading(false);
-          return;
-        }
+      // Access token is expired or missing — try refreshing via stored refresh token
+      const refreshResult = await tryRefreshToken();
+      if (refreshResult) {
+        localStorage.setItem('token', refreshResult.accessToken);
+        localStorage.setItem('user', JSON.stringify(refreshResult.user));
+        setUser(refreshResult.user);
+        setIsLoading(false);
+        return;
       }
 
       // No valid session — clear stale data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('refreshToken');
       setUser(null);
       setIsLoading(false);
     }
@@ -145,7 +158,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           query: `mutation Logout { logout }`,
         }),
@@ -156,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('refreshToken');
     setUser(null);
   }, []);
 

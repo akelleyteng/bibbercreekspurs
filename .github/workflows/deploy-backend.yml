@@ -41,6 +41,7 @@ jobs:
             --config=cloudbuild.yaml \
             --project=bibbercreekspurs-4h \
             --timeout=20m \
+            --suppress-logs \
             .
 
       - name: Deploy to Cloud Run

@@ -156,6 +156,9 @@ export class AuthResolver {
           updatedAt: user.updated_at,
         },
         accessToken,
+        // Return refresh token in response body when rememberMe is checked
+        // so the frontend can store it in localStorage (avoids cross-origin cookie issues)
+        refreshToken: rememberMe ? refreshToken : undefined,
       };
     } catch (error: any) {
       if (error instanceof GraphQLError) {
@@ -221,8 +224,12 @@ export class AuthResolver {
   }
 
   @Mutation(() => RefreshTokenPayload)
-  async refreshToken(@Ctx() { req }: Context): Promise<RefreshTokenPayload> {
-    const refreshToken = req.cookies?.refreshToken;
+  async refreshToken(
+    @Arg('token', { nullable: true }) token: string,
+    @Ctx() { req }: Context
+  ): Promise<RefreshTokenPayload> {
+    // Accept refresh token from argument (localStorage) or cookie
+    const refreshToken = token || req.cookies?.refreshToken;
 
     if (!refreshToken) {
       throw new GraphQLError('No refresh token provided', undefined, undefined, undefined, undefined, undefined, {
@@ -250,6 +257,21 @@ export class AuthResolver {
 
       return {
         accessToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role,
+          phone: user.phone,
+          address: user.address,
+          emergencyContact: user.emergency_contact,
+          emergencyPhone: user.emergency_phone,
+          profilePhotoUrl: user.profile_photo_url,
+          passwordResetRequired: user.password_reset_required || false,
+          createdAt: user.created_at,
+          updatedAt: user.updated_at,
+        },
       };
     } catch (error: any) {
       if (error instanceof GraphQLError) {
