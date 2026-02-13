@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // GitHub Pages SPA redirect hack
+      // Store the path and redirect to index.html
+      sessionStorage.setItem('redirect', window.location.pathname + window.location.search);
+      window.location.replace('/');
+    </script>
+  </head>
+  <body>
+    Redirecting...
+  </body>
+</html>
