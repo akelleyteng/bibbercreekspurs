@@ -36,7 +36,7 @@ COPY packages/backend/package*.json ./packages/backend/
 COPY packages/shared/package*.json ./packages/shared/
 
 # Install production dependencies only
-RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared --omit=dev
+RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared --omit=dev --legacy-peer-deps
 
 # Copy built shared package from builder
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
