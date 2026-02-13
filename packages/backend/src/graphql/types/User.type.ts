@@ -1,4 +1,5 @@
 import { ObjectType, Field, ID, registerEnumType } from 'type-graphql';
+import { DateTimeISOResolver } from 'graphql-scalars';
 import { Role } from '@4hclub/shared';
 
 // Register the Role enum with TypeGraphQL
@@ -42,10 +43,10 @@ export class User {
   @Field()
   passwordResetRequired!: boolean;
 
-  @Field()
+  @Field(() => DateTimeISOResolver)
   createdAt!: Date;
 
-  @Field()
+  @Field(() => DateTimeISOResolver)
   updatedAt!: Date;
 }
 
