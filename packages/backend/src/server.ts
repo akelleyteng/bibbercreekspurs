@@ -156,9 +156,9 @@ export async function startServer(): Promise<http.Server> {
   const PORT = parseInt(getEnvVar('PORT', '4000'), 10);
 
   return new Promise((resolve) => {
-    const server = httpServer.listen(PORT, () => {
-      logger.info(`🚀 Server ready at http://localhost:${PORT}`);
-      logger.info(`📊 GraphQL endpoint: http://localhost:${PORT}/graphql`);
+    const server = httpServer.listen(PORT, '0.0.0.0', () => {
+      logger.info(`🚀 Server ready at http://0.0.0.0:${PORT}`);
+      logger.info(`📊 GraphQL endpoint: http://0.0.0.0:${PORT}/graphql`);
       resolve(server);
     });
   });
