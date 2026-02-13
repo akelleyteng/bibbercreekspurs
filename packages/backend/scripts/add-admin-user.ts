@@ -1,10 +1,8 @@
-import { Database } from '../src/models/database';
-import { hashPassword } from '../src/utils/auth';
+import db from '../src/models/database';
+import { hashPassword } from '../src/services/auth.service';
 import { logger } from '../src/utils/logger';
 
 async function addAdminUser() {
-  const db = new Database();
-
   try {
     const email = 'akelleyteng@gmail.com';
     const password = 'sneakers27';
