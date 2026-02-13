@@ -10,7 +10,6 @@
     "rootDir": "./src",
     "baseUrl": "./src",
     "paths": {
-      "@4hclub/shared": ["../../shared/dist"],
       "@/*": ["./*"]
     },
     "types": ["vite/client", "jest", "@testing-library/jest-dom"],

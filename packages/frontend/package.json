@@ -14,6 +14,7 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
+    "@4hclub/shared": "*",
     "@apollo/client": "^3.8.0",
     "@headlessui/react": "^1.7.0",
     "@heroicons/react": "^2.0.0",
