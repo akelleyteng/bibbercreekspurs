@@ -5,14 +5,23 @@ import { mockCurrentUser } from '../data/mockData';
 export default function MemberLayout() {
   const location = useLocation();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    // Exact match
+    if (location.pathname === path) return true;
+    // Also check if we're on a detail page (e.g., /admin/events/123 matches /admin/events)
+    if (location.pathname.startsWith(path + '/')) return true;
+    return false;
+  };
+
+  // For admins, use admin routes for Events and Blog to keep sidebar
+  const isAdmin = mockCurrentUser.role === 'ADMIN';
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
     { name: 'Social Feed', href: '/feed', icon: '💬' },
-    { name: 'Events', href: '/events', icon: '📅' },
+    { name: 'Events', href: isAdmin ? '/admin/events' : '/events', icon: '📅' },
     { name: 'Calendar', href: '/calendar', icon: '🗓️' },
-    { name: 'Blog', href: '/blog', icon: '📝' },
+    { name: 'Blog', href: isAdmin ? '/admin/blog' : '/blog', icon: '📝' },
     { name: 'Members', href: '/members', icon: '👥' },
     { name: 'Officers', href: '/officers', icon: '⭐' },
     { name: 'Files', href: '/files', icon: '📁' },
