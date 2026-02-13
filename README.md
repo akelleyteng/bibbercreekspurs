@@ -172,20 +172,7 @@ See [API Documentation](./docs/api.md) for complete endpoint reference.
 
 ## Deployment
 
-### AWS Infrastructure
-
-The application is deployed on AWS with the following services:
-
-- **ECS**: Container orchestration for backend
-- **RDS**: PostgreSQL database with Multi-AZ
-- **ElastiCache**: Redis for session storage
-- **S3**: Static asset hosting and file uploads
-- **CloudFront**: CDN for frontend
-- **SES**: Email delivery
-- **Route 53**: DNS management
-
 ### CI/CD Pipeline
-
 GitHub Actions automatically:
 1. Runs tests on all pull requests
 2. Builds and deploys to staging on merge to `develop`
@@ -208,10 +195,37 @@ GitHub Actions automatically:
 3. Ensure all tests pass and code is formatted
 4. Submit pull request for review
 
+
+## Code Standards
+- TypeScript strict mode
+- TDD: write tests before implementation
+- Use Pressable (not TouchableOpacity) for touch targets
+- Minimum 44px touch targets for accessibility
+- Always include accessibilityLabel and accessibilityRole
+- Use SafeAreaView from react-native-safe-area-context
+- Use FlashList from @shopify/flash-list for all lists
+- Use expo-secure-store for token storage (never AsyncStorage for secrets)
+
+## Color Theme
+- Primary (Iron Blue): #003366
+- Action (Safety Orange): #D95319
+- Success (Teal): #008080
+- Error (Brick Red): #A80000
+- Warning (Amber): #CC7A00
+- Text Primary: #121212
+- Text Secondary: #4A5568
+- Background: #FFFFFF
+
+## Environment Variables
+- `EXPO_PUBLIC_API_URL` — Backend API URL
+- Set via `.env.local` (dev) or `.env.production` (prod)
+
+## Testing Guidelines
+- Use @testing-library/react-native
+- Mock external modules in jest.setup.ts
+- Test user interactions, not implementation details
+- Run tests before committing
+
 ## License
 
 Private - Bibber Creek Spurs 4-H Club
-
-## Support
-
-For questions or issues, contact the development team or create an issue in the repository.
