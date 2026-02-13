@@ -293,6 +293,12 @@ export class AuthResolver {
       // Verify access token
       const payload = verifyAccessToken(token);
 
+      if (!payload.email) {
+        throw new GraphQLError('Invalid token: missing email', undefined, undefined, undefined, undefined, undefined, {
+          extensions: { code: 'INVALID_TOKEN' },
+        });
+      }
+
       // Fetch user with password
       const user = await this.userRepository.findByEmail(payload.email);
 
