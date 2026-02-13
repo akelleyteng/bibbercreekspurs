@@ -52,7 +52,7 @@ COPY packages/backend/tsconfig.json ./packages/backend/
 
 # Install ts-node locally for running TypeScript in production
 WORKDIR /app/packages/backend
-RUN npm install ts-node typescript --save
+RUN npm install ts-node typescript --save --legacy-peer-deps
 
 # Expose port (Cloud Run sets PORT env variable dynamically)
 EXPOSE 8080
