@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 
+import { useAuth } from '../context/AuthContext';
 import {
   mockEvents,
   mockBlogPosts,
@@ -10,6 +11,12 @@ import {
 } from '../data/mockData';
 
 export default function HomePage() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // If user has a valid session (e.g. Remember Me cookie), send them straight to the dashboard
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
   const upcomingEvents = mockEvents.filter((e) => e.visibility === 'PUBLIC').slice(0, 3);
   const recentPosts = mockBlogPosts.filter((p) => p.visibility === 'PUBLIC').slice(0, 3);
 
