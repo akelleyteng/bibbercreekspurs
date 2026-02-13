@@ -30,6 +30,7 @@
     "glob": "^13.0.3",
     "googleapis": "^126.0.0",
     "graphql": "^16.9.0",
+    "graphql-scalars": "^1.25.0",
     "graphql-tag": "^2.12.0",
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.0",

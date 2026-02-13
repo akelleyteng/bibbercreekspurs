@@ -10,6 +10,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import { buildSchema } from 'type-graphql';
+import { DateTimeISOResolver } from 'graphql-scalars';
 import db from './models/database';
 import { logger } from './utils/logger';
 import { getEnvVar } from './config/env';
@@ -74,6 +75,7 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
   if (includeGraphQL) {
     const schema = await buildSchema({
       resolvers: [AuthResolver],
+      scalarsMap: [{ type: Date, scalar: DateTimeISOResolver }],
       validate: true, // Enable class-validator validation
     });
 
@@ -117,6 +119,7 @@ export async function startServer(): Promise<http.Server> {
   // Build GraphQL schema
   const schema = await buildSchema({
     resolvers: [AuthResolver],
+    scalarsMap: [{ type: Date, scalar: DateTimeISOResolver }],
     validate: true, // Enable class-validator validation
   });
 
