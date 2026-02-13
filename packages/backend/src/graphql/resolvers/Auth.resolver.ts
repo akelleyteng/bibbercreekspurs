@@ -72,6 +72,7 @@ export class AuthResolver {
           emergencyContact: user.emergency_contact,
           emergencyPhone: user.emergency_phone,
           profilePhotoUrl: user.profile_photo_url,
+          passwordResetRequired: user.password_reset_required || false,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
         },
@@ -145,6 +146,7 @@ export class AuthResolver {
           emergencyContact: user.emergency_contact,
           emergencyPhone: user.emergency_phone,
           profilePhotoUrl: user.profile_photo_url,
+          passwordResetRequired: user.password_reset_required || false,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
         },
@@ -198,6 +200,7 @@ export class AuthResolver {
         emergencyContact: user.emergency_contact,
         emergencyPhone: user.emergency_phone,
         profilePhotoUrl: user.profile_photo_url,
+        passwordResetRequired: user.password_reset_required || false,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       };
@@ -267,5 +270,64 @@ export class AuthResolver {
     logger.info('User logged out');
 
     return true;
+  }
+
+  @Mutation(() => Boolean)
+  async changePassword(
+    @Arg('currentPassword') currentPassword: string,
+    @Arg('newPassword') newPassword: string,
+    @Ctx() context: Context
+  ): Promise<boolean> {
+    // Extract token from Authorization header
+    const authHeader = context.req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new GraphQLError('Not authenticated', undefined, undefined, undefined, undefined, undefined, {
+        extensions: { code: 'UNAUTHENTICATED' },
+      });
+    }
+
+    const token = authHeader.substring(7);
+
+    try {
+      // Verify access token
+      const payload = verifyAccessToken(token);
+
+      // Fetch user with password
+      const user = await this.userRepository.findByEmail(payload.email);
+
+      if (!user) {
+        throw new GraphQLError('User not found', undefined, undefined, undefined, undefined, undefined, {
+          extensions: { code: 'USER_NOT_FOUND' },
+        });
+      }
+
+      // Verify current password
+      const isValidPassword = await comparePassword(currentPassword, user.password_hash);
+
+      if (!isValidPassword) {
+        throw new GraphQLError('Current password is incorrect', undefined, undefined, undefined, undefined, undefined, {
+          extensions: { code: 'INVALID_PASSWORD' },
+        });
+      }
+
+      // Hash new password
+      const newPasswordHash = await hashPassword(newPassword);
+
+      // Update password and clear reset flag
+      await this.userRepository.updatePassword(user.id, newPasswordHash);
+
+      logger.info(`Password changed for user: ${user.email}`);
+
+      return true;
+    } catch (error: any) {
+      if (error instanceof GraphQLError) {
+        throw error;
+      }
+      logger.error('Change password error:', error);
+      throw new GraphQLError('Failed to change password', undefined, undefined, undefined, undefined, undefined, {
+        extensions: { code: 'PASSWORD_CHANGE_FAILED' },
+      });
+    }
   }
 }

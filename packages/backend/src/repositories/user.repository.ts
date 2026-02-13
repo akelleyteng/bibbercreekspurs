@@ -13,6 +13,7 @@ export interface User {
   emergency_contact?: string;
   emergency_phone?: string;
   profile_photo_url?: string;
+  password_reset_required?: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -59,7 +60,7 @@ export class UserRepository {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, email, first_name, last_name, role, phone, address,
                   emergency_contact, emergency_phone, profile_photo_url,
-                  created_at, updated_at`,
+                  password_reset_required, created_at, updated_at`,
         [
           data.email,
           data.password_hash,
@@ -100,7 +101,7 @@ export class UserRepository {
       const result = await db.query<UserWithPassword>(
         `SELECT id, email, password_hash, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, created_at, updated_at
+                profile_photo_url, password_reset_required, created_at, updated_at
          FROM users
          WHERE email = $1`,
         [email]
@@ -127,7 +128,7 @@ export class UserRepository {
       const result = await db.query<User>(
         `SELECT id, email, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, created_at, updated_at
+                profile_photo_url, password_reset_required, created_at, updated_at
          FROM users
          WHERE id = $1`,
         [id]
@@ -192,7 +193,7 @@ export class UserRepository {
          WHERE id = $${paramIndex}
          RETURNING id, email, first_name, last_name, role,
                    phone, address, emergency_contact, emergency_phone,
-                   profile_photo_url, created_at, updated_at`,
+                   profile_photo_url, password_reset_required, created_at, updated_at`,
         values
       );
 
@@ -238,7 +239,7 @@ export class UserRepository {
       const result = await db.query<User>(
         `SELECT id, email, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, created_at, updated_at
+                profile_photo_url, password_reset_required, created_at, updated_at
          FROM users
          ORDER BY created_at DESC`
       );
@@ -246,6 +247,35 @@ export class UserRepository {
       return result.rows;
     } catch (error) {
       logger.error('Error finding all users:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update user password and clear password reset flag
+   * @param id User ID
+   * @param passwordHash New hashed password
+   * @returns True if updated, false if user not found
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<boolean> {
+    try {
+      const result = await db.query(
+        `UPDATE users
+         SET password_hash = $1,
+             password_reset_required = false,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [passwordHash, id]
+      );
+
+      const updated = (result.rowCount ?? 0) > 0;
+      if (updated) {
+        logger.info(`Password updated for user ID: ${id}`);
+      }
+
+      return updated;
+    } catch (error) {
+      logger.error('Error updating password:', error);
       throw error;
     }
   }

@@ -40,6 +40,9 @@ export class User {
   profilePhotoUrl?: string;
 
   @Field()
+  passwordResetRequired!: boolean;
+
+  @Field()
   createdAt!: Date;
 
   @Field()
