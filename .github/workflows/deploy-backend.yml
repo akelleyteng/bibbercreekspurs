@@ -37,12 +37,34 @@ jobs:
 
       - name: Build with Cloud Build
         run: |
-          gcloud builds submit \
+          # Submit build asynchronously to avoid log-streaming permission errors
+          BUILD_OUTPUT=$(gcloud builds submit \
             --config=cloudbuild.yaml \
             --project=bibbercreekspurs-4h \
             --timeout=20m \
-            --suppress-logs \
-            .
+            --async \
+            --format='value(id)' \
+            .)
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | tail -1)
+          echo "Build ID: $BUILD_ID"
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+
+          # Poll until build completes
+          echo "Waiting for build to complete..."
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project=bibbercreekspurs-4h \
+              --format='value(status)' 2>/dev/null || echo "UNKNOWN")
+            echo "Build status: $STATUS"
+            if [ "$STATUS" = "SUCCESS" ]; then
+              echo "Build completed successfully!"
+              break
+            elif [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "INTERNAL_ERROR" ] || [ "$STATUS" = "TIMEOUT" ] || [ "$STATUS" = "CANCELLED" ]; then
+              echo "Build failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 15
+          done
 
       - name: Deploy to Cloud Run
         run: |
