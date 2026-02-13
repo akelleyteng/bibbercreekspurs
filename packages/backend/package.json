@@ -17,7 +17,7 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
-    "@apollo/server": "4.7.0",
+    "@apollo/server": "4.10.10",
     "@google-cloud/storage": "^7.0.0",
     "bcrypt": "^6.0.0",
     "class-validator": "^0.14.0",
