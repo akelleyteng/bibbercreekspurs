@@ -6,6 +6,7 @@ import AdminPage from './pages/AdminPage';
 import BlogDetailPage from './pages/BlogDetailPage';
 import BlogPage from './pages/BlogPage';
 import CalendarPage from './pages/CalendarPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import DriveFilesPage from './pages/DriveFilesPage';
 import EventDetailPage from './pages/EventDetailPage';
@@ -25,6 +26,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:slug" element={<BlogDetailPage />} />
         <Route path="/events" element={<EventsPage />} />
