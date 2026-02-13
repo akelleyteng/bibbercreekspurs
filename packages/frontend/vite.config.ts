@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@4hclub/shared': path.resolve(__dirname, '../shared/src'),
+      '@4hclub/shared': path.resolve(__dirname, '../shared/dist'),
     },
   },
   server: {
