@@ -21,10 +21,10 @@ async function addAdminUser() {
 
     // Create new admin user
     const result = await db.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, email_verified)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO users (email, password_hash, first_name, last_name, role, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, role`,
-      [email, hashedPassword, 'Amanda', 'Kelley-Teng', 'ADMIN', true, true]
+      [email, hashedPassword, 'Amanda', 'Kelley-Teng', 'ADMIN', true]
     );
 
     logger.info('Admin user created successfully:', result.rows[0]);
