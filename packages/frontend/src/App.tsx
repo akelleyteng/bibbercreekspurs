@@ -11,10 +11,12 @@ import DashboardPage from './pages/DashboardPage';
 import DriveFilesPage from './pages/DriveFilesPage';
 import EventDetailPage from './pages/EventDetailPage';
 import EventsPage from './pages/EventsPage';
+import HelpPage from './pages/HelpPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import MembersPage from './pages/MembersPage';
 import OfficersPage from './pages/OfficersPage';
+import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import SocialFeedPage from './pages/SocialFeedPage';
 
@@ -41,6 +43,8 @@ function App() {
         <Route path="/officers" element={<OfficersPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/files" element={<DriveFilesPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="/admin" element={<AdminPage />} />
         {/* Admin content management - keeps sidebar */}
         <Route path="/admin/events" element={<EventsPage />} />

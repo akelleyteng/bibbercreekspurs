@@ -1,9 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
 
 import { mockCurrentUser } from '../data/mockData';
 
 export default function MemberLayout() {
   const location = useLocation();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const isActive = (path: string) => {
     // Exact match
@@ -12,6 +15,17 @@ export default function MemberLayout() {
     if (location.pathname.startsWith(path + '/')) return true;
     return false;
   };
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // For admins, use admin routes for Events and Blog to keep sidebar
   const isAdmin = mockCurrentUser.role === 'ADMIN';
@@ -49,17 +63,53 @@ export default function MemberLayout() {
               <span className="text-sm text-gray-700" aria-label="Current user">
                 {mockCurrentUser.firstName} {mockCurrentUser.lastName}
               </span>
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold"
-                aria-label={`${mockCurrentUser.firstName} ${mockCurrentUser.lastName} avatar`}
-                role="img"
-              >
-                {mockCurrentUser.firstName[0]}
-                {mockCurrentUser.lastName[0]}
+
+              {/* User Menu Dropdown */}
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  aria-label="User menu"
+                  aria-expanded={isUserMenuOpen}
+                  aria-haspopup="true"
+                >
+                  {mockCurrentUser.firstName[0]}
+                  {mockCurrentUser.lastName[0]}
+                </button>
+
+                {/* Dropdown Menu */}
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                    <div className="py-1" role="menu" aria-orientation="vertical">
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        role="menuitem"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        👤 Profile
+                      </Link>
+                      <Link
+                        to="/help"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        role="menuitem"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        ❓ Help
+                      </Link>
+                      <hr className="my-1 border-gray-200" />
+                      <Link
+                        to="/login"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        role="menuitem"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        🚪 Log Out
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </div>
-              <Link to="/login" className="text-sm text-gray-600 hover:text-gray-900" aria-label="Logout">
-                Logout
-              </Link>
             </div>
           </div>
         </div>
