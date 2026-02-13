@@ -87,11 +87,11 @@ async function importUsers() {
           continue;
         }
 
-        // Create user with MEMBER role
+        // Create user with MEMBER role and require password reset
         await db.query(
-          `INSERT INTO users (email, password_hash, first_name, last_name, role, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [user.email, hashedPassword, user.firstName, user.lastName, 'MEMBER', true]
+          `INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, password_reset_required)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [user.email, hashedPassword, user.firstName, user.lastName, 'MEMBER', true, true]
         );
 
         console.log(`✅ Imported: ${user.firstName} ${user.lastName} (${user.email})`);
