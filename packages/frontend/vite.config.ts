@@ -11,6 +11,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Pre-bundle the shared workspace package so Vite converts its CJS output to ESM
+  optimizeDeps: {
+    include: ['@4hclub/shared'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/shared/, /node_modules/],
+    },
+  },
   server: {
     port: 3000,
     open: true,
