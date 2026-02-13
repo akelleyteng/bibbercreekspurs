@@ -9,8 +9,8 @@ COPY package*.json ./
 COPY packages/backend/package*.json ./packages/backend/
 COPY packages/shared/package*.json ./packages/shared/
 
-# Install dependencies
-RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared
+# Install dependencies (use legacy-peer-deps for GraphQL v15 compatibility)
+RUN npm ci --workspace=@4hclub/backend --workspace=@4hclub/shared --legacy-peer-deps
 
 # Copy root tsconfig (needed by shared package)
 COPY tsconfig.json ./tsconfig.json
