@@ -11,12 +11,12 @@ import DashboardPage from './pages/DashboardPage';
 import DriveFilesPage from './pages/DriveFilesPage';
 import EventDetailPage from './pages/EventDetailPage';
 import EventsPage from './pages/EventsPage';
-import HelpPage from './pages/HelpPage';
+import HelpPage from './pages/HelpPage'; // Member help page
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import MembersPage from './pages/MembersPage';
 import OfficersPage from './pages/OfficersPage';
-import ProfilePage from './pages/ProfilePage';
+import ProfilePage from './pages/ProfilePage'; // Member profile page
 import RegisterPage from './pages/RegisterPage';
 import SocialFeedPage from './pages/SocialFeedPage';
 

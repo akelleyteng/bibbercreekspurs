@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+// Help page - FAQs and contact form
 export default function HelpPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [contactForm, setContactForm] = useState({

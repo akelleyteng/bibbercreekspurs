@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 
 import { mockCurrentUser } from '../data/mockData';
 
+// Member layout with user menu dropdown (Profile/Help/Logout)
 export default function MemberLayout() {
   const location = useLocation();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { mockCurrentUser } from '../data/mockData';
 
+// Profile page - member account management and password reset
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
