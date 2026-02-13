@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Visibility } from '../types';
+import { Visibility } from '@4hclub/shared';
 
 interface EventFormData {
   title: string;

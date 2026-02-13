@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { mockPosts, mockCurrentUser } from '../data/mockData';
-import { ReactionType } from '../types';
+import { ReactionType } from '@4hclub/shared';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function SocialFeedPage() {

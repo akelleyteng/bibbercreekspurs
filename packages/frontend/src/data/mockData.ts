@@ -1,4 +1,4 @@
-import { Role, Visibility, ReactionType } from '../types';
+import { Role, Visibility, ReactionType } from '@4hclub/shared';
 
 // Mock Users
 export const mockUsers = [
