@@ -12,13 +12,13 @@ class Database {
       connectionString: process.env.DATABASE_URL,
       max: 20, // Maximum number of clients in the pool
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000, // Increased for Cloud SQL
     });
 
     // Handle pool errors
     this.pool.on('error', (err) => {
       logger.error('Unexpected error on idle client', err);
-      process.exit(-1);
+      // Don't exit - let the application handle the error gracefully
     });
   }
 
