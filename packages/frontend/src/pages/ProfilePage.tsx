@@ -64,7 +64,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-4xl" data-page="profile" data-version="1.0">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">My Profile</h1>
 
       {/* Success/Error Message */}

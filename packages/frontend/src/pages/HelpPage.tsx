@@ -101,7 +101,7 @@ export default function HelpPage() {
   };
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-4xl" data-page="help" data-version="1.0">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Help & Support</h1>
       <p className="text-gray-600 mb-8">
         Find answers to common questions or contact us for assistance
