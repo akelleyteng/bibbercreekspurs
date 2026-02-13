@@ -40,6 +40,11 @@ function App() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/files" element={<DriveFilesPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        {/* Admin content management - keeps sidebar */}
+        <Route path="/admin/events" element={<EventsPage />} />
+        <Route path="/admin/events/:id" element={<EventDetailPage />} />
+        <Route path="/admin/blog" element={<BlogPage />} />
+        <Route path="/admin/blog/:slug" element={<BlogDetailPage />} />
       </Route>
     </Routes>
   );
