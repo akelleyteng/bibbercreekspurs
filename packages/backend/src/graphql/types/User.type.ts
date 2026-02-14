@@ -3,7 +3,7 @@ import { GraphQLScalarType, Kind } from 'graphql';
 import { Role } from '@4hclub/shared';
 
 // Custom DateTime scalar that serializes Date objects to ISO strings
-const DateTimeScalar = new GraphQLScalarType({
+export const DateTimeScalar = new GraphQLScalarType({
   name: 'DateTime',
   description: 'DateTime custom scalar type (ISO 8601)',
   serialize(value: unknown): string {

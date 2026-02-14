@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
@@ -6,12 +7,37 @@ import {
   mockEvents,
   mockBlogPosts,
   mockSponsors,
-  mockTestimonials,
   mockHomeContent,
 } from '../data/mockData';
 
+interface TestimonialData {
+  id: string;
+  authorName: string;
+  authorRole?: string;
+  content: string;
+  imageUrl?: string;
+}
+
 export default function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+
+  useEffect(() => {
+    fetch(import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `query { testimonials(activeOnly: true) { id authorName authorRole content imageUrl } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.testimonials) {
+          setTestimonials(result.data.testimonials);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // If user has a valid session (e.g. Remember Me cookie), send them straight to the dashboard
   if (!isLoading && isAuthenticated) {
@@ -233,34 +259,40 @@ export default function HomePage() {
       </div>
 
       {/* Testimonials */}
-      <div className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-              What People Are Saying
-            </h2>
-          </div>
+      {testimonials.length > 0 && (
+        <div className="py-16 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+                What People Are Saying
+              </h2>
+            </div>
 
-          <div className="mt-12 grid gap-8 md:grid-cols-2">
-            {mockTestimonials.map((testimonial) => (
-              <div key={testimonial.id} className="card">
-                <div className="flex items-center mb-4">
-                  <img
-                    src={testimonial.imageUrl!}
-                    alt={testimonial.authorName}
-                    className="w-12 h-12 rounded-full mr-4"
-                  />
-                  <div>
-                    <p className="font-bold text-gray-900">{testimonial.authorName}</p>
-                    <p className="text-sm text-gray-500">{testimonial.authorRole}</p>
+            <div className="mt-12 grid gap-8 md:grid-cols-2">
+              {testimonials.map((testimonial) => (
+                <div key={testimonial.id} className="card">
+                  <div className="flex items-center mb-4">
+                    {testimonial.imageUrl && (
+                      <img
+                        src={testimonial.imageUrl}
+                        alt={testimonial.authorName}
+                        className="w-12 h-12 rounded-full mr-4"
+                      />
+                    )}
+                    <div>
+                      <p className="font-bold text-gray-900">{testimonial.authorName}</p>
+                      {testimonial.authorRole && (
+                        <p className="text-sm text-gray-500">{testimonial.authorRole}</p>
+                      )}
+                    </div>
                   </div>
+                  <p className="text-gray-700 italic">"{testimonial.content}"</p>
                 </div>
-                <p className="text-gray-700 italic">"{testimonial.content}"</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Sponsors */}
       <div className="py-16 bg-gray-50">

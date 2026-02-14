@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TestimonialFormData {
   authorName: string;
@@ -22,6 +22,17 @@ export default function TestimonialModal({ isOpen, onClose, onSave, initialData,
     content: initialData?.content || '',
     imageUrl: initialData?.imageUrl || '',
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        authorName: initialData?.authorName || '',
+        authorRole: initialData?.authorRole || '',
+        content: initialData?.content || '',
+        imageUrl: initialData?.imageUrl || '',
+      });
+    }
+  }, [isOpen, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

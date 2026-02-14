@@ -1,10 +1,19 @@
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import EventModal from '../components/EventModal';
 import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
-import { mockHomeContent, mockSponsors, mockTestimonials, mockEvents } from '../data/mockData';
+import { mockHomeContent, mockSponsors, mockEvents } from '../data/mockData';
+
+interface TestimonialData {
+  id: string;
+  authorName: string;
+  authorRole?: string;
+  content: string;
+  imageUrl?: string;
+  isActive: boolean;
+}
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'home' | 'events' | 'sponsors' | 'testimonials'>('home');
@@ -14,6 +23,31 @@ export default function AdminPage() {
   const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
   const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
   const [editingTestimonialId, setEditingTestimonialId] = useState<string | null>(null);
+  const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+
+  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+  const fetchTestimonials = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { testimonials(activeOnly: false) { id authorName authorRole content imageUrl isActive } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.testimonials) {
+      setTestimonials(result.data.testimonials);
+    }
+  }, [graphqlUrl]);
+
+  useEffect(() => {
+    fetchTestimonials();
+  }, [fetchTestimonials]);
 
   const handleCreateEvent = (data: any) => {
     console.log('Creating event:', data);
@@ -72,31 +106,80 @@ export default function AdminPage() {
   };
 
   // Testimonial handlers
-  const handleCreateTestimonial = (data: any) => {
-    console.log('Creating testimonial:', data);
-    alert('Testimonial added! (This is a prototype - no backend yet)');
-  };
-
   const handleEditTestimonial = (testimonialId: string) => {
     setEditingTestimonialId(testimonialId);
     setIsTestimonialModalOpen(true);
   };
 
-  const handleSaveTestimonial = (data: any) => {
+  const handleSaveTestimonial = async (data: any) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
     if (editingTestimonialId) {
-      console.log('Updating testimonial:', editingTestimonialId, data);
-      alert('Testimonial updated! (This is a prototype - no backend yet)');
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation UpdateTestimonial($id: String!, $input: UpdateTestimonialInput!) {
+            updateTestimonial(id: $id, input: $input) { id }
+          }`,
+          variables: {
+            id: editingTestimonialId,
+            input: {
+              authorName: data.authorName,
+              authorRole: data.authorRole || null,
+              content: data.content,
+              imageUrl: data.imageUrl || null,
+            },
+          },
+        }),
+      });
     } else {
-      handleCreateTestimonial(data);
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation CreateTestimonial($input: CreateTestimonialInput!) {
+            createTestimonial(input: $input) { id }
+          }`,
+          variables: {
+            input: {
+              authorName: data.authorName,
+              authorRole: data.authorRole || null,
+              content: data.content,
+              imageUrl: data.imageUrl || null,
+            },
+          },
+        }),
+      });
     }
+
     setEditingTestimonialId(null);
+    fetchTestimonials();
   };
 
-  const handleDeleteTestimonial = (testimonialId: string) => {
-    if (confirm('Are you sure you want to delete this testimonial?')) {
-      console.log('Deleting testimonial:', testimonialId);
-      alert('Testimonial deleted! (This is a prototype - no backend yet)');
-    }
+  const handleDeleteTestimonial = async (testimonialId: string) => {
+    if (!confirm('Are you sure you want to delete this testimonial?')) return;
+
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation DeleteTestimonial($id: String!) {
+          deleteTestimonial(id: $id)
+        }`,
+        variables: { id: testimonialId },
+      }),
+    });
+
+    fetchTestimonials();
   };
 
   return (
@@ -364,6 +447,7 @@ export default function AdminPage() {
         }}
         onSave={handleSaveTestimonial}
         mode={editingTestimonialId ? 'edit' : 'create'}
+        initialData={editingTestimonialId ? testimonials.find((t) => t.id === editingTestimonialId) : undefined}
       />
 
       {/* Sponsors */}
@@ -412,40 +496,55 @@ export default function AdminPage() {
               + Add Testimonial
             </button>
           </div>
-          <div className="space-y-4">
-            {mockTestimonials.map((testimonial) => (
-              <div key={testimonial.id} className="card">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start">
-                    <img
-                      src={testimonial.imageUrl!}
-                      alt={testimonial.authorName}
-                      className="w-12 h-12 rounded-full mr-4"
-                    />
-                    <div>
-                      <p className="font-semibold">{testimonial.authorName}</p>
-                      <p className="text-sm text-gray-500">{testimonial.authorRole}</p>
-                      <p className="text-gray-700 mt-2 italic">"{testimonial.content}"</p>
+          {testimonials.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No testimonials yet. Add one above.</p>
+          ) : (
+            <div className="space-y-4">
+              {testimonials.map((testimonial) => (
+                <div key={testimonial.id} className={`card ${!testimonial.isActive ? 'opacity-60' : ''}`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start">
+                      {testimonial.imageUrl && (
+                        <img
+                          src={testimonial.imageUrl}
+                          alt={testimonial.authorName}
+                          className="w-12 h-12 rounded-full mr-4"
+                        />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{testimonial.authorName}</p>
+                          {!testimonial.isActive && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Hidden
+                            </span>
+                          )}
+                        </div>
+                        {testimonial.authorRole && (
+                          <p className="text-sm text-gray-500">{testimonial.authorRole}</p>
+                        )}
+                        <p className="text-gray-700 mt-2 italic">"{testimonial.content}"</p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditTestimonial(testimonial.id)}
+                        className="btn-secondary text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTestimonial(testimonial.id)}
+                        className="btn-secondary text-sm text-red-600"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEditTestimonial(testimonial.id)}
-                      className="btn-secondary text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTestimonial(testimonial.id)}
-                      className="btn-secondary text-sm text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
