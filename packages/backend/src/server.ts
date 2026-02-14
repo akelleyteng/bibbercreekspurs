@@ -60,12 +60,29 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
         timestamp: new Date().toISOString(),
         database: dbHealth ? 'connected' : 'disconnected',
       });
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Health check failed:', error);
       res.status(503).json({
         status: 'error',
         timestamp: new Date().toISOString(),
         database: 'disconnected',
+        dbError: error?.message || String(error),
+      });
+    }
+  });
+
+  // Temporary diagnostic endpoint for database debugging
+  app.get('/debug/db', async (req: Request, res: Response) => {
+    try {
+      const result = await db.query('SELECT 1 as ok');
+      res.json({ status: 'connected', result: result.rows });
+    } catch (error: any) {
+      res.json({
+        status: 'error',
+        message: error?.message,
+        code: error?.code,
+        hasDbUrl: !!process.env.DATABASE_URL,
+        dbUrlPrefix: process.env.DATABASE_URL?.substring(0, 15) + '...',
       });
     }
   });

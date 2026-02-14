@@ -28,8 +28,17 @@ export const logger = winston.createLogger({
   ],
 });
 
-// If we're not in production, also log to the console
-if (process.env.NODE_ENV !== 'production') {
+// Always log to console (required for Cloud Run / Cloud Logging)
+if (process.env.NODE_ENV === 'production') {
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      ),
+    })
+  );
+} else {
   logger.add(
     new winston.transports.Console({
       format: winston.format.combine(
