@@ -8,12 +8,32 @@ class Database {
   private pool: Pool;
 
   private constructor() {
-    this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000, // Increased for Cloud SQL
-    });
+    const dbUrl = process.env.DATABASE_URL || '';
+
+    // Cloud SQL socket URLs (postgresql://user:pass@/dbname?host=/cloudsql/...)
+    // have no hostname, which breaks Node.js URL parsing. Parse manually.
+    const socketMatch = dbUrl.match(
+      /^postgresql:\/\/([^:]+):([^@]+)@\/([^?]+)\?host=(.+)$/
+    );
+
+    const poolConfig = socketMatch
+      ? {
+          user: socketMatch[1],
+          password: socketMatch[2],
+          database: socketMatch[3],
+          host: socketMatch[4],
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+        }
+      : {
+          connectionString: dbUrl,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+        };
+
+    this.pool = new Pool(poolConfig);
 
     // Handle pool errors
     this.pool.on('error', (err) => {
