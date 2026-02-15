@@ -4,7 +4,6 @@ import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import {
-  mockBlogPosts,
   mockSponsors,
   mockHomeContent,
 } from '../data/mockData';
@@ -27,10 +26,25 @@ interface TestimonialData {
   imageUrl?: string;
 }
 
+interface HomeBlogPostData {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  featuredImageUrl?: string;
+  publishedAt?: string;
+  author: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
 export default function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<HomeEventData[]>([]);
+  const [recentPosts, setRecentPosts] = useState<HomeBlogPostData[]>([]);
 
   useEffect(() => {
     const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
@@ -64,14 +78,27 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
+
+    fetch(graphqlUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `query { blogPosts(publicOnly: true) { id title slug excerpt featuredImageUrl publishedAt author { id firstName lastName } } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.blogPosts) {
+          setRecentPosts(result.data.blogPosts.slice(0, 3));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // If user has a valid session (e.g. Remember Me cookie), send them straight to the dashboard
   if (!isLoading && isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
-  const recentPosts = mockBlogPosts.filter((p) => p.visibility === 'PUBLIC').slice(0, 3);
-
   return (
     <div className="bg-white">
       {/* Hero Section */}
@@ -244,47 +271,55 @@ export default function HomePage() {
       )}
 
       {/* Blog Posts */}
-      <div className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Latest Stories</h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
-              Read about our members' experiences and achievements
-            </p>
-          </div>
+      {recentPosts.length > 0 && (
+        <div className="py-16 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Latest Stories</h2>
+              <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+                Read about our members' experiences and achievements
+              </p>
+            </div>
 
-          <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {recentPosts.map((post) => (
-              <Link key={post.id} to={`/blog/${post.slug}`} className="group">
-                <div className="relative h-48 bg-gray-300 rounded-lg overflow-hidden">
-                  <img
-                    src={post.featuredImageUrl}
-                    alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center text-sm text-gray-500 mb-2">
-                    <span>{post.author.firstName} {post.author.lastName}</span>
-                    <span className="mx-2">•</span>
-                    <span>{format(post.publishedAt!, 'MMM d, yyyy')}</span>
+            <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {recentPosts.map((post) => (
+                <Link key={post.id} to={`/blog/${post.slug}`} className="group">
+                  {post.featuredImageUrl && (
+                    <div className="relative h-48 bg-gray-300 rounded-lg overflow-hidden">
+                      <img
+                        src={post.featuredImageUrl}
+                        alt={post.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <div className="flex items-center text-sm text-gray-500 mb-2">
+                      <span>{post.author.firstName} {post.author.lastName}</span>
+                      {post.publishedAt && (
+                        <>
+                          <span className="mx-2">&bull;</span>
+                          <span>{format(new Date(post.publishedAt), 'MMM d, yyyy')}</span>
+                        </>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
+                      {post.title}
+                    </h3>
+                    {post.excerpt && <p className="mt-2 text-gray-600">{post.excerpt}</p>}
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
-                    {post.title}
-                  </h3>
-                  <p className="mt-2 text-gray-600">{post.excerpt}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
 
-          <div className="mt-10 text-center">
-            <Link to="/blog" className="btn-primary">
-              Read More Stories
-            </Link>
+            <div className="mt-10 text-center">
+              <Link to="/blog" className="btn-primary">
+                Read More Stories
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Testimonials */}
       {testimonials.length > 0 && (

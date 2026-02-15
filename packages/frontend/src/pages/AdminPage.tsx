@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { useState, useEffect, useCallback } from 'react';
 
+import BlogPostModal from '../components/BlogPostModal';
 import EventModal from '../components/EventModal';
 import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
@@ -30,16 +31,35 @@ interface TestimonialData {
   isActive: boolean;
 }
 
+interface BlogPostData {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt?: string;
+  visibility: string;
+  featuredImageUrl?: string;
+  publishedAt?: string;
+  author: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'events' | 'sponsors' | 'testimonials'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'events' | 'blog' | 'sponsors' | 'testimonials'>('home');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
+  const [editingBlogPostId, setEditingBlogPostId] = useState<string | null>(null);
   const [isSponsorModalOpen, setIsSponsorModalOpen] = useState(false);
   const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
   const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
   const [editingTestimonialId, setEditingTestimonialId] = useState<string | null>(null);
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
+  const [blogPosts, setBlogPosts] = useState<BlogPostData[]>([]);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -79,10 +99,29 @@ export default function AdminPage() {
     }
   }, [graphqlUrl]);
 
+  const fetchBlogPosts = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { blogPosts(publicOnly: false) { id title slug content excerpt visibility featuredImageUrl publishedAt author { id firstName lastName } } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.blogPosts) {
+      setBlogPosts(result.data.blogPosts);
+    }
+  }, [graphqlUrl]);
+
   useEffect(() => {
     fetchTestimonials();
     fetchEvents();
-  }, [fetchTestimonials, fetchEvents]);
+    fetchBlogPosts();
+  }, [fetchTestimonials, fetchEvents, fetchBlogPosts]);
 
   const handleEditEvent = (eventId: string) => {
     setEditingEventId(eventId);
@@ -278,6 +317,87 @@ export default function AdminPage() {
     fetchTestimonials();
   };
 
+  // Blog handlers
+  const handleEditBlogPost = (postId: string) => {
+    setEditingBlogPostId(postId);
+    setIsBlogModalOpen(true);
+  };
+
+  const handleSaveBlogPost = async (data: any) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    if (editingBlogPostId) {
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation UpdateBlogPost($id: String!, $input: UpdateBlogPostInput!) {
+            updateBlogPost(id: $id, input: $input) { id }
+          }`,
+          variables: {
+            id: editingBlogPostId,
+            input: {
+              title: data.title,
+              content: data.content,
+              excerpt: data.excerpt || null,
+              visibility: data.visibility,
+              featuredImageUrl: data.featuredImageUrl || null,
+              publishedAt: data.publishedAt || null,
+            },
+          },
+        }),
+      });
+    } else {
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation CreateBlogPost($input: CreateBlogPostInput!) {
+            createBlogPost(input: $input) { id }
+          }`,
+          variables: {
+            input: {
+              title: data.title,
+              content: data.content,
+              excerpt: data.excerpt || null,
+              visibility: data.visibility,
+              featuredImageUrl: data.featuredImageUrl || null,
+              publishedAt: data.publishedAt || null,
+            },
+          },
+        }),
+      });
+    }
+
+    setEditingBlogPostId(null);
+    fetchBlogPosts();
+  };
+
+  const handleDeleteBlogPost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this blog post?')) return;
+
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation DeleteBlogPost($id: String!) {
+          deleteBlogPost(id: $id)
+        }`,
+        variables: { id: postId },
+      }),
+    });
+
+    fetchBlogPosts();
+  };
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Panel</h1>
@@ -285,7 +405,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-8">
         <nav className="-mb-px flex space-x-8">
-          {['home', 'events', 'sponsors', 'testimonials'].map((tab) => (
+          {['home', 'events', 'blog', 'sponsors', 'testimonials'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -516,6 +636,75 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Blog */}
+      {activeTab === 'blog' && (
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold">Manage Blog Posts</h3>
+            <button onClick={() => setIsBlogModalOpen(true)} className="btn-primary">
+              + New Post
+            </button>
+          </div>
+          {blogPosts.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No blog posts yet. Create one above.</p>
+          ) : (
+            <div className="space-y-4">
+              {blogPosts.map((post) => (
+                <div key={post.id} className="card">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="font-semibold text-lg">{post.title}</h4>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          post.publishedAt
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {post.publishedAt ? 'Published' : 'Draft'}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          post.visibility === 'PUBLIC'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {post.visibility === 'PUBLIC' ? 'Public' : 'Members'}
+                        </span>
+                      </div>
+                      {post.excerpt && (
+                        <p className="text-sm text-gray-600 mb-2">{post.excerpt}</p>
+                      )}
+                      <div className="text-sm text-gray-500">
+                        <span>By {post.author.firstName} {post.author.lastName}</span>
+                        {post.publishedAt && (
+                          <span className="ml-4">
+                            Published {format(new Date(post.publishedAt), 'MMM d, yyyy')}
+                          </span>
+                        )}
+                        <span className="ml-4">Slug: /{post.slug}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col space-y-2 ml-4">
+                      <button
+                        onClick={() => handleEditBlogPost(post.id)}
+                        className="btn-secondary text-sm whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBlogPost(post.id)}
+                        className="btn-secondary text-sm text-red-600 whitespace-nowrap"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Event Modal */}
       <EventModal
         isOpen={isEventModalOpen}
@@ -567,6 +756,29 @@ export default function AdminPage() {
         onSave={handleSaveTestimonial}
         mode={editingTestimonialId ? 'edit' : 'create'}
         initialData={editingTestimonialId ? testimonials.find((t) => t.id === editingTestimonialId) : undefined}
+      />
+
+      {/* Blog Post Modal */}
+      <BlogPostModal
+        isOpen={isBlogModalOpen}
+        onClose={() => {
+          setIsBlogModalOpen(false);
+          setEditingBlogPostId(null);
+        }}
+        onSave={handleSaveBlogPost}
+        mode={editingBlogPostId ? 'edit' : 'create'}
+        initialData={editingBlogPostId ? (() => {
+          const bp = blogPosts.find((p) => p.id === editingBlogPostId);
+          if (!bp) return undefined;
+          return {
+            title: bp.title,
+            content: bp.content,
+            excerpt: bp.excerpt || '',
+            visibility: bp.visibility as 'PUBLIC' | 'MEMBER_ONLY',
+            featuredImageUrl: bp.featuredImageUrl || '',
+            publishedAt: bp.publishedAt || '',
+          };
+        })() : undefined}
       />
 
       {/* Sponsors */}
