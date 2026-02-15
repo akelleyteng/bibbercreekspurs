@@ -48,6 +48,9 @@ export class EventGQL {
   @Field({ nullable: true })
   imageUrl?: string;
 
+  @Field({ nullable: true })
+  seriesId?: string;
+
   @Field(() => Int)
   registrationCount!: number;
 

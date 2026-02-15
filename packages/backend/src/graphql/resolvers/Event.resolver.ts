@@ -1,13 +1,14 @@
 import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
 import { EventGQL, EventCreator } from '../types/Event.type';
 import { CreateEventInput, UpdateEventInput } from '../inputs/EventInput';
-import { EventRepository, EventRow } from '../../repositories/event.repository';
+import { EventRepository, EventRow, CreateEventData } from '../../repositories/event.repository';
 import { UserRepository } from '../../repositories/user.repository';
 import { verifyAccessToken } from '../../services/auth.service';
 import { Role } from '@4hclub/shared';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
 import { logger } from '../../utils/logger';
+import crypto from 'crypto';
 
 @Resolver()
 export class EventResolver {
@@ -38,6 +39,7 @@ export class EventResolver {
       eventType: row.event_type,
       externalRegistrationUrl: row.external_registration_url,
       imageUrl: row.image_url,
+      seriesId: row.series_id,
       registrationCount: row.registration_count,
       creator,
       createdAt: row.created_at,
@@ -113,6 +115,72 @@ export class EventResolver {
     return event;
   }
 
+  private static readonly MAX_RECURRENCE_MONTHS = 6;
+  private static readonly MAX_OCCURRENCES = 365;
+  private static readonly DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  private generateOccurrences(
+    startTime: Date,
+    endTime: Date,
+    frequency: string,
+    recurringEndDate: Date,
+    daysOfWeek?: string[]
+  ): Array<{ start: Date; end: Date }> {
+    const duration = endTime.getTime() - startTime.getTime();
+    const occurrences: Array<{ start: Date; end: Date }> = [];
+
+    if (frequency === 'weekly') {
+      const targetDays = daysOfWeek?.length
+        ? daysOfWeek.map((d) => EventResolver.DAY_NAMES.indexOf(d)).filter((i) => i >= 0)
+        : [startTime.getDay()];
+
+      // Start from the beginning of the start week
+      const current = new Date(startTime);
+      current.setDate(current.getDate() - current.getDay()); // Go to Sunday of start week
+
+      while (current <= recurringEndDate && occurrences.length < EventResolver.MAX_OCCURRENCES) {
+        for (const dayIndex of targetDays) {
+          const candidate = new Date(current);
+          candidate.setDate(current.getDate() + dayIndex);
+          candidate.setHours(startTime.getHours(), startTime.getMinutes(), startTime.getSeconds(), 0);
+
+          if (candidate >= startTime && candidate <= recurringEndDate && occurrences.length < EventResolver.MAX_OCCURRENCES) {
+            occurrences.push({
+              start: new Date(candidate),
+              end: new Date(candidate.getTime() + duration),
+            });
+          }
+        }
+        // Advance to next week
+        current.setDate(current.getDate() + 7);
+      }
+    } else if (frequency === 'daily') {
+      const current = new Date(startTime);
+      while (current <= recurringEndDate && occurrences.length < EventResolver.MAX_OCCURRENCES) {
+        occurrences.push({
+          start: new Date(current),
+          end: new Date(current.getTime() + duration),
+        });
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (frequency === 'monthly') {
+      const targetDay = startTime.getDate();
+      const current = new Date(startTime);
+      while (current <= recurringEndDate && occurrences.length < EventResolver.MAX_OCCURRENCES) {
+        occurrences.push({
+          start: new Date(current),
+          end: new Date(current.getTime() + duration),
+        });
+        current.setMonth(current.getMonth() + 1);
+        // Clamp day for short months (e.g., Jan 31 → Feb 28)
+        const lastDayOfMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+        current.setDate(Math.min(targetDay, lastDayOfMonth));
+      }
+    }
+
+    return occurrences;
+  }
+
   @Mutation(() => EventGQL)
   async createEvent(
     @Arg('input') input: CreateEventInput,
@@ -120,17 +188,59 @@ export class EventResolver {
   ): Promise<EventGQL> {
     const userId = await this.requireAdmin(context);
 
-    const row = await this.eventRepo.create({
+    const baseData = {
       title: input.title,
       description: input.description,
-      start_time: new Date(input.startTime),
-      end_time: new Date(input.endTime),
       location: input.location,
       visibility: input.visibility,
       event_type: input.eventType,
       external_registration_url: input.externalRegistrationUrl,
       image_url: input.imageUrl,
       created_by: userId,
+    };
+
+    if (input.isRecurring && input.recurringFrequency) {
+      const startTime = new Date(input.startTime);
+      const endTime = new Date(input.endTime);
+
+      let recurringEndDate: Date;
+      if (input.recurringEndDate) {
+        recurringEndDate = new Date(input.recurringEndDate);
+        // Set to end of day so the last day is included
+        recurringEndDate.setHours(23, 59, 59, 999);
+      } else {
+        recurringEndDate = new Date(startTime);
+        recurringEndDate.setMonth(recurringEndDate.getMonth() + EventResolver.MAX_RECURRENCE_MONTHS);
+      }
+
+      const occurrences = this.generateOccurrences(
+        startTime, endTime, input.recurringFrequency, recurringEndDate, input.recurringDaysOfWeek
+      );
+
+      if (occurrences.length === 0) {
+        throw new GraphQLError('No event occurrences could be generated with the given recurrence settings', {
+          extensions: { code: 'BAD_REQUEST' },
+        });
+      }
+
+      const seriesId = crypto.randomUUID();
+      const dataArray: CreateEventData[] = occurrences.map((occ) => ({
+        ...baseData,
+        start_time: occ.start,
+        end_time: occ.end,
+        series_id: seriesId,
+      }));
+
+      const rows = await this.eventRepo.createBatch(dataArray);
+      logger.info(`Created recurring event series ${seriesId} with ${rows.length} occurrences`);
+      return this.mapRow(rows[0]);
+    }
+
+    // Non-recurring: single event
+    const row = await this.eventRepo.create({
+      ...baseData,
+      start_time: new Date(input.startTime),
+      end_time: new Date(input.endTime),
     });
 
     return this.mapRow(row);

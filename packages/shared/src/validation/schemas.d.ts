@@ -7,14 +7,14 @@ export declare const registerSchema: z.ZodObject<{
     firstName: z.ZodString;
     lastName: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    email: string;
     firstName: string;
     lastName: string;
+    email: string;
     password: string;
 }, {
-    email: string;
     firstName: string;
     lastName: string;
+    email: string;
     password: string;
 }>;
 export declare const loginSchema: z.ZodObject<{
@@ -70,38 +70,38 @@ export declare const createEventSchema: z.ZodEffects<z.ZodObject<{
     publishToGoogleCalendar: z.ZodOptional<z.ZodBoolean>;
     publishToFacebook: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
-    title: string;
     description: string;
+    title: string;
+    visibility: Visibility;
     startTime: Date;
     endTime: Date;
-    visibility: Visibility;
     location?: string | undefined;
     publishToGoogleCalendar?: boolean | undefined;
     publishToFacebook?: boolean | undefined;
 }, {
-    title: string;
     description: string;
+    title: string;
+    visibility: Visibility;
     startTime: Date;
     endTime: Date;
-    visibility: Visibility;
     location?: string | undefined;
     publishToGoogleCalendar?: boolean | undefined;
     publishToFacebook?: boolean | undefined;
 }>, {
-    title: string;
     description: string;
+    title: string;
+    visibility: Visibility;
     startTime: Date;
     endTime: Date;
-    visibility: Visibility;
     location?: string | undefined;
     publishToGoogleCalendar?: boolean | undefined;
     publishToFacebook?: boolean | undefined;
 }, {
-    title: string;
     description: string;
+    title: string;
+    visibility: Visibility;
     startTime: Date;
     endTime: Date;
-    visibility: Visibility;
     location?: string | undefined;
     publishToGoogleCalendar?: boolean | undefined;
     publishToFacebook?: boolean | undefined;
@@ -114,19 +114,19 @@ export declare const updateEventSchema: z.ZodObject<{
     location: z.ZodOptional<z.ZodString>;
     visibility: z.ZodOptional<z.ZodNativeEnum<typeof Visibility>>;
 }, "strip", z.ZodTypeAny, {
-    title?: string | undefined;
     description?: string | undefined;
+    title?: string | undefined;
+    visibility?: Visibility | undefined;
+    location?: string | undefined;
     startTime?: Date | undefined;
     endTime?: Date | undefined;
-    location?: string | undefined;
-    visibility?: Visibility | undefined;
 }, {
-    title?: string | undefined;
     description?: string | undefined;
+    title?: string | undefined;
+    visibility?: Visibility | undefined;
+    location?: string | undefined;
     startTime?: Date | undefined;
     endTime?: Date | undefined;
-    location?: string | undefined;
-    visibility?: Visibility | undefined;
 }>;
 export declare const createBlogPostSchema: z.ZodObject<{
     title: z.ZodString;
@@ -138,20 +138,20 @@ export declare const createBlogPostSchema: z.ZodObject<{
     publishToFacebook: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     title: string;
-    visibility: Visibility;
     content: string;
-    publishToFacebook?: boolean | undefined;
+    visibility: Visibility;
     excerpt?: string | undefined;
     featuredImageUrl?: string | undefined;
     publishedAt?: Date | undefined;
+    publishToFacebook?: boolean | undefined;
 }, {
     title: string;
-    visibility: Visibility;
     content: string;
-    publishToFacebook?: boolean | undefined;
+    visibility: Visibility;
     excerpt?: string | undefined;
     featuredImageUrl?: string | undefined;
     publishedAt?: Date | undefined;
+    publishToFacebook?: boolean | undefined;
 }>;
 export declare const updateBlogPostSchema: z.ZodObject<{
     title: z.ZodOptional<z.ZodString>;
@@ -162,16 +162,16 @@ export declare const updateBlogPostSchema: z.ZodObject<{
     publishedAt: z.ZodOptional<z.ZodDate>;
 }, "strip", z.ZodTypeAny, {
     title?: string | undefined;
-    visibility?: Visibility | undefined;
     content?: string | undefined;
     excerpt?: string | undefined;
+    visibility?: Visibility | undefined;
     featuredImageUrl?: string | undefined;
     publishedAt?: Date | undefined;
 }, {
     title?: string | undefined;
-    visibility?: Visibility | undefined;
     content?: string | undefined;
     excerpt?: string | undefined;
+    visibility?: Visibility | undefined;
     featuredImageUrl?: string | undefined;
     publishedAt?: Date | undefined;
 }>;
@@ -179,8 +179,8 @@ export declare const createPostSchema: z.ZodObject<{
     content: z.ZodString;
     visibility: z.ZodDefault<z.ZodOptional<z.ZodNativeEnum<typeof Visibility>>>;
 }, "strip", z.ZodTypeAny, {
-    visibility: Visibility;
     content: string;
+    visibility: Visibility;
 }, {
     content: string;
     visibility?: Visibility | undefined;
@@ -189,11 +189,11 @@ export declare const updatePostSchema: z.ZodObject<{
     content: z.ZodOptional<z.ZodString>;
     visibility: z.ZodOptional<z.ZodNativeEnum<typeof Visibility>>;
 }, "strip", z.ZodTypeAny, {
-    visibility?: Visibility | undefined;
     content?: string | undefined;
+    visibility?: Visibility | undefined;
 }, {
-    visibility?: Visibility | undefined;
     content?: string | undefined;
+    visibility?: Visibility | undefined;
 }>;
 export declare const createCommentSchema: z.ZodObject<{
     content: z.ZodString;
@@ -232,14 +232,14 @@ export declare const createSponsorSchema: z.ZodObject<{
     name: string;
     logoUrl: string;
     description?: string | undefined;
-    websiteUrl?: string | undefined;
     orderIndex?: number | undefined;
+    websiteUrl?: string | undefined;
 }, {
     name: string;
     logoUrl: string;
     description?: string | undefined;
-    websiteUrl?: string | undefined;
     orderIndex?: number | undefined;
+    websiteUrl?: string | undefined;
 }>;
 export declare const updateSponsorSchema: z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
@@ -248,17 +248,17 @@ export declare const updateSponsorSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     orderIndex: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
 }, "strip", z.ZodTypeAny, {
-    description?: string | undefined;
     name?: string | undefined;
+    description?: string | undefined;
+    orderIndex?: number | undefined;
     logoUrl?: string | undefined;
     websiteUrl?: string | undefined;
-    orderIndex?: number | undefined;
 }, {
-    description?: string | undefined;
     name?: string | undefined;
+    description?: string | undefined;
+    orderIndex?: number | undefined;
     logoUrl?: string | undefined;
     websiteUrl?: string | undefined;
-    orderIndex?: number | undefined;
 }>;
 export declare const createTestimonialSchema: z.ZodObject<{
     authorName: z.ZodString;
@@ -270,14 +270,14 @@ export declare const createTestimonialSchema: z.ZodObject<{
     content: string;
     authorName: string;
     imageUrl?: string | undefined;
-    orderIndex?: number | undefined;
     authorRole?: string | undefined;
+    orderIndex?: number | undefined;
 }, {
     content: string;
     authorName: string;
     imageUrl?: string | undefined;
-    orderIndex?: number | undefined;
     authorRole?: string | undefined;
+    orderIndex?: number | undefined;
 }>;
 export declare const updateTestimonialSchema: z.ZodObject<{
     authorName: z.ZodOptional<z.ZodString>;
@@ -288,19 +288,19 @@ export declare const updateTestimonialSchema: z.ZodObject<{
 } & {
     isActive: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
-    isActive?: boolean | undefined;
     content?: string | undefined;
     imageUrl?: string | undefined;
-    orderIndex?: number | undefined;
     authorName?: string | undefined;
     authorRole?: string | undefined;
+    orderIndex?: number | undefined;
+    isActive?: boolean | undefined;
 }, {
-    isActive?: boolean | undefined;
     content?: string | undefined;
     imageUrl?: string | undefined;
-    orderIndex?: number | undefined;
     authorName?: string | undefined;
     authorRole?: string | undefined;
+    orderIndex?: number | undefined;
+    isActive?: boolean | undefined;
 }>;
 export declare const changeRoleSchema: z.ZodObject<{
     newRole: z.ZodNativeEnum<typeof Role>;

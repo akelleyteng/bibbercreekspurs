@@ -138,57 +138,74 @@ export default function AdminPage() {
     const startTime = new Date(`${data.startDate}T${data.startTime}`).toISOString();
     const endTime = new Date(`${data.endDate}T${data.endTime}`).toISOString();
 
-    if (editingEventId) {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation UpdateEvent($id: String!, $input: UpdateEventInput!) {
-            updateEvent(id: $id, input: $input) { id }
-          }`,
-          variables: {
-            id: editingEventId,
-            input: {
-              title: data.title,
-              description: data.description,
-              startTime,
-              endTime,
-              location: data.location || null,
-              visibility: data.visibility,
-              eventType: data.eventType,
-              externalRegistrationUrl: data.externalRegistrationUrl || null,
-              imageUrl: data.imageUrl || null,
-            },
-          },
-        }),
-      });
-    } else {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation CreateEvent($input: CreateEventInput!) {
-            createEvent(input: $input) { id }
-          }`,
-          variables: {
-            input: {
-              title: data.title,
-              description: data.description,
-              startTime,
-              endTime,
-              location: data.location || null,
-              visibility: data.visibility,
-              eventType: data.eventType,
-              externalRegistrationUrl: data.externalRegistrationUrl || null,
-              imageUrl: data.imageUrl || null,
-            },
-          },
-        }),
-      });
-    }
+    try {
+      let res: Response;
 
-    setEditingEventId(null);
-    fetchEvents();
+      if (editingEventId) {
+        res = await fetch(graphqlUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            query: `mutation UpdateEvent($id: String!, $input: UpdateEventInput!) {
+              updateEvent(id: $id, input: $input) { id }
+            }`,
+            variables: {
+              id: editingEventId,
+              input: {
+                title: data.title,
+                description: data.description,
+                startTime,
+                endTime,
+                location: data.location || null,
+                visibility: data.visibility,
+                eventType: data.eventType,
+                externalRegistrationUrl: data.externalRegistrationUrl || null,
+                imageUrl: data.imageUrl || null,
+              },
+            },
+          }),
+        });
+      } else {
+        res = await fetch(graphqlUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            query: `mutation CreateEvent($input: CreateEventInput!) {
+              createEvent(input: $input) { id }
+            }`,
+            variables: {
+              input: {
+                title: data.title,
+                description: data.description,
+                startTime,
+                endTime,
+                location: data.location || null,
+                visibility: data.visibility,
+                eventType: data.eventType,
+                externalRegistrationUrl: data.externalRegistrationUrl || null,
+                imageUrl: data.imageUrl || null,
+                isRecurring: data.isRecurring || false,
+                recurringFrequency: data.isRecurring ? data.recurringFrequency : null,
+                recurringEndDate: data.isRecurring && data.recurringEndDate ? data.recurringEndDate : null,
+                recurringDaysOfWeek: data.isRecurring && data.recurringDaysOfWeek?.length ? data.recurringDaysOfWeek : null,
+              },
+            },
+          }),
+        });
+      }
+
+      const result = await res.json();
+      if (result.errors) {
+        alert(`Error saving event: ${result.errors[0]?.message || 'Unknown error'}`);
+        return;
+      }
+
+      setEditingEventId(null);
+      setIsEventModalOpen(false);
+      fetchEvents();
+    } catch (err) {
+      alert('Network error: Could not save event. Please try again.');
+    }
   };
 
   const handleDeleteEvent = async (eventId: string) => {

@@ -7,6 +7,9 @@ export interface Event {
     endTime: Date;
     location?: string;
     visibility: Visibility;
+    eventType: 'internal' | 'external';
+    externalRegistrationUrl?: string;
+    imageUrl?: string;
     googleCalendarId?: string;
     facebookEventId?: string;
     createdBy: string;
@@ -38,6 +41,9 @@ export interface CreateEventRequest {
     endTime: Date;
     location?: string;
     visibility: Visibility;
+    eventType: 'internal' | 'external';
+    externalRegistrationUrl?: string;
+    imageUrl?: string;
     publishToGoogleCalendar?: boolean;
     publishToFacebook?: boolean;
 }
@@ -48,6 +54,9 @@ export interface UpdateEventRequest {
     endTime?: Date;
     location?: string;
     visibility?: Visibility;
+    eventType?: 'internal' | 'external';
+    externalRegistrationUrl?: string;
+    imageUrl?: string;
 }
 export interface RegisterForEventRequest {
     eventId: string;

@@ -15,6 +15,7 @@ export interface EventRow {
   google_calendar_id?: string;
   facebook_event_id?: string;
   created_by: string;
+  series_id?: string;
   created_at: Date;
   updated_at: Date;
   deleted_at?: Date;
@@ -37,6 +38,7 @@ export interface CreateEventData {
   external_registration_url?: string;
   image_url?: string;
   created_by: string;
+  series_id?: string;
 }
 
 export interface UpdateEventData {
@@ -54,7 +56,7 @@ export interface UpdateEventData {
 const BASE_SELECT = `
   SELECT e.id, e.title, e.description, e.start_time, e.end_time, e.location,
          e.visibility, e.event_type, e.external_registration_url, e.image_url,
-         e.created_by, e.created_at, e.updated_at,
+         e.series_id, e.created_by, e.created_at, e.updated_at,
          u.id AS creator_id, u.first_name AS creator_first_name,
          u.last_name AS creator_last_name, u.profile_photo_url AS creator_profile_image_url,
          COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.status = 'REGISTERED'), 0)::int AS registration_count
@@ -97,8 +99,8 @@ export class EventRepository {
 
   async create(data: CreateEventData): Promise<EventRow> {
     const result = await db.query<{ id: string }>(
-      `INSERT INTO events (title, description, start_time, end_time, location, visibility, event_type, external_registration_url, image_url, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO events (title, description, start_time, end_time, location, visibility, event_type, external_registration_url, image_url, created_by, series_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         data.title,
@@ -111,11 +113,48 @@ export class EventRepository {
         data.external_registration_url || null,
         data.image_url || null,
         data.created_by,
+        data.series_id || null,
       ]
     );
     logger.info(`Event created: ${result.rows[0].id}`);
     // Re-fetch with JOINs
     return (await this.findById(result.rows[0].id))!;
+  }
+
+  async createBatch(dataArray: CreateEventData[]): Promise<EventRow[]> {
+    const ids = await db.transaction(async (client) => {
+      const insertedIds: string[] = [];
+      for (const data of dataArray) {
+        const result = await client.query<{ id: string }>(
+          `INSERT INTO events (title, description, start_time, end_time, location, visibility, event_type, external_registration_url, image_url, created_by, series_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           RETURNING id`,
+          [
+            data.title,
+            data.description,
+            data.start_time,
+            data.end_time,
+            data.location || null,
+            data.visibility,
+            data.event_type,
+            data.external_registration_url || null,
+            data.image_url || null,
+            data.created_by,
+            data.series_id || null,
+          ]
+        );
+        insertedIds.push(result.rows[0].id);
+      }
+      return insertedIds;
+    });
+
+    logger.info(`Batch created ${ids.length} events`);
+    const rows: EventRow[] = [];
+    for (const id of ids) {
+      const row = await this.findById(id);
+      if (row) rows.push(row);
+    }
+    return rows;
   }
 
   async update(id: string, data: UpdateEventData): Promise<EventRow | null> {

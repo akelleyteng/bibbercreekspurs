@@ -69,7 +69,7 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
-    onClose();
+    // Don't call onClose() here — parent controls modal closing after success/error
   };
 
   const handleChange = (field: keyof EventFormData, value: any) => {

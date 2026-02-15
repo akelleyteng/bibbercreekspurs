@@ -16,6 +16,7 @@ export interface Event {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  seriesId?: string;
   deletedAt?: Date;
 }
 
@@ -48,6 +49,10 @@ export interface CreateEventRequest {
   eventType: 'internal' | 'external';
   externalRegistrationUrl?: string;
   imageUrl?: string;
+  isRecurring?: boolean;
+  recurringFrequency?: 'daily' | 'weekly' | 'monthly';
+  recurringEndDate?: Date;
+  recurringDaysOfWeek?: string[];
   publishToGoogleCalendar?: boolean;
   publishToFacebook?: boolean;
 }

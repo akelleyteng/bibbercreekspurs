@@ -1,5 +1,5 @@
 import { InputType, Field } from 'type-graphql';
-import { IsString, IsOptional, IsUrl, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsUrl, IsEnum, IsDateString, IsBoolean, IsArray } from 'class-validator';
 
 @InputType()
 export class CreateEventInput {
@@ -41,6 +41,26 @@ export class CreateEventInput {
   @IsOptional()
   @IsUrl({}, { message: 'Invalid image URL format' })
   imageUrl?: string;
+
+  @Field({ nullable: true, defaultValue: false })
+  @IsOptional()
+  @IsBoolean()
+  isRecurring?: boolean;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEnum(['daily', 'weekly', 'monthly'])
+  recurringFrequency?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsDateString()
+  recurringEndDate?: string;
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  recurringDaysOfWeek?: string[];
 }
 
 @InputType()
