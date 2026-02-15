@@ -1,5 +1,5 @@
 import { Visibility } from '@4hclub/shared';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface EventFormData {
   title: string;
@@ -45,6 +45,26 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
     recurringEndDate: initialData?.recurringEndDate || '',
     recurringDaysOfWeek: initialData?.recurringDaysOfWeek || [],
   });
+
+  useEffect(() => {
+    setFormData({
+      title: initialData?.title || '',
+      description: initialData?.description || '',
+      startDate: initialData?.startDate || '',
+      startTime: initialData?.startTime || '',
+      endDate: initialData?.endDate || '',
+      endTime: initialData?.endTime || '',
+      location: initialData?.location || '',
+      eventType: initialData?.eventType || 'internal',
+      visibility: initialData?.visibility || Visibility.PUBLIC,
+      externalRegistrationUrl: initialData?.externalRegistrationUrl || '',
+      imageUrl: initialData?.imageUrl || '',
+      isRecurring: initialData?.isRecurring || false,
+      recurringFrequency: initialData?.recurringFrequency || 'weekly',
+      recurringEndDate: initialData?.recurringEndDate || '',
+      recurringDaysOfWeek: initialData?.recurringDaysOfWeek || [],
+    });
+  }, [isOpen, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

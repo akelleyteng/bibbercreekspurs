@@ -1,15 +1,45 @@
+import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-import { mockEvents, mockPosts } from '../data/mockData';
+import { mockPosts } from '../data/mockData';
+
+interface DashboardEvent {
+  id: string;
+  title: string;
+  startTime: string;
+}
 
 export default function DashboardPage() {
-  const upcomingEvents = mockEvents.slice(0, 3);
+  const [upcomingEvents, setUpcomingEvents] = useState<DashboardEvent[]>([]);
   const recentPosts = mockPosts.slice(0, 2);
+
+  useEffect(() => {
+    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+    const token = localStorage.getItem('token');
+    fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { events { id title startTime } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.events) {
+          setUpcomingEvents(result.data.events.slice(0, 3));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="card">
           <h3 className="text-lg font-semibold mb-2">Upcoming Events</h3>
@@ -29,12 +59,16 @@ export default function DashboardPage() {
         <div className="card">
           <h2 className="text-xl font-bold mb-4">Upcoming Events</h2>
           <div className="space-y-4">
-            {upcomingEvents.map((event) => (
-              <Link key={event.id} to={`/events/${event.id}`} className="block hover:bg-gray-50 p-2 rounded">
-                <p className="font-semibold">{event.title}</p>
-                <p className="text-sm text-gray-500">{event.startTime.toLocaleDateString()}</p>
-              </Link>
-            ))}
+            {upcomingEvents.length === 0 ? (
+              <p className="text-gray-500 text-sm">No upcoming events.</p>
+            ) : (
+              upcomingEvents.map((event) => (
+                <Link key={event.id} to={`/events/${event.id}`} className="block hover:bg-gray-50 p-2 rounded">
+                  <p className="font-semibold">{event.title}</p>
+                  <p className="text-sm text-gray-500">{format(new Date(event.startTime), 'MMM d, yyyy')}</p>
+                </Link>
+              ))
+            )}
           </div>
         </div>
 

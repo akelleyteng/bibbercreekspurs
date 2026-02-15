@@ -11,16 +11,47 @@ import {
   isSameDay,
   isToday,
 } from 'date-fns';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-import { mockEvents } from '../data/mockData';
+interface CalendarEvent {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  location?: string;
+  description: string;
+  eventType: string;
+}
 
 type ViewType = 'month' | 'week' | 'day';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewType>('month');
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+
+  useEffect(() => {
+    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+    const token = localStorage.getItem('token');
+    fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { events { id title startTime endTime location description eventType } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.events) {
+          setEvents(result.data.events);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handlePrevious = () => {
     setCurrentDate(subMonths(currentDate, 1));
@@ -48,8 +79,8 @@ export default function CalendarPage() {
       for (let i = 0; i < 7; i++) {
         const formattedDate = format(day, 'd');
         const cloneDay = day;
-        const dayEvents = mockEvents.filter((event) =>
-          isSameDay(event.startTime, cloneDay)
+        const dayEvents = events.filter((event) =>
+          isSameDay(new Date(event.startTime), cloneDay)
         );
 
         days.push(
@@ -82,7 +113,7 @@ export default function CalendarPage() {
                   }`}
                   title={event.title}
                 >
-                  {format(event.startTime, 'h:mm a')} {event.title}
+                  {format(new Date(event.startTime), 'h:mm a')} {event.title}
                 </Link>
               ))}
             </div>
@@ -106,7 +137,7 @@ export default function CalendarPage() {
 
     for (let i = 0; i < 7; i++) {
       const day = addDays(weekStart, i);
-      const dayEvents = mockEvents.filter((event) => isSameDay(event.startTime, day));
+      const dayEvents = events.filter((event) => isSameDay(new Date(event.startTime), day));
 
       days.push(
         <div key={day.toString()} className="border border-gray-200 p-3 min-h-[300px]">
@@ -131,7 +162,7 @@ export default function CalendarPage() {
                     : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
                 }`}
               >
-                <div className="font-semibold">{format(event.startTime, 'h:mm a')}</div>
+                <div className="font-semibold">{format(new Date(event.startTime), 'h:mm a')}</div>
                 <div className="truncate">{event.title}</div>
               </Link>
             ))}
@@ -144,7 +175,7 @@ export default function CalendarPage() {
   };
 
   const renderDayView = () => {
-    const dayEvents = mockEvents.filter((event) => isSameDay(event.startTime, currentDate));
+    const dayEvents = events.filter((event) => isSameDay(new Date(event.startTime), currentDate));
 
     return (
       <div className="card">
@@ -166,7 +197,7 @@ export default function CalendarPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-primary-600">
-                      {format(event.startTime, 'h:mm a')}
+                      {format(new Date(event.startTime), 'h:mm a')}
                     </span>
                     <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
                       event.eventType === 'internal'

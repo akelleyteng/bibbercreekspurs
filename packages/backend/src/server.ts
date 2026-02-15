@@ -15,6 +15,7 @@ import { logger } from './utils/logger';
 import { getEnvVar } from './config/env';
 import { AuthResolver } from './graphql/resolvers/Auth.resolver';
 import { TestimonialResolver } from './graphql/resolvers/Testimonial.resolver';
+import { EventResolver } from './graphql/resolvers/Event.resolver';
 
 export async function createApp(includeGraphQL: boolean = false): Promise<Express> {
   const app = express();
@@ -76,7 +77,7 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
   // Add GraphQL middleware if requested (for testing)
   if (includeGraphQL) {
     const schema = await buildSchema({
-      resolvers: [AuthResolver, TestimonialResolver],
+      resolvers: [AuthResolver, TestimonialResolver, EventResolver],
       validate: true, // Enable class-validator validation
     });
 
@@ -119,7 +120,7 @@ export async function startServer(): Promise<http.Server> {
 
   // Build GraphQL schema
   const schema = await buildSchema({
-    resolvers: [AuthResolver, TestimonialResolver],
+    resolvers: [AuthResolver, TestimonialResolver, EventResolver],
     validate: true, // Enable class-validator validation
   });
 

@@ -4,7 +4,22 @@ import { useState, useEffect, useCallback } from 'react';
 import EventModal from '../components/EventModal';
 import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
-import { mockHomeContent, mockSponsors, mockEvents } from '../data/mockData';
+import { mockHomeContent, mockSponsors } from '../data/mockData';
+
+interface EventData {
+  id: string;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  location?: string;
+  visibility: string;
+  eventType: string;
+  externalRegistrationUrl?: string;
+  imageUrl?: string;
+  registrationCount: number;
+  creator: { id: string; firstName: string; lastName: string };
+}
 
 interface TestimonialData {
   id: string;
@@ -24,8 +39,27 @@ export default function AdminPage() {
   const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
   const [editingTestimonialId, setEditingTestimonialId] = useState<string | null>(null);
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+  const [events, setEvents] = useState<EventData[]>([]);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+  const fetchEvents = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { events { id title description startTime endTime location visibility eventType externalRegistrationUrl imageUrl registrationCount creator { id firstName lastName } } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.events) {
+      setEvents(result.data.events);
+    }
+  }, [graphqlUrl]);
 
   const fetchTestimonials = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -47,34 +81,96 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchTestimonials();
-  }, [fetchTestimonials]);
-
-  const handleCreateEvent = (data: any) => {
-    console.log('Creating event:', data);
-    // In a real app, this would call an API to create the event
-    alert('Event created! (This is a prototype - no backend yet)');
-  };
+    fetchEvents();
+  }, [fetchTestimonials, fetchEvents]);
 
   const handleEditEvent = (eventId: string) => {
     setEditingEventId(eventId);
     setIsEventModalOpen(true);
   };
 
-  const handleSaveEvent = (data: any) => {
+  const handleSaveEvent = async (data: any) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    const startTime = new Date(`${data.startDate}T${data.startTime}`).toISOString();
+    const endTime = new Date(`${data.endDate}T${data.endTime}`).toISOString();
+
     if (editingEventId) {
-      console.log('Updating event:', editingEventId, data);
-      alert('Event updated! (This is a prototype - no backend yet)');
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation UpdateEvent($id: String!, $input: UpdateEventInput!) {
+            updateEvent(id: $id, input: $input) { id }
+          }`,
+          variables: {
+            id: editingEventId,
+            input: {
+              title: data.title,
+              description: data.description,
+              startTime,
+              endTime,
+              location: data.location || null,
+              visibility: data.visibility,
+              eventType: data.eventType,
+              externalRegistrationUrl: data.externalRegistrationUrl || null,
+              imageUrl: data.imageUrl || null,
+            },
+          },
+        }),
+      });
     } else {
-      handleCreateEvent(data);
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation CreateEvent($input: CreateEventInput!) {
+            createEvent(input: $input) { id }
+          }`,
+          variables: {
+            input: {
+              title: data.title,
+              description: data.description,
+              startTime,
+              endTime,
+              location: data.location || null,
+              visibility: data.visibility,
+              eventType: data.eventType,
+              externalRegistrationUrl: data.externalRegistrationUrl || null,
+              imageUrl: data.imageUrl || null,
+            },
+          },
+        }),
+      });
     }
+
     setEditingEventId(null);
+    fetchEvents();
   };
 
-  const handleDeleteEvent = (eventId: string) => {
-    if (confirm('Are you sure you want to delete this event?')) {
-      console.log('Deleting event:', eventId);
-      alert('Event deleted! (This is a prototype - no backend yet)');
-    }
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm('Are you sure you want to delete this event?')) return;
+
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation DeleteEvent($id: String!) {
+          deleteEvent(id: $id)
+        }`,
+        variables: { id: eventId },
+      }),
+    });
+
+    fetchEvents();
   };
 
   // Sponsor handlers
@@ -344,75 +440,79 @@ export default function AdminPage() {
               + Add Event
             </button>
           </div>
-          <div className="space-y-4">
-            {mockEvents.map((event) => (
-              <div key={event.id} className="card">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="font-semibold text-lg">{event.title}</h4>
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                        event.eventType === 'internal'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-orange-100 text-orange-800'
-                      }`}>
-                        {event.eventType === 'internal' ? '📍 Internal' : '🔗 External'}
-                      </span>
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                        event.visibility === 'PUBLIC'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {event.visibility === 'PUBLIC' ? '🌐 Public' : '🔒 Members'}
-                      </span>
+          {events.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No events yet. Add one above.</p>
+          ) : (
+            <div className="space-y-4">
+              {events.map((event) => (
+                <div key={event.id} className="card">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="font-semibold text-lg">{event.title}</h4>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          event.eventType === 'internal'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {event.eventType === 'internal' ? '📍 Internal' : '🔗 External'}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          event.visibility === 'PUBLIC'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {event.visibility === 'PUBLIC' ? '🌐 Public' : '🔒 Members'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{event.description}</p>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                        <div>
+                          <span className="font-medium">📅 Date:</span> {format(new Date(event.startTime), 'MMM d, yyyy')}
+                        </div>
+                        <div>
+                          <span className="font-medium">⏰ Time:</span> {format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}
+                        </div>
+                        <div>
+                          <span className="font-medium">📍 Location:</span> {event.location}
+                        </div>
+                        <div>
+                          <span className="font-medium">👥 RSVPs:</span> {event.registrationCount}
+                        </div>
+                      </div>
+                      {event.eventType === 'external' && event.externalRegistrationUrl && (
+                        <div className="mt-2 text-sm">
+                          <span className="font-medium">🔗 Registration:</span>{' '}
+                          <a
+                            href={event.externalRegistrationUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:text-primary-700 underline"
+                          >
+                            {event.externalRegistrationUrl}
+                          </a>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{event.description}</p>
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
-                      <div>
-                        <span className="font-medium">📅 Date:</span> {format(event.startTime, 'MMM d, yyyy')}
-                      </div>
-                      <div>
-                        <span className="font-medium">⏰ Time:</span> {format(event.startTime, 'h:mm a')} - {format(event.endTime, 'h:mm a')}
-                      </div>
-                      <div>
-                        <span className="font-medium">📍 Location:</span> {event.location}
-                      </div>
-                      <div>
-                        <span className="font-medium">👥 RSVPs:</span> {event.registrationCount}
-                      </div>
+                    <div className="flex flex-col space-y-2 ml-4">
+                      <button
+                        onClick={() => handleEditEvent(event.id)}
+                        className="btn-secondary text-sm whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEvent(event.id)}
+                        className="btn-secondary text-sm text-red-600 whitespace-nowrap"
+                      >
+                        Delete
+                      </button>
                     </div>
-                    {event.eventType === 'external' && event.externalRegistrationUrl && (
-                      <div className="mt-2 text-sm">
-                        <span className="font-medium">🔗 Registration:</span>{' '}
-                        <a
-                          href={event.externalRegistrationUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary-600 hover:text-primary-700 underline"
-                        >
-                          {event.externalRegistrationUrl}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col space-y-2 ml-4">
-                    <button
-                      onClick={() => handleEditEvent(event.id)}
-                      className="btn-secondary text-sm whitespace-nowrap"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteEvent(event.id)}
-                      className="btn-secondary text-sm text-red-600 whitespace-nowrap"
-                    >
-                      Delete
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -425,6 +525,25 @@ export default function AdminPage() {
         }}
         onSave={handleSaveEvent}
         mode={editingEventId ? 'edit' : 'create'}
+        initialData={editingEventId ? (() => {
+          const ev = events.find((e) => e.id === editingEventId);
+          if (!ev) return undefined;
+          const start = new Date(ev.startTime);
+          const end = new Date(ev.endTime);
+          return {
+            title: ev.title,
+            description: ev.description,
+            startDate: format(start, 'yyyy-MM-dd'),
+            startTime: format(start, 'HH:mm'),
+            endDate: format(end, 'yyyy-MM-dd'),
+            endTime: format(end, 'HH:mm'),
+            location: ev.location || '',
+            eventType: ev.eventType as 'internal' | 'external',
+            visibility: ev.visibility as any,
+            externalRegistrationUrl: ev.externalRegistrationUrl || '',
+            imageUrl: ev.imageUrl || '',
+          };
+        })() : undefined}
       />
 
       {/* Sponsor Modal */}

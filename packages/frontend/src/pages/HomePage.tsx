@@ -4,11 +4,20 @@ import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import {
-  mockEvents,
   mockBlogPosts,
   mockSponsors,
   mockHomeContent,
 } from '../data/mockData';
+
+interface HomeEventData {
+  id: string;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  location?: string;
+  registrationCount: number;
+}
 
 interface TestimonialData {
   id: string;
@@ -21,9 +30,12 @@ interface TestimonialData {
 export default function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<HomeEventData[]>([]);
 
   useEffect(() => {
-    fetch(import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql', {
+    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+    fetch(graphqlUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -37,13 +49,27 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
+
+    fetch(graphqlUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `query { events(publicOnly: true) { id title description startTime endTime location registrationCount } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.events) {
+          setUpcomingEvents(result.data.events.slice(0, 3));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // If user has a valid session (e.g. Remember Me cookie), send them straight to the dashboard
   if (!isLoading && isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
-  const upcomingEvents = mockEvents.filter((e) => e.visibility === 'PUBLIC').slice(0, 3);
   const recentPosts = mockBlogPosts.filter((p) => p.visibility === 'PUBLIC').slice(0, 3);
 
   return (
@@ -171,49 +197,51 @@ export default function HomePage() {
       </div>
 
       {/* Upcoming Events */}
-      <div className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-              Upcoming Events
-            </h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
-              Join us for exciting activities and learning opportunities
-            </p>
-          </div>
+      {upcomingEvents.length > 0 && (
+        <div className="py-16 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+                Upcoming Events
+              </h2>
+              <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+                Join us for exciting activities and learning opportunities
+              </p>
+            </div>
 
-          <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {upcomingEvents.map((event) => (
-              <Link
-                key={event.id}
-                to={`/events/${event.id}`}
-                className="card hover:shadow-lg transition-shadow"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-                    {format(event.startTime, 'MMM d, yyyy')}
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    {event.registrationCount} registered
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
-                <p className="text-gray-600 mb-4">{event.description}</p>
-                <div className="flex items-center text-sm text-gray-500">
-                  <span className="mr-4">📍 {event.location}</span>
-                  <span>⏰ {format(event.startTime, 'h:mm a')}</span>
-                </div>
+            <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {upcomingEvents.map((event) => (
+                <Link
+                  key={event.id}
+                  to={`/events/${event.id}`}
+                  className="card hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+                      {format(new Date(event.startTime), 'MMM d, yyyy')}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {event.registrationCount} registered
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
+                  <p className="text-gray-600 mb-4">{event.description}</p>
+                  <div className="flex items-center text-sm text-gray-500">
+                    <span className="mr-4">📍 {event.location}</span>
+                    <span>⏰ {format(new Date(event.startTime), 'h:mm a')}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-10 text-center">
+              <Link to="/events" className="btn-primary">
+                View All Events
               </Link>
-            ))}
-          </div>
-
-          <div className="mt-10 text-center">
-            <Link to="/events" className="btn-primary">
-              View All Events
-            </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Blog Posts */}
       <div className="py-16 bg-gray-50">
