@@ -2,6 +2,8 @@ import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+import { useAuth } from '../context/AuthContext';
+
 interface EventData {
   id: string;
   title: string;
@@ -15,16 +17,22 @@ interface EventData {
 }
 
 export default function EventsPage() {
+  const { isAuthenticated } = useAuth();
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+    const token = localStorage.getItem('token');
+    const isLoggedIn = !!token;
     fetch(graphqlUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
-        query: `query { events(publicOnly: true) { id title description startTime endTime location visibility eventType registrationCount } }`,
+        query: `query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility eventType registrationCount } }`,
       }),
     })
       .then((res) => res.json())
@@ -35,7 +43,7 @@ export default function EventsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [isAuthenticated]);
 
   if (loading) {
     return (
