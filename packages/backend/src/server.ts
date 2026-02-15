@@ -115,6 +115,10 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
 }
 
 export async function startServer(): Promise<http.Server> {
+  // Run pending database migrations before accepting traffic
+  logger.info('Running database migrations...');
+  await db.migrate();
+
   const app = await createApp();
   const httpServer = http.createServer(app);
 
