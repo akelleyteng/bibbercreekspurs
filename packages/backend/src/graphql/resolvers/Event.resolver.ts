@@ -573,7 +573,7 @@ export class EventResolver {
         addAttendeeToEvent(
           event.google_calendar_id,
           user.email,
-          `${user.firstName} ${user.lastName}`
+          `${user.first_name} ${user.last_name}`
         ).catch(() => {});
       }
     }
