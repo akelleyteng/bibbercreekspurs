@@ -56,7 +56,7 @@ export interface UpdateEventData {
 const BASE_SELECT = `
   SELECT e.id, e.title, e.description, e.start_time, e.end_time, e.location,
          e.visibility, e.event_type, e.external_registration_url, e.image_url,
-         e.series_id, e.created_by, e.created_at, e.updated_at,
+         e.google_calendar_id, e.series_id, e.created_by, e.created_at, e.updated_at,
          u.id AS creator_id, u.first_name AS creator_first_name,
          u.last_name AS creator_last_name, u.profile_photo_url AS creator_profile_image_url,
          COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.status = 'REGISTERED'), 0)::int AS registration_count
@@ -225,6 +225,24 @@ export class EventRepository {
       logger.info(`User ${userId} cancelled registration for event ${eventId}`);
     }
     return cancelled;
+  }
+
+  async updateGoogleCalendarId(eventId: string, googleCalendarId: string): Promise<void> {
+    await db.query(
+      `UPDATE events SET google_calendar_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND deleted_at IS NULL`,
+      [googleCalendarId, eventId]
+    );
+    logger.info(`Set google_calendar_id=${googleCalendarId} on event ${eventId}`);
+  }
+
+  async updateGoogleCalendarIdBySeriesId(seriesId: string, googleCalendarId: string): Promise<void> {
+    const result = await db.query(
+      `UPDATE events SET google_calendar_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE series_id = $2 AND deleted_at IS NULL`,
+      [googleCalendarId, seriesId]
+    );
+    logger.info(`Set google_calendar_id=${googleCalendarId} on ${result.rowCount} events in series ${seriesId}`);
   }
 
   async getUserRegistrationStatus(eventId: string, userId: string): Promise<string | null> {

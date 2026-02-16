@@ -9,6 +9,12 @@ import { Context } from '../context';
 import { GraphQLError } from 'graphql';
 import { logger } from '../../utils/logger';
 import crypto from 'crypto';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  CalendarEventParams,
+} from '../../services/google-calendar.service';
 
 @Resolver()
 export class EventResolver {
@@ -233,6 +239,22 @@ export class EventResolver {
 
       const rows = await this.eventRepo.createBatch(dataArray);
       logger.info(`Created recurring event series ${seriesId} with ${rows.length} occurrences`);
+
+      // Google Calendar sync: create ONE recurring event with RRULE
+      if (input.publishToGoogleCalendar) {
+        this.syncCreateCalendarEvent({
+          title: input.title,
+          description: input.description,
+          startTime,
+          endTime,
+          location: input.location,
+          isRecurring: true,
+          recurringFrequency: input.recurringFrequency,
+          recurringEndDate,
+          recurringDaysOfWeek: input.recurringDaysOfWeek,
+        }, undefined, seriesId).catch(() => {});
+      }
+
       return this.mapRow(rows[0]);
     }
 
@@ -243,7 +265,33 @@ export class EventResolver {
       end_time: new Date(input.endTime),
     });
 
+    // Google Calendar sync
+    if (input.publishToGoogleCalendar) {
+      this.syncCreateCalendarEvent({
+        title: input.title,
+        description: input.description,
+        startTime: new Date(input.startTime),
+        endTime: new Date(input.endTime),
+        location: input.location,
+      }, row.id).catch(() => {});
+    }
+
     return this.mapRow(row);
+  }
+
+  private async syncCreateCalendarEvent(
+    params: CalendarEventParams,
+    eventId?: string,
+    seriesId?: string
+  ): Promise<void> {
+    const googleCalendarId = await createCalendarEvent(params);
+    if (googleCalendarId) {
+      if (seriesId) {
+        await this.eventRepo.updateGoogleCalendarIdBySeriesId(seriesId, googleCalendarId);
+      } else if (eventId) {
+        await this.eventRepo.updateGoogleCalendarId(eventId, googleCalendarId);
+      }
+    }
   }
 
   @Mutation(() => EventGQL)
@@ -273,6 +321,17 @@ export class EventResolver {
       });
     }
 
+    // Google Calendar sync: update if event has a calendar ID
+    if (row.google_calendar_id) {
+      const updateParams: Partial<CalendarEventParams> = {};
+      if (input.title !== undefined) updateParams.title = input.title;
+      if (input.description !== undefined) updateParams.description = input.description;
+      if (input.location !== undefined) updateParams.location = input.location;
+      if (input.startTime !== undefined) updateParams.startTime = new Date(input.startTime);
+      if (input.endTime !== undefined) updateParams.endTime = new Date(input.endTime);
+      updateCalendarEvent(row.google_calendar_id, updateParams).catch(() => {});
+    }
+
     return this.mapRow(row);
   }
 
@@ -283,12 +342,30 @@ export class EventResolver {
   ): Promise<boolean> {
     await this.requireAdmin(context);
 
+    // Fetch event before deleting to get google_calendar_id and series_id
+    const event = await this.eventRepo.findById(id);
+    if (!event) {
+      throw new GraphQLError('Event not found', {
+        extensions: { code: 'NOT_FOUND' },
+      });
+    }
+
     const deleted = await this.eventRepo.softDelete(id);
 
     if (!deleted) {
       throw new GraphQLError('Event not found', {
         extensions: { code: 'NOT_FOUND' },
       });
+    }
+
+    // Google Calendar sync
+    if (event.google_calendar_id) {
+      if (event.series_id) {
+        // Deleting one occurrence of a series — skip calendar deletion
+        logger.info(`Skipping Google Calendar delete for series occurrence ${id} (series ${event.series_id})`);
+      } else {
+        deleteCalendarEvent(event.google_calendar_id).catch(() => {});
+      }
     }
 
     return true;

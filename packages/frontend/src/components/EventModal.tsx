@@ -17,6 +17,7 @@ interface EventFormData {
   recurringFrequency?: 'daily' | 'weekly' | 'monthly';
   recurringEndDate?: string;
   recurringDaysOfWeek?: string[];
+  publishToGoogleCalendar: boolean;
 }
 
 interface EventModalProps {
@@ -44,6 +45,7 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
     recurringFrequency: initialData?.recurringFrequency || 'weekly',
     recurringEndDate: initialData?.recurringEndDate || '',
     recurringDaysOfWeek: initialData?.recurringDaysOfWeek || [],
+    publishToGoogleCalendar: initialData?.publishToGoogleCalendar ?? (mode === 'create'),
   });
 
   useEffect(() => {
@@ -63,8 +65,9 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
       recurringFrequency: initialData?.recurringFrequency || 'weekly',
       recurringEndDate: initialData?.recurringEndDate || '',
       recurringDaysOfWeek: initialData?.recurringDaysOfWeek || [],
+      publishToGoogleCalendar: initialData?.publishToGoogleCalendar ?? (mode === 'create'),
     });
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, mode]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,6 +403,24 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
                 </div>
               )}
             </div>
+
+            {/* Google Calendar */}
+            {mode === 'create' && (
+              <div className="mb-6 p-4 bg-green-50 rounded-lg">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.publishToGoogleCalendar}
+                    onChange={(e) => handleChange('publishToGoogleCalendar', e.target.checked)}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Publish to Google Calendar</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  Automatically add this event to the club's Google Calendar
+                </p>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 justify-end">

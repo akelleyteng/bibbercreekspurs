@@ -61,6 +61,11 @@ export class CreateEventInput {
   @IsOptional()
   @IsArray()
   recurringDaysOfWeek?: string[];
+
+  @Field({ nullable: true, defaultValue: false })
+  @IsOptional()
+  @IsBoolean()
+  publishToGoogleCalendar?: boolean;
 }
 
 @InputType()

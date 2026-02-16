@@ -33,6 +33,7 @@ interface EnvConfig {
   GOOGLE_OAUTH_CLIENT_ID: string;
   GOOGLE_OAUTH_CLIENT_SECRET: string;
   GOOGLE_DRIVE_FOLDER_ID: string;
+  GOOGLE_CALENDAR_ID: string;
 
   // Facebook
   FACEBOOK_APP_ID: string;
@@ -88,6 +89,7 @@ export const env: EnvConfig = {
   GOOGLE_OAUTH_CLIENT_ID: getEnvVar('GOOGLE_OAUTH_CLIENT_ID', ''),
   GOOGLE_OAUTH_CLIENT_SECRET: getEnvVar('GOOGLE_OAUTH_CLIENT_SECRET', ''),
   GOOGLE_DRIVE_FOLDER_ID: getEnvVar('GOOGLE_DRIVE_FOLDER_ID', ''),
+  GOOGLE_CALENDAR_ID: getEnvVar('GOOGLE_CALENDAR_ID', ''),
 
   // Facebook (optional - will configure later)
   FACEBOOK_APP_ID: getEnvVar('FACEBOOK_APP_ID', ''),

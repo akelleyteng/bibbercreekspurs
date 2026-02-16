@@ -188,6 +188,7 @@ export default function AdminPage() {
                 recurringFrequency: data.isRecurring ? data.recurringFrequency : null,
                 recurringEndDate: data.isRecurring && data.recurringEndDate ? data.recurringEndDate : null,
                 recurringDaysOfWeek: data.isRecurring && data.recurringDaysOfWeek?.length ? data.recurringDaysOfWeek : null,
+                publishToGoogleCalendar: data.publishToGoogleCalendar || false,
               },
             },
           }),
