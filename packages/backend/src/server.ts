@@ -129,7 +129,7 @@ export async function startServer(): Promise<http.Server> {
 
   // Build GraphQL schema
   const schema = await buildSchema({
-    resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver],
+    resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver],
     validate: true, // Enable class-validator validation
   });
 

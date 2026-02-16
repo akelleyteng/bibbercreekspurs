@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
+import { Resolver, Query, Mutation, Arg, Ctx, Int } from 'type-graphql';
 import { DriveFileGQL, DriveFileListGQL, DriveFolderInfoGQL } from '../types/Drive.type';
 import { UserRepository } from '../../repositories/user.repository';
 import { verifyAccessToken } from '../../services/auth.service';
@@ -137,8 +137,8 @@ export class DriveResolver {
   @Query(() => DriveFileListGQL)
   async driveFiles(
     @Arg('folderId') folderId: string,
-    @Arg('pageToken', { nullable: true }) pageToken: string | undefined,
-    @Arg('pageSize', { nullable: true, defaultValue: 50 }) pageSize: number,
+    @Arg('pageToken', () => String, { nullable: true }) pageToken: string | undefined,
+    @Arg('pageSize', () => Int, { nullable: true, defaultValue: 50 }) pageSize: number,
     @Ctx() context: Context
   ): Promise<DriveFileListGQL> {
     const userId = this.requireAuth(context);
