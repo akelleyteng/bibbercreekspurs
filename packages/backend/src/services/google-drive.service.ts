@@ -133,9 +133,14 @@ export async function uploadFile(
 
     logger.info(`File uploaded to Google Drive: ${response.data.name} (${response.data.id})`);
     return mapFileResponse(response.data);
-  } catch (error) {
-    logger.error('Failed to upload file to Google Drive', { error, fileName });
-    return null;
+  } catch (error: any) {
+    logger.error('Failed to upload file to Google Drive', {
+      fileName,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorResponse: error?.response?.data,
+    });
+    throw error;
   }
 }
 

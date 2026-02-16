@@ -64,14 +64,14 @@ router.post('/upload', async (req: Request, res: Response) => {
     );
 
     if (!result) {
-      res.status(500).json({ error: 'Failed to upload file to Google Drive' });
+      res.status(500).json({ error: 'Failed to upload file to Google Drive. Check server logs for details.' });
       return;
     }
 
     logger.info(`File uploaded to Drive: ${result.name} (${result.id})`);
     res.status(200).json({ file: result });
   } catch (error: any) {
-    logger.error('Upload failed', { error: error.message });
+    logger.error('Upload failed', { error: error.message, stack: error.stack });
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       res.status(401).json({ error: 'Invalid or expired token' });
       return;
@@ -80,7 +80,7 @@ router.post('/upload', async (req: Request, res: Response) => {
       res.status(413).json({ error: 'File too large (max 25 MB)' });
       return;
     }
-    res.status(500).json({ error: 'Upload failed' });
+    res.status(500).json({ error: `Upload failed: ${error.message}` });
   }
 });
 
