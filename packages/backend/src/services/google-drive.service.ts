@@ -2,10 +2,14 @@ import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { Readable } from 'stream';
 
-// Lazy-initialized Drive client — googleapis is loaded on first use
+// Lazy-initialized Drive clients — googleapis is loaded on first use
 // to avoid ts-node processing its massive type definitions at startup.
-// Uses service account auth (folders shared with the SA as editor).
+//
+// Two clients:
+// 1. Service account client — for reads, listing, deleting, folder creation (metadata-only ops)
+// 2. OAuth2 client — for file uploads (service accounts lack storage quota on personal drives)
 let driveClient: any = null;
+let driveUploadClient: any = null;
 
 function getDriveClient(): any {
   if (!env.GOOGLE_DRIVE_MEMBERS_FOLDER_ID && !env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID) {
@@ -22,6 +26,31 @@ function getDriveClient(): any {
   }
 
   return driveClient;
+}
+
+/**
+ * Get an OAuth2-authenticated Drive client for uploads.
+ * Service accounts can't upload to personal drives (no storage quota),
+ * so we use the folder owner's OAuth2 credentials for uploads.
+ */
+function getDriveUploadClient(): any {
+  if (!env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET || !env.GOOGLE_DRIVE_OWNER_REFRESH_TOKEN) {
+    logger.warn('Drive upload OAuth2 credentials not configured — falling back to service account');
+    return getDriveClient();
+  }
+
+  if (!driveUploadClient) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { google } = require('googleapis');
+    const oauth2 = new google.auth.OAuth2(
+      env.GOOGLE_OAUTH_CLIENT_ID,
+      env.GOOGLE_OAUTH_CLIENT_SECRET
+    );
+    oauth2.setCredentials({ refresh_token: env.GOOGLE_DRIVE_OWNER_REFRESH_TOKEN });
+    driveUploadClient = google.drive({ version: 'v3', auth: oauth2 });
+  }
+
+  return driveUploadClient;
 }
 
 export interface DriveFileInfo {
@@ -115,7 +144,7 @@ export async function uploadFile(
   fileBuffer: Buffer,
   folderId: string
 ): Promise<DriveFileInfo | null> {
-  const drive = getDriveClient();
+  const drive = getDriveUploadClient();
   if (!drive) return null;
 
   try {
