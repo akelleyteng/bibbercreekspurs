@@ -13,6 +13,8 @@ import {
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  addAttendeeToEvent,
+  removeAttendeeFromEvent,
   CalendarEventParams,
 } from '../../services/google-calendar.service';
 
@@ -125,15 +127,34 @@ export class EventResolver {
   private static readonly MAX_OCCURRENCES = 365;
   private static readonly DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  /**
+   * Find the nth occurrence of a weekday in a given month.
+   * Returns null if the nth occurrence doesn't exist (e.g., 5th Monday).
+   */
+  private static getNthWeekdayOfMonth(
+    year: number, month: number, weekday: number, ordinal: number,
+    hours: number, minutes: number, seconds: number
+  ): Date | null {
+    const firstOfMonth = new Date(year, month, 1);
+    const firstWeekdayOffset = (weekday - firstOfMonth.getDay() + 7) % 7;
+    const day = 1 + firstWeekdayOffset + (ordinal - 1) * 7;
+    const result = new Date(year, month, day, hours, minutes, seconds, 0);
+    if (result.getMonth() !== month) return null;
+    return result;
+  }
+
   private generateOccurrences(
     startTime: Date,
     endTime: Date,
     frequency: string,
     recurringEndDate: Date,
-    daysOfWeek?: string[]
+    daysOfWeek?: string[],
+    monthlyPattern?: string,
+    interval: number = 1
   ): Array<{ start: Date; end: Date }> {
     const duration = endTime.getTime() - startTime.getTime();
     const occurrences: Array<{ start: Date; end: Date }> = [];
+    const step = Math.max(1, interval);
 
     if (frequency === 'weekly') {
       const targetDays = daysOfWeek?.length
@@ -157,8 +178,8 @@ export class EventResolver {
             });
           }
         }
-        // Advance to next week
-        current.setDate(current.getDate() + 7);
+        // Advance by N weeks
+        current.setDate(current.getDate() + 7 * step);
       }
     } else if (frequency === 'daily') {
       const current = new Date(startTime);
@@ -167,20 +188,49 @@ export class EventResolver {
           start: new Date(current),
           end: new Date(current.getTime() + duration),
         });
-        current.setDate(current.getDate() + 1);
+        current.setDate(current.getDate() + step);
       }
     } else if (frequency === 'monthly') {
-      const targetDay = startTime.getDate();
-      const current = new Date(startTime);
-      while (current <= recurringEndDate && occurrences.length < EventResolver.MAX_OCCURRENCES) {
-        occurrences.push({
-          start: new Date(current),
-          end: new Date(current.getTime() + duration),
-        });
-        current.setMonth(current.getMonth() + 1);
-        // Clamp day for short months (e.g., Jan 31 → Feb 28)
-        const lastDayOfMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
-        current.setDate(Math.min(targetDay, lastDayOfMonth));
+      if (monthlyPattern === 'nth_weekday') {
+        // "2nd Tuesday", "3rd Saturday", etc. — derived from startTime
+        const targetWeekday = startTime.getDay();
+        const targetOrdinal = Math.ceil(startTime.getDate() / 7);
+        let year = startTime.getFullYear();
+        let month = startTime.getMonth();
+
+        while (occurrences.length < EventResolver.MAX_OCCURRENCES) {
+          const candidate = EventResolver.getNthWeekdayOfMonth(
+            year, month, targetWeekday, targetOrdinal,
+            startTime.getHours(), startTime.getMinutes(), startTime.getSeconds()
+          );
+
+          if (candidate && candidate >= startTime && candidate <= recurringEndDate) {
+            occurrences.push({
+              start: new Date(candidate),
+              end: new Date(candidate.getTime() + duration),
+            });
+          }
+
+          // Advance by N months
+          month += step;
+          while (month > 11) { month -= 12; year++; }
+
+          // Stop if we've passed the end date
+          if (new Date(year, month, 1) > recurringEndDate) break;
+        }
+      } else {
+        // Default: same day of month (day_of_month)
+        const targetDay = startTime.getDate();
+        const current = new Date(startTime);
+        while (current <= recurringEndDate && occurrences.length < EventResolver.MAX_OCCURRENCES) {
+          occurrences.push({
+            start: new Date(current),
+            end: new Date(current.getTime() + duration),
+          });
+          current.setMonth(current.getMonth() + step);
+          const lastDayOfMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+          current.setDate(Math.min(targetDay, lastDayOfMonth));
+        }
       }
     }
 
@@ -220,7 +270,8 @@ export class EventResolver {
       }
 
       const occurrences = this.generateOccurrences(
-        startTime, endTime, input.recurringFrequency, recurringEndDate, input.recurringDaysOfWeek
+        startTime, endTime, input.recurringFrequency, recurringEndDate,
+        input.recurringDaysOfWeek, input.monthlyPattern, input.recurringInterval
       );
 
       if (occurrences.length === 0) {
@@ -252,6 +303,9 @@ export class EventResolver {
           recurringFrequency: input.recurringFrequency,
           recurringEndDate,
           recurringDaysOfWeek: input.recurringDaysOfWeek,
+          monthlyPattern: input.monthlyPattern,
+          recurringInterval: input.recurringInterval,
+          reminders: this.buildReminders(input.reminderMethods, input.reminderMinutesBefore),
         }, undefined, seriesId).catch(() => {});
       }
 
@@ -273,10 +327,23 @@ export class EventResolver {
         startTime: new Date(input.startTime),
         endTime: new Date(input.endTime),
         location: input.location,
+        reminders: this.buildReminders(input.reminderMethods, input.reminderMinutesBefore),
       }, row.id).catch(() => {});
     }
 
     return this.mapRow(row);
+  }
+
+  private buildReminders(
+    methods?: string[],
+    minutesBefore?: number[]
+  ): Array<{ method: string; minutes: number }> | undefined {
+    if (!methods?.length || !minutesBefore?.length) return undefined;
+    const reminders: Array<{ method: string; minutes: number }> = [];
+    for (let i = 0; i < Math.min(methods.length, minutesBefore.length, 5); i++) {
+      reminders.push({ method: methods[i], minutes: minutesBefore[i] });
+    }
+    return reminders.length > 0 ? reminders : undefined;
   }
 
   private async syncCreateCalendarEvent(
@@ -326,7 +393,8 @@ export class EventResolver {
         }
 
         const occurrences = this.generateOccurrences(
-          startTime, endTime, input.recurringFrequency, recurringEndDate, input.recurringDaysOfWeek
+          startTime, endTime, input.recurringFrequency, recurringEndDate,
+          input.recurringDaysOfWeek, input.monthlyPattern, input.recurringInterval
         );
 
         if (occurrences.length === 0) {
@@ -394,6 +462,9 @@ export class EventResolver {
             recurringFrequency: input.recurringFrequency,
             recurringEndDate,
             recurringDaysOfWeek: input.recurringDaysOfWeek,
+            monthlyPattern: input.monthlyPattern,
+            recurringInterval: input.recurringInterval,
+            reminders: this.buildReminders(input.reminderMethods, input.reminderMinutesBefore),
           }, undefined, seriesId).catch(() => {});
         }
 
@@ -429,6 +500,8 @@ export class EventResolver {
       if (input.location !== undefined) updateParams.location = input.location;
       if (input.startTime !== undefined) updateParams.startTime = new Date(input.startTime);
       if (input.endTime !== undefined) updateParams.endTime = new Date(input.endTime);
+      const reminders = this.buildReminders(input.reminderMethods, input.reminderMinutesBefore);
+      if (reminders) updateParams.reminders = reminders;
       updateCalendarEvent(row.google_calendar_id, updateParams).catch(() => {});
     }
 
@@ -492,6 +565,19 @@ export class EventResolver {
     }
 
     await this.eventRepo.addRegistration(eventId, userId);
+
+    // Add attendee to Google Calendar event (fire-and-forget)
+    if (event.google_calendar_id) {
+      const user = await this.userRepo.findById(userId);
+      if (user) {
+        addAttendeeToEvent(
+          event.google_calendar_id,
+          user.email,
+          `${user.firstName} ${user.lastName}`
+        ).catch(() => {});
+      }
+    }
+
     return true;
   }
 
@@ -502,12 +588,21 @@ export class EventResolver {
   ): Promise<boolean> {
     const userId = this.requireAuth(context);
 
+    const event = await this.eventRepo.findById(eventId);
     const cancelled = await this.eventRepo.cancelRegistration(eventId, userId);
 
     if (!cancelled) {
       throw new GraphQLError('No registration found to cancel', {
         extensions: { code: 'NOT_FOUND' },
       });
+    }
+
+    // Remove attendee from Google Calendar event (fire-and-forget)
+    if (event?.google_calendar_id) {
+      const user = await this.userRepo.findById(userId);
+      if (user) {
+        removeAttendeeFromEvent(event.google_calendar_id, user.email).catch(() => {});
+      }
     }
 
     return true;

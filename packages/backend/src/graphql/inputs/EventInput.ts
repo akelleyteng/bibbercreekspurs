@@ -1,5 +1,5 @@
 import { InputType, Field } from 'type-graphql';
-import { IsString, IsOptional, IsUrl, IsEnum, IsDateString, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsUrl, IsEnum, IsDateString, IsBoolean, IsArray, IsInt, Min } from 'class-validator';
 
 @InputType()
 export class CreateEventInput {
@@ -62,10 +62,31 @@ export class CreateEventInput {
   @IsArray()
   recurringDaysOfWeek?: string[];
 
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEnum(['day_of_month', 'nth_weekday'])
+  monthlyPattern?: string;
+
+  @Field({ nullable: true, defaultValue: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  recurringInterval?: number;
+
   @Field({ nullable: true, defaultValue: false })
   @IsOptional()
   @IsBoolean()
   publishToGoogleCalendar?: boolean;
+
+  @Field(() => [Number], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  reminderMinutesBefore?: number[];
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  reminderMethods?: string[];
 }
 
 @InputType()
@@ -137,6 +158,27 @@ export class UpdateEventInput {
 
   @Field({ nullable: true })
   @IsOptional()
+  @IsEnum(['day_of_month', 'nth_weekday'])
+  monthlyPattern?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  recurringInterval?: number;
+
+  @Field({ nullable: true })
+  @IsOptional()
   @IsBoolean()
   publishToGoogleCalendar?: boolean;
+
+  @Field(() => [Number], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  reminderMinutesBefore?: number[];
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  reminderMethods?: string[];
 }

@@ -17,7 +17,11 @@ interface EventFormData {
   recurringFrequency?: 'daily' | 'weekly' | 'monthly';
   recurringEndDate?: string;
   recurringDaysOfWeek?: string[];
+  monthlyPattern?: 'day_of_month' | 'nth_weekday';
+  recurringInterval?: number;
   publishToGoogleCalendar: boolean;
+  reminderMinutesBefore?: number[];
+  reminderMethods?: string[];
 }
 
 interface EventModalProps {
@@ -45,7 +49,11 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
     recurringFrequency: initialData?.recurringFrequency || 'weekly',
     recurringEndDate: initialData?.recurringEndDate || '',
     recurringDaysOfWeek: initialData?.recurringDaysOfWeek || [],
+    monthlyPattern: initialData?.monthlyPattern || 'day_of_month',
+    recurringInterval: initialData?.recurringInterval || 1,
     publishToGoogleCalendar: initialData?.publishToGoogleCalendar ?? (mode === 'create'),
+    reminderMinutesBefore: initialData?.reminderMinutesBefore || [1440, 30],
+    reminderMethods: initialData?.reminderMethods || ['email', 'popup'],
   });
 
   useEffect(() => {
@@ -65,7 +73,11 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
       recurringFrequency: initialData?.recurringFrequency || 'weekly',
       recurringEndDate: initialData?.recurringEndDate || '',
       recurringDaysOfWeek: initialData?.recurringDaysOfWeek || [],
+      monthlyPattern: initialData?.monthlyPattern || 'day_of_month',
+      recurringInterval: initialData?.recurringInterval || 1,
       publishToGoogleCalendar: initialData?.publishToGoogleCalendar ?? (mode === 'create'),
+      reminderMinutesBefore: initialData?.reminderMinutesBefore || [1440, 30],
+      reminderMethods: initialData?.reminderMethods || ['email', 'popup'],
     });
   }, [isOpen, initialData, mode]);
 
@@ -349,17 +361,27 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
                 <div className="space-y-4 ml-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Frequency
+                      Repeat every
                     </label>
-                    <select
-                      className="input"
-                      value={formData.recurringFrequency}
-                      onChange={(e) => handleChange('recurringFrequency', e.target.value)}
-                    >
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={99}
+                        className="input w-20"
+                        value={formData.recurringInterval || 1}
+                        onChange={(e) => handleChange('recurringInterval', Math.max(1, parseInt(e.target.value) || 1))}
+                      />
+                      <select
+                        className="input flex-1"
+                        value={formData.recurringFrequency}
+                        onChange={(e) => handleChange('recurringFrequency', e.target.value)}
+                      >
+                        <option value="daily">{(formData.recurringInterval || 1) > 1 ? 'days' : 'day'}</option>
+                        <option value="weekly">{(formData.recurringInterval || 1) > 1 ? 'weeks' : 'week'}</option>
+                        <option value="monthly">{(formData.recurringInterval || 1) > 1 ? 'months' : 'month'}</option>
+                      </select>
+                    </div>
                   </div>
 
                   {formData.recurringFrequency === 'weekly' && (
@@ -385,6 +407,46 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
                       </div>
                     </div>
                   )}
+
+                  {formData.recurringFrequency === 'monthly' && formData.startDate && (() => {
+                    const date = new Date(formData.startDate + 'T12:00:00');
+                    const dayOfMonth = date.getDate();
+                    const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const weekdayName = weekdayNames[date.getDay()];
+                    const ordinal = Math.ceil(dayOfMonth / 7);
+                    const ordinalNames = ['', '1st', '2nd', '3rd', '4th', '5th'];
+                    return (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Monthly pattern
+                        </label>
+                        <div className="space-y-2">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="monthlyPattern"
+                              value="day_of_month"
+                              checked={formData.monthlyPattern === 'day_of_month'}
+                              onChange={(e) => handleChange('monthlyPattern', e.target.value)}
+                              className="mr-2"
+                            />
+                            <span className="text-sm">On day {dayOfMonth}</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="monthlyPattern"
+                              value="nth_weekday"
+                              checked={formData.monthlyPattern === 'nth_weekday'}
+                              onChange={(e) => handleChange('monthlyPattern', e.target.value)}
+                              className="mr-2"
+                            />
+                            <span className="text-sm">On the {ordinalNames[ordinal]} {weekdayName}</span>
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -417,8 +479,75 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
                   <span className="text-sm font-medium text-gray-700">Publish to Google Calendar</span>
                 </label>
                 <p className="text-xs text-gray-500 mt-1 ml-6">
-                  Automatically add this event to the club's Google Calendar
+                  Automatically add this event to the club's Google Calendar. Members who RSVP will receive a calendar invite.
                 </p>
+
+                {formData.publishToGoogleCalendar && (
+                  <div className="mt-4 ml-6 space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Reminders
+                    </label>
+                    {(formData.reminderMinutesBefore || []).map((minutes, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <select
+                          className="input flex-1"
+                          value={formData.reminderMethods?.[index] || 'email'}
+                          onChange={(e) => {
+                            const methods = [...(formData.reminderMethods || [])];
+                            methods[index] = e.target.value;
+                            handleChange('reminderMethods', methods);
+                          }}
+                        >
+                          <option value="email">Email</option>
+                          <option value="popup">Notification</option>
+                        </select>
+                        <select
+                          className="input flex-1"
+                          value={minutes}
+                          onChange={(e) => {
+                            const mins = [...(formData.reminderMinutesBefore || [])];
+                            mins[index] = parseInt(e.target.value);
+                            handleChange('reminderMinutesBefore', mins);
+                          }}
+                        >
+                          <option value={10}>10 minutes before</option>
+                          <option value={30}>30 minutes before</option>
+                          <option value={60}>1 hour before</option>
+                          <option value={120}>2 hours before</option>
+                          <option value={1440}>1 day before</option>
+                          <option value={2880}>2 days before</option>
+                          <option value={10080}>1 week before</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mins = [...(formData.reminderMinutesBefore || [])];
+                            const methods = [...(formData.reminderMethods || [])];
+                            mins.splice(index, 1);
+                            methods.splice(index, 1);
+                            handleChange('reminderMinutesBefore', mins);
+                            handleChange('reminderMethods', methods);
+                          }}
+                          className="text-red-500 hover:text-red-700 text-sm px-2"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    {(formData.reminderMinutesBefore?.length || 0) < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange('reminderMinutesBefore', [...(formData.reminderMinutesBefore || []), 30]);
+                          handleChange('reminderMethods', [...(formData.reminderMethods || []), 'popup']);
+                        }}
+                        className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        + Add reminder
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
