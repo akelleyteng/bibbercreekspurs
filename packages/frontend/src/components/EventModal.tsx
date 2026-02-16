@@ -405,7 +405,7 @@ export default function EventModal({ isOpen, onClose, onSave, initialData, mode 
             </div>
 
             {/* Google Calendar */}
-            {mode === 'create' && (
+            {(mode === 'create' || formData.isRecurring) && (
               <div className="mb-6 p-4 bg-green-50 rounded-lg">
                 <label className="flex items-center">
                   <input

@@ -300,8 +300,108 @@ export class EventResolver {
     @Arg('input') input: UpdateEventInput,
     @Ctx() context: Context
   ): Promise<EventGQL> {
-    await this.requireAdmin(context);
+    const userId = await this.requireAdmin(context);
 
+    // Check if we're converting a non-recurring event to recurring
+    if (input.isRecurring && input.recurringFrequency) {
+      const existing = await this.eventRepo.findById(id);
+      if (!existing) {
+        throw new GraphQLError('Event not found', {
+          extensions: { code: 'NOT_FOUND' },
+        });
+      }
+
+      // Only convert if event isn't already part of a series
+      if (!existing.series_id) {
+        const startTime = input.startTime ? new Date(input.startTime) : existing.start_time;
+        const endTime = input.endTime ? new Date(input.endTime) : existing.end_time;
+
+        let recurringEndDate: Date;
+        if (input.recurringEndDate) {
+          recurringEndDate = new Date(input.recurringEndDate);
+          recurringEndDate.setHours(23, 59, 59, 999);
+        } else {
+          recurringEndDate = new Date(startTime);
+          recurringEndDate.setMonth(recurringEndDate.getMonth() + EventResolver.MAX_RECURRENCE_MONTHS);
+        }
+
+        const occurrences = this.generateOccurrences(
+          startTime, endTime, input.recurringFrequency, recurringEndDate, input.recurringDaysOfWeek
+        );
+
+        if (occurrences.length === 0) {
+          throw new GraphQLError('No event occurrences could be generated with the given recurrence settings', {
+            extensions: { code: 'BAD_REQUEST' },
+          });
+        }
+
+        const seriesId = crypto.randomUUID();
+
+        // Update the original event with new fields + series_id
+        const updateData: Record<string, any> = { series_id: seriesId };
+        if (input.title !== undefined) updateData.title = input.title;
+        if (input.description !== undefined) updateData.description = input.description;
+        if (input.startTime !== undefined) updateData.start_time = new Date(input.startTime);
+        if (input.endTime !== undefined) updateData.end_time = new Date(input.endTime);
+        if (input.location !== undefined) updateData.location = input.location;
+        if (input.visibility !== undefined) updateData.visibility = input.visibility;
+        if (input.eventType !== undefined) updateData.event_type = input.eventType;
+        if (input.externalRegistrationUrl !== undefined) updateData.external_registration_url = input.externalRegistrationUrl;
+        if (input.imageUrl !== undefined) updateData.image_url = input.imageUrl;
+
+        const updatedRow = await this.eventRepo.update(id, updateData);
+        if (!updatedRow) {
+          throw new GraphQLError('Event not found', {
+            extensions: { code: 'NOT_FOUND' },
+          });
+        }
+
+        // Create additional occurrences (skip the first one — that's the original event)
+        const additionalOccurrences = occurrences.slice(1);
+        if (additionalOccurrences.length > 0) {
+          const baseData = {
+            title: input.title ?? existing.title,
+            description: input.description ?? existing.description,
+            location: input.location ?? existing.location,
+            visibility: input.visibility ?? existing.visibility,
+            event_type: input.eventType ?? existing.event_type,
+            external_registration_url: input.externalRegistrationUrl ?? existing.external_registration_url,
+            image_url: input.imageUrl ?? existing.image_url,
+            created_by: userId,
+          };
+
+          const dataArray: CreateEventData[] = additionalOccurrences.map((occ) => ({
+            ...baseData,
+            start_time: occ.start,
+            end_time: occ.end,
+            series_id: seriesId,
+          }));
+
+          await this.eventRepo.createBatch(dataArray);
+        }
+
+        logger.info(`Converted event ${id} to recurring series ${seriesId} with ${occurrences.length} total occurrences`);
+
+        // Google Calendar sync
+        if (input.publishToGoogleCalendar) {
+          this.syncCreateCalendarEvent({
+            title: input.title ?? existing.title,
+            description: input.description ?? existing.description,
+            startTime,
+            endTime,
+            location: input.location ?? existing.location,
+            isRecurring: true,
+            recurringFrequency: input.recurringFrequency,
+            recurringEndDate,
+            recurringDaysOfWeek: input.recurringDaysOfWeek,
+          }, undefined, seriesId).catch(() => {});
+        }
+
+        return this.mapRow(updatedRow);
+      }
+    }
+
+    // Standard field update (non-recurring or already-recurring event)
     const data: Record<string, any> = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;

@@ -114,4 +114,29 @@ export class UpdateEventInput {
   @IsOptional()
   @IsUrl({}, { message: 'Invalid image URL format' })
   imageUrl?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  isRecurring?: boolean;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEnum(['daily', 'weekly', 'monthly'])
+  recurringFrequency?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsDateString()
+  recurringEndDate?: string;
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  recurringDaysOfWeek?: string[];
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  publishToGoogleCalendar?: boolean;
 }
