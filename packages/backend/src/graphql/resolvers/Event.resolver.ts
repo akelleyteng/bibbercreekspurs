@@ -492,8 +492,9 @@ export class EventResolver {
       });
     }
 
-    // Google Calendar sync: update if event has a calendar ID
+    // Google Calendar sync
     if (row.google_calendar_id) {
+      // Update existing Google Calendar event
       const updateParams: Partial<CalendarEventParams> = {};
       if (input.title !== undefined) updateParams.title = input.title;
       if (input.description !== undefined) updateParams.description = input.description;
@@ -503,6 +504,16 @@ export class EventResolver {
       const reminders = this.buildReminders(input.reminderMethods, input.reminderMinutesBefore);
       if (reminders) updateParams.reminders = reminders;
       updateCalendarEvent(row.google_calendar_id, updateParams).catch(() => {});
+    } else if (input.publishToGoogleCalendar) {
+      // No Google Calendar event yet — create one and tie them together
+      this.syncCreateCalendarEvent({
+        title: row.title,
+        description: row.description,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        location: row.location,
+        reminders: this.buildReminders(input.reminderMethods, input.reminderMinutesBefore),
+      }, row.id, row.series_id || undefined).catch(() => {});
     }
 
     return this.mapRow(row);
@@ -566,8 +577,8 @@ export class EventResolver {
 
     await this.eventRepo.addRegistration(eventId, userId);
 
-    // Add attendee to Google Calendar event (fire-and-forget)
-    if (event.google_calendar_id) {
+    // Add attendee to Google Calendar event (fire-and-forget, member-only events only)
+    if (event.google_calendar_id && event.visibility === 'MEMBER_ONLY') {
       const user = await this.userRepo.findById(userId);
       if (user) {
         addAttendeeToEvent(
@@ -597,8 +608,8 @@ export class EventResolver {
       });
     }
 
-    // Remove attendee from Google Calendar event (fire-and-forget)
-    if (event?.google_calendar_id) {
+    // Remove attendee from Google Calendar event (fire-and-forget, member-only events only)
+    if (event?.google_calendar_id && event.visibility === 'MEMBER_ONLY') {
       const user = await this.userRepo.findById(userId);
       if (user) {
         removeAttendeeFromEvent(event.google_calendar_id, user.email).catch(() => {});
