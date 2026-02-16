@@ -32,7 +32,8 @@ interface EnvConfig {
   // Google APIs (Drive, Calendar)
   GOOGLE_OAUTH_CLIENT_ID: string;
   GOOGLE_OAUTH_CLIENT_SECRET: string;
-  GOOGLE_DRIVE_FOLDER_ID: string;
+  GOOGLE_DRIVE_MEMBERS_FOLDER_ID: string;
+  GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID: string;
   GOOGLE_CALENDAR_ID: string;
 
   // Facebook
@@ -88,7 +89,8 @@ export const env: EnvConfig = {
   // Google APIs (Drive, Calendar) - optional for now
   GOOGLE_OAUTH_CLIENT_ID: getEnvVar('GOOGLE_OAUTH_CLIENT_ID', ''),
   GOOGLE_OAUTH_CLIENT_SECRET: getEnvVar('GOOGLE_OAUTH_CLIENT_SECRET', ''),
-  GOOGLE_DRIVE_FOLDER_ID: getEnvVar('GOOGLE_DRIVE_FOLDER_ID', ''),
+  GOOGLE_DRIVE_MEMBERS_FOLDER_ID: getEnvVar('GOOGLE_DRIVE_MEMBERS_FOLDER_ID', ''),
+  GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID: getEnvVar('GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID', ''),
   GOOGLE_CALENDAR_ID: getEnvVar('GOOGLE_CALENDAR_ID', ''),
 
   // Facebook (optional - will configure later)

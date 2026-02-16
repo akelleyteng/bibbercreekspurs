@@ -17,6 +17,8 @@ import { AuthResolver } from './graphql/resolvers/Auth.resolver';
 import { TestimonialResolver } from './graphql/resolvers/Testimonial.resolver';
 import { EventResolver } from './graphql/resolvers/Event.resolver';
 import { BlogResolver } from './graphql/resolvers/Blog.resolver';
+import { DriveResolver } from './graphql/resolvers/Drive.resolver';
+import uploadRouter from './routes/upload';
 
 export async function createApp(includeGraphQL: boolean = false): Promise<Express> {
   const app = express();
@@ -74,11 +76,13 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
     }
   });
 
+  // REST API routes (file upload)
+  app.use('/api', uploadRouter);
 
   // Add GraphQL middleware if requested (for testing)
   if (includeGraphQL) {
     const schema = await buildSchema({
-      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver],
+      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver],
       validate: true, // Enable class-validator validation
     });
 
