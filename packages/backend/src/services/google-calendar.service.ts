@@ -1,16 +1,18 @@
-import { google, calendar_v3 } from 'googleapis';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
-// Lazy-initialized calendar client
-let calendarClient: calendar_v3.Calendar | null = null;
+// Lazy-initialized calendar client — googleapis is loaded on first use
+// to avoid ts-node processing its massive type definitions at startup
+let calendarClient: any = null;
 
-function getCalendarClient(): calendar_v3.Calendar | null {
+function getCalendarClient(): any {
   if (!env.GOOGLE_CALENDAR_ID) {
     return null;
   }
 
   if (!calendarClient) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { google } = require('googleapis');
     const auth = new google.auth.GoogleAuth({
       scopes: ['https://www.googleapis.com/auth/calendar'],
     });
@@ -67,7 +69,7 @@ export async function createCalendarEvent(params: CalendarEventParams): Promise<
   if (!calendar) return null;
 
   try {
-    const eventBody: calendar_v3.Schema$Event = {
+    const eventBody: any = {
       summary: params.title,
       description: params.description,
       location: params.location,
@@ -114,7 +116,7 @@ export async function updateCalendarEvent(
   if (!calendar || !googleCalendarId) return false;
 
   try {
-    const eventBody: calendar_v3.Schema$Event = {};
+    const eventBody: any = {};
 
     if (params.title !== undefined) eventBody.summary = params.title;
     if (params.description !== undefined) eventBody.description = params.description;
