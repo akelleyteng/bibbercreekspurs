@@ -5,7 +5,7 @@ import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
 export class CreatePostInput {
   @Field()
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(5000)
   content!: string;
 
   @Field({ defaultValue: 'MEMBER_ONLY' })
@@ -18,7 +18,7 @@ export class UpdatePostInput {
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(5000)
   content?: string;
 
   @Field({ nullable: true })

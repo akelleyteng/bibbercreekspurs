@@ -58,6 +58,7 @@ export default function SocialFeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPostContent, setNewPostContent] = useState('');
+  const [editorKey, setEditorKey] = useState(0);
   const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({});
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -108,6 +109,10 @@ export default function SocialFeedPage() {
     // Check if content is empty (tiptap returns <p></p> for empty)
     const stripped = newPostContent.replace(/<[^>]*>/g, '').trim();
     if (!stripped) return;
+    if (stripped.length > 500) {
+      alert('Post is too long. Please keep it under 500 characters.');
+      return;
+    }
 
     const res = await fetch(graphqlUrl, {
       method: 'POST',
@@ -125,10 +130,16 @@ export default function SocialFeedPage() {
       return;
     }
     setNewPostContent('');
+    setEditorKey(k => k + 1);
     fetchPosts();
   };
 
   const handleUpdatePost = async (postId: string) => {
+    const stripped = editContent.replace(/<[^>]*>/g, '').trim();
+    if (stripped.length > 500) {
+      alert('Post is too long. Please keep it under 500 characters.');
+      return;
+    }
     const res = await fetch(graphqlUrl, {
       method: 'POST',
       headers: getHeaders(),
@@ -248,9 +259,12 @@ export default function SocialFeedPage() {
             </div>
             <div className="flex-1">
               <RichTextEditor
-                content={newPostContent}
+                key={editorKey}
+                content=""
                 onChange={setNewPostContent}
                 placeholder="Share something with the club..."
+                maxLength={500}
+                compact
               />
               <div className="mt-3 flex justify-end">
                 <button onClick={handleCreatePost} className="btn-primary">
@@ -354,6 +368,7 @@ export default function SocialFeedPage() {
                     content={editContent}
                     onChange={setEditContent}
                     placeholder="Edit your post..."
+                    maxLength={500}
                   />
                   <div className="mt-3 flex gap-2">
                     <button onClick={() => handleUpdatePost(post.id)} className="btn-primary text-sm">

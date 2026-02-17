@@ -1,16 +1,21 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
   placeholder?: string;
   editable?: boolean;
+  maxLength?: number;
+  compact?: boolean;
 }
 
-export default function RichTextEditor({ content, onChange, placeholder, editable = true }: RichTextEditorProps) {
+export default function RichTextEditor({ content, onChange, placeholder, editable = true, maxLength, compact = false }: RichTextEditorProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const [charCount, setCharCount] = useState(0);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -19,24 +24,44 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
     content,
     editable,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      const html = editor.getHTML();
+      const textLen = editor.state.doc.textContent.length;
+      if (maxLength && textLen > maxLength) {
+        // Prevent typing beyond limit by truncating
+        return;
+      }
+      setCharCount(textLen);
+      onChange(html);
     },
+    onFocus: () => setIsFocused(true),
+    onBlur: () => setIsFocused(false),
   });
 
-  // Sync editable prop
   useEffect(() => {
     if (editor) {
       editor.setEditable(editable);
     }
   }, [editor, editable]);
 
+  // Update char count when content changes externally
+  useEffect(() => {
+    if (editor) {
+      setCharCount(editor.state.doc.textContent.length);
+    }
+  }, [editor, content]);
+
   if (!editor) return null;
 
+  const showToolbar = editable && isFocused;
+  const isOverLimit = maxLength ? charCount > maxLength : false;
+
   return (
-    <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500">
-      {/* Toolbar */}
-      {editable && (
-        <div className="flex items-center gap-1 p-2 border-b bg-gray-50 flex-wrap">
+    <div className={`border rounded-lg overflow-hidden transition-all ${
+      isFocused ? 'border-primary-500 ring-2 ring-primary-500' : 'border-gray-300'
+    }`}>
+      {/* Toolbar - only visible when focused */}
+      {showToolbar && (
+        <div className="flex items-center gap-1 p-2 border-b bg-gray-50 flex-wrap" onMouseDown={(e) => e.preventDefault()}>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -89,8 +114,21 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           </button>
         </div>
       )}
-      {/* Editor content area */}
-      <EditorContent editor={editor} className="prose prose-sm max-w-none p-3 min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[60px]" />
+      {/* Editor content area - compact starts single-line, resizable when focused */}
+      <div className={compact && !isFocused ? '' : 'resize-y overflow-auto'} style={compact && !isFocused ? {} : { minHeight: '80px' }}>
+        <EditorContent
+          editor={editor}
+          className={`prose prose-sm max-w-none p-3 [&_.ProseMirror]:outline-none ${
+            compact && !isFocused ? '[&_.ProseMirror]:min-h-[20px]' : '[&_.ProseMirror]:min-h-[60px]'
+          }`}
+        />
+      </div>
+      {/* Character counter */}
+      {maxLength && isFocused && (
+        <div className={`text-xs px-3 py-1 text-right border-t ${isOverLimit ? 'text-red-500 bg-red-50' : 'text-gray-400'}`}>
+          {charCount}/{maxLength}
+        </div>
+      )}
       <style>{`
         .ProseMirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
