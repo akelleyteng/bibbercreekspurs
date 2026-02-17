@@ -134,6 +134,7 @@ export default function AdminPage() {
   const [addingYouthForMemberId, setAddingYouthForMemberId] = useState<string | null>(null);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState<Partial<AdminMember>>({ role: 'PARENT' });
+  const [resetPasswordForm, setResetPasswordForm] = useState<{ password: string; forceReset: boolean }>({ password: '', forceReset: true });
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -541,6 +542,7 @@ export default function AdminPage() {
     setMemberForm({ ...member });
     setEditingYouthId(null);
     setAddingYouthForMemberId(null);
+    setResetPasswordForm({ password: '', forceReset: true });
   };
 
   const handleCancelEditMember = () => {
@@ -549,6 +551,7 @@ export default function AdminPage() {
     setEditingYouthId(null);
     setYouthForm({});
     setAddingYouthForMemberId(null);
+    setResetPasswordForm({ password: '', forceReset: true });
   };
 
   const handleSaveMember = async () => {
@@ -725,6 +728,42 @@ export default function AdminPage() {
     });
     fetchMembers();
     fetchHolderOptions();
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!resetPasswordForm.password) {
+      alert('Please enter a new password.');
+      return;
+    }
+    if (resetPasswordForm.password.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminResetPassword($id: String!, $newPassword: String!, $forceResetOnLogin: Boolean!) {
+          adminResetPassword(id: $id, newPassword: $newPassword, forceResetOnLogin: $forceResetOnLogin)
+        }`,
+        variables: {
+          id: userId,
+          newPassword: resetPasswordForm.password,
+          forceResetOnLogin: resetPasswordForm.forceReset,
+        },
+      }),
+    });
+    const result = await res.json();
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    alert('Password has been reset successfully.');
+    setResetPasswordForm({ password: '', forceReset: true });
   };
 
   // Blog handlers
@@ -1222,6 +1261,40 @@ export default function AdminPage() {
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        {/* Password Reset */}
+                        <div className="border-t pt-4 mt-4">
+                          <h5 className="text-sm font-semibold text-gray-700 mb-3">Reset Password</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
+                              <input
+                                className="input"
+                                type="password"
+                                placeholder="Enter new password"
+                                value={resetPasswordForm.password}
+                                onChange={e => setResetPasswordForm(f => ({ ...f, password: e.target.value }))}
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={resetPasswordForm.forceReset}
+                                  onChange={e => setResetPasswordForm(f => ({ ...f, forceReset: e.target.checked }))}
+                                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <span className="text-sm text-gray-700">Require password change on next login</span>
+                              </label>
+                            </div>
+                          </div>
+                          <button
+                            className="btn-secondary text-sm"
+                            onClick={() => handleResetPassword(member.id)}
+                          >
+                            Reset Password
+                          </button>
                         </div>
 
                         <div className="flex gap-2 mt-4 pt-4 border-t">

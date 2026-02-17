@@ -313,20 +313,21 @@ export class UserRepository {
   }
 
   /**
-   * Update user password and clear password reset flag
+   * Update user password
    * @param id User ID
    * @param passwordHash New hashed password
+   * @param forceResetOnLogin If true, user must change password on next login
    * @returns True if updated, false if user not found
    */
-  async updatePassword(id: string, passwordHash: string): Promise<boolean> {
+  async updatePassword(id: string, passwordHash: string, forceResetOnLogin: boolean = false): Promise<boolean> {
     try {
       const result = await db.query(
         `UPDATE users
          SET password_hash = $1,
-             password_reset_required = false,
+             password_reset_required = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2`,
-        [passwordHash, id]
+         WHERE id = $3`,
+        [passwordHash, forceResetOnLogin, id]
       );
 
       const updated = (result.rowCount ?? 0) > 0;

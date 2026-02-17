@@ -217,6 +217,24 @@ export class UserResolver {
     return this.userRepo.delete(id);
   }
 
+  @Mutation(() => Boolean)
+  async adminResetPassword(
+    @Arg('id') id: string,
+    @Arg('newPassword') newPassword: string,
+    @Arg('forceResetOnLogin') forceResetOnLogin: boolean,
+    @Ctx() context: Context
+  ): Promise<boolean> {
+    await this.requireAdmin(context);
+
+    const user = await this.userRepo.findById(id);
+    if (!user) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    return this.userRepo.updatePassword(id, passwordHash, forceResetOnLogin);
+  }
+
   @Mutation(() => YouthMember)
   async adminCreateYouthMember(
     @Arg('parentUserId') parentUserId: string,
