@@ -133,44 +133,54 @@ async function importContacts() {
 
       // Check if user already exists
       const existing = await db.query('SELECT id FROM users WHERE email = $1', [primaryEmail]);
+      let userId: string;
+
       if (existing.rows.length > 0) {
-        logger.info(`  Skipping "${contact.firstName} ${contact.lastName}" — email ${primaryEmail} already exists`);
+        userId = existing.rows[0].id;
+        logger.info(`  User exists: ${contact.firstName} ${contact.lastName} <${primaryEmail}>`);
         usersSkipped++;
-        continue;
-      }
-
-      // Create user account
-      const userResult = await db.query(
-        `INSERT INTO users (email, password_hash, first_name, last_name, role, phone, password_reset_required)
-         VALUES ($1, $2, $3, $4, $5, $6, true)
-         RETURNING id`,
-        [primaryEmail, passwordHash, contact.firstName, contact.lastName, Role.MEMBER, contact.phone || null]
-      );
-
-      const userId = userResult.rows[0].id;
-      usersCreated++;
-      logger.info(`  Created user: ${contact.firstName} ${contact.lastName} <${primaryEmail}>`);
-
-      if (contact.emails.length > 1) {
-        logger.info(`    Additional emails (not stored): ${contact.emails.slice(1).join(', ')}`);
-      }
-
-      // Create youth member if data present
-      if (contact.youthFirstName) {
-        await db.query(
-          `INSERT INTO youth_members (parent_user_id, first_name, last_name, birthdate, project, horse_names)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            userId,
-            contact.youthFirstName,
-            contact.youthLastName || contact.lastName,
-            contact.youthBirthdate || null,
-            contact.project || null,
-            contact.horseNames || null,
-          ]
+      } else {
+        // Create user account
+        const userResult = await db.query(
+          `INSERT INTO users (email, password_hash, first_name, last_name, role, phone, password_reset_required)
+           VALUES ($1, $2, $3, $4, $5, $6, true)
+           RETURNING id`,
+          [primaryEmail, passwordHash, contact.firstName, contact.lastName, Role.MEMBER, contact.phone || null]
         );
-        youthCreated++;
-        logger.info(`    Created youth member: ${contact.youthFirstName} ${contact.youthLastName || contact.lastName}`);
+        userId = userResult.rows[0].id;
+        usersCreated++;
+        logger.info(`  Created user: ${contact.firstName} ${contact.lastName} <${primaryEmail}>`);
+
+        if (contact.emails.length > 1) {
+          logger.info(`    Additional emails (not stored): ${contact.emails.slice(1).join(', ')}`);
+        }
+      }
+
+      // Create youth member if data present (even for existing users)
+      if (contact.youthFirstName) {
+        // Check if youth member already exists for this parent
+        const existingYouth = await db.query(
+          'SELECT id FROM youth_members WHERE parent_user_id = $1 AND first_name = $2 AND last_name = $3',
+          [userId, contact.youthFirstName, contact.youthLastName || contact.lastName]
+        );
+        if (existingYouth.rows.length > 0) {
+          logger.info(`    Youth member already exists: ${contact.youthFirstName} ${contact.youthLastName || contact.lastName}`);
+        } else {
+          await db.query(
+            `INSERT INTO youth_members (parent_user_id, first_name, last_name, birthdate, project, horse_names)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              userId,
+              contact.youthFirstName,
+              contact.youthLastName || contact.lastName,
+              contact.youthBirthdate || null,
+              contact.project || null,
+              contact.horseNames || null,
+            ]
+          );
+          youthCreated++;
+          logger.info(`    Created youth member: ${contact.youthFirstName} ${contact.youthLastName || contact.lastName}`);
+        }
       }
     }
 
