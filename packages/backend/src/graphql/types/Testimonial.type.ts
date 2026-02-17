@@ -1,5 +1,5 @@
 import { ObjectType, Field, ID, Int } from 'type-graphql';
-import { DateTimeScalar } from './User.type';
+import { DateTimeScalar } from './scalars';
 
 @ObjectType()
 export class Testimonial {
