@@ -7,6 +7,34 @@ import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent, mockSponsors } from '../data/mockData';
 
+const OFFICER_POSITIONS = [
+  { key: 'PRESIDENT', label: 'President', description: 'Presides over meetings, builds agendas, delegates tasks, and ensures order using parliamentary procedure.' },
+  { key: 'VICE_PRESIDENT', label: 'Vice President', description: 'Fills in for the president, coordinates committees, and introduces guests.' },
+  { key: 'SECRETARY', label: 'Secretary', description: 'Keeps accurate minutes of meetings, records attendance, and handles correspondence.' },
+  { key: 'TREASURER', label: 'Treasurer', description: 'Manages club funds, keeps financial records, and reports on the budget.' },
+  { key: 'SERGEANT_AT_ARMS', label: 'Sergeant-at-Arms', description: 'Maintains order and sets up the room.' },
+  { key: 'NEWS_REPORTER', label: 'News Reporter', description: 'Writes articles about club activities for local media.' },
+  { key: 'RECREATION_LEADER', label: 'Recreation/Song Leader', description: 'Leads games, icebreakers, and songs.' },
+  { key: 'HISTORIAN', label: 'Historian', description: "Documents the club's year through photos and scrapbooks." },
+];
+
+interface OfficerData {
+  id: string;
+  position: string;
+  termYear: string;
+  holderUserId?: string;
+  holderYouthMemberId?: string;
+  holder?: { firstName: string; lastName: string; holderType: string; profilePhotoUrl?: string };
+  label: string;
+  description: string;
+}
+
+interface HolderOption {
+  id: string;
+  name: string;
+  type: 'user' | 'youth';
+}
+
 interface EventData {
   id: string;
   title: string;
@@ -48,8 +76,15 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'events' | 'blog' | 'sponsors' | 'testimonials'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'events' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [officers, setOfficers] = useState<OfficerData[]>([]);
+  const [termYear, setTermYear] = useState(() => {
+    const now = new Date();
+    const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+    return `${year}-${year + 1}`;
+  });
+  const [holderOptions, setHolderOptions] = useState<HolderOption[]>([]);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
   const [editingBlogPostId, setEditingBlogPostId] = useState<string | null>(null);
@@ -117,11 +152,59 @@ export default function AdminPage() {
     }
   }, [graphqlUrl]);
 
+  const fetchOfficers = useCallback(async (year: string) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position termYear holderUserId holderYouthMemberId holder { firstName lastName holderType profilePhotoUrl } label description } }`,
+        variables: { termYear: year },
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.officerPositions) {
+      setOfficers(result.data.officerPositions);
+    }
+  }, [graphqlUrl]);
+
+  const fetchHolderOptions = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { users { id firstName lastName youthMembers { id firstName lastName } } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.users) {
+      const options: HolderOption[] = [];
+      for (const user of result.data.users) {
+        options.push({ id: user.id, name: `${user.firstName} ${user.lastName}`, type: 'user' });
+        if (user.youthMembers) {
+          for (const ym of user.youthMembers) {
+            options.push({ id: ym.id, name: `${ym.firstName} ${ym.lastName} (Youth)`, type: 'youth' });
+          }
+        }
+      }
+      setHolderOptions(options);
+    }
+  }, [graphqlUrl]);
+
   useEffect(() => {
     fetchTestimonials();
     fetchEvents();
     fetchBlogPosts();
-  }, [fetchTestimonials, fetchEvents, fetchBlogPosts]);
+    fetchOfficers(termYear);
+    fetchHolderOptions();
+  }, [fetchTestimonials, fetchEvents, fetchBlogPosts, fetchOfficers, fetchHolderOptions, termYear]);
 
   const handleEditEvent = (eventId: string) => {
     setEditingEventId(eventId);
@@ -348,6 +431,49 @@ export default function AdminPage() {
     fetchTestimonials();
   };
 
+  // Officer handlers
+  const handleSetOfficer = async (position: string, holderId: string, holderType: 'user' | 'youth') => {
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation SetOfficer($position: String!, $termYear: String!, $holderUserId: String, $holderYouthMemberId: String) {
+          setOfficer(position: $position, termYear: $termYear, holderUserId: $holderUserId, holderYouthMemberId: $holderYouthMemberId) { id }
+        }`,
+        variables: {
+          position,
+          termYear,
+          holderUserId: holderType === 'user' ? holderId : null,
+          holderYouthMemberId: holderType === 'youth' ? holderId : null,
+        },
+      }),
+    });
+    fetchOfficers(termYear);
+  };
+
+  const handleRemoveOfficer = async (position: string) => {
+    if (!confirm('Remove this officer assignment?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation RemoveOfficer($position: String!, $termYear: String!) {
+          removeOfficer(position: $position, termYear: $termYear)
+        }`,
+        variables: { position, termYear },
+      }),
+    });
+    fetchOfficers(termYear);
+  };
+
   // Blog handlers
   const handleEditBlogPost = (postId: string) => {
     setEditingBlogPostId(postId);
@@ -436,7 +562,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-8">
         <nav className="-mb-px flex space-x-8">
-          {['home', 'events', 'blog', 'sponsors', 'testimonials'].map((tab) => (
+          {['home', 'events', 'blog', 'sponsors', 'testimonials', 'officers'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -845,6 +971,95 @@ export default function AdminPage() {
                 <p className="text-sm text-gray-600 mt-1">{sponsor.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Officers */}
+      {activeTab === 'officers' && (
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold">Manage Officers</h3>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Term Year:</label>
+              <select
+                className="input w-auto"
+                value={termYear}
+                onChange={(e) => {
+                  setTermYear(e.target.value);
+                  fetchOfficers(e.target.value);
+                }}
+              >
+                {(() => {
+                  const now = new Date();
+                  const currentYear = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+                  const years = [];
+                  for (let y = currentYear + 1; y >= currentYear - 3; y--) {
+                    years.push(`${y}-${y + 1}`);
+                  }
+                  return years.map(y => <option key={y} value={y}>{y}</option>);
+                })()}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {OFFICER_POSITIONS.map((pos) => {
+              const assigned = officers.find(o => o.position === pos.key);
+              return (
+                <div key={pos.key} className="card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-semibold">{pos.label}</h4>
+                      <p className="text-sm text-gray-500">{pos.description}</p>
+                      {assigned?.holder ? (
+                        <div className="mt-2 flex items-center gap-2">
+                          <img
+                            src={assigned.holder.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(assigned.holder.firstName + ' ' + assigned.holder.lastName)}&background=4f772d&color=fff&size=32`}
+                            alt=""
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <span className="text-sm font-medium text-gray-900">
+                            {assigned.holder.firstName} {assigned.holder.lastName}
+                          </span>
+                          {assigned.holder.holderType === 'youth' && (
+                            <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Youth</span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-400 italic">Vacant</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <select
+                        className="input w-auto text-sm"
+                        value=""
+                        onChange={(e) => {
+                          const [type, id] = e.target.value.split(':');
+                          if (type && id) {
+                            handleSetOfficer(pos.key, id, type as 'user' | 'youth');
+                          }
+                        }}
+                      >
+                        <option value="">Assign...</option>
+                        {holderOptions.map((opt) => (
+                          <option key={`${opt.type}:${opt.id}`} value={`${opt.type}:${opt.id}`}>
+                            {opt.name}
+                          </option>
+                        ))}
+                      </select>
+                      {assigned?.holder && (
+                        <button
+                          onClick={() => handleRemoveOfficer(pos.key)}
+                          className="btn-secondary text-sm text-red-600"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
