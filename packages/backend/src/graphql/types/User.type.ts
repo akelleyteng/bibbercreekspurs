@@ -1,6 +1,7 @@
 import { ObjectType, Field, ID, registerEnumType } from 'type-graphql';
 import { GraphQLScalarType, Kind } from 'graphql';
 import { Role } from '@4hclub/shared';
+import { YouthMember } from './YouthMember.type';
 
 // Custom DateTime scalar that serializes Date objects to ISO strings
 export const DateTimeScalar = new GraphQLScalarType({
@@ -59,6 +60,9 @@ export class User {
 
   @Field()
   passwordResetRequired!: boolean;
+
+  @Field(() => [YouthMember], { nullable: true })
+  youthMembers?: YouthMember[];
 
   @Field(() => DateTimeScalar)
   createdAt!: Date;
