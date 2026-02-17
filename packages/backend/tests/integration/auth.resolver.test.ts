@@ -58,7 +58,7 @@ describe('Auth Resolver Integration Tests', () => {
       expect(response.body.data.register.user.email).toBe('test1@example.com');
       expect(response.body.data.register.user.firstName).toBe('John');
       expect(response.body.data.register.user.lastName).toBe('Doe');
-      expect(response.body.data.register.user.role).toBe(Role.MEMBER);
+      expect(response.body.data.register.user.role).toBe(Role.PARENT);
       expect(response.body.data.register.accessToken).toBeDefined();
       expect(typeof response.body.data.register.accessToken).toBe('string');
     });

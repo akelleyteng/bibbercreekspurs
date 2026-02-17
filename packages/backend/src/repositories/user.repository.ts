@@ -44,6 +44,11 @@ export interface UpdateUserData {
   profile_photo_url?: string;
 }
 
+export interface AdminUpdateUserData extends UpdateUserData {
+  email?: string;
+  role?: Role;
+}
+
 export class UserRepository {
   /**
    * Create a new user
@@ -205,6 +210,60 @@ export class UserRepository {
       return result.rows[0];
     } catch (error) {
       logger.error('Error updating user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Admin update - allows changing role and email in addition to standard fields
+   */
+  async adminUpdate(id: string, data: AdminUpdateUserData): Promise<User | null> {
+    try {
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      const allowedFields: (keyof AdminUpdateUserData)[] = [
+        'first_name', 'last_name', 'email', 'role',
+        'phone', 'address', 'emergency_contact', 'emergency_phone', 'profile_photo_url',
+      ];
+
+      for (const field of allowedFields) {
+        if (data[field] !== undefined) {
+          updates.push(`${field} = $${paramIndex}`);
+          values.push(data[field]);
+          paramIndex++;
+        }
+      }
+
+      if (updates.length === 0) {
+        return this.findById(id);
+      }
+
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(id);
+
+      const result = await db.query<User>(
+        `UPDATE users
+         SET ${updates.join(', ')}
+         WHERE id = $${paramIndex}
+         RETURNING id, email, first_name, last_name, role,
+                   phone, address, emergency_contact, emergency_phone,
+                   profile_photo_url, password_reset_required, created_at, updated_at`,
+        values
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      logger.info(`User admin-updated: ${result.rows[0].email}`);
+      return result.rows[0];
+    } catch (error: any) {
+      if (error.code === '23505' && error.constraint === 'users_email_key') {
+        throw new Error('Email already exists');
+      }
+      logger.error('Error admin-updating user:', error);
       throw error;
     }
   }

@@ -55,7 +55,7 @@ export class DriveResolver {
 
   private async getUserRole(userId: string): Promise<string> {
     const user = await this.userRepo.findById(userId);
-    return user?.role || Role.MEMBER;
+    return user?.role || Role.PARENT;
   }
 
   private mapFile(file: driveService.DriveFileInfo): DriveFileGQL {
@@ -123,7 +123,7 @@ export class DriveResolver {
       });
     }
 
-    if (env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID && (role === Role.OFFICER || role === Role.ADMIN)) {
+    if (env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID && (role === Role.ADULT_LEADER || role === Role.ADMIN)) {
       folders.push({
         id: env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID,
         name: 'Leadership Files',
@@ -153,8 +153,8 @@ export class DriveResolver {
       });
     }
 
-    if (folderType === 'leadership' && role !== Role.OFFICER && role !== Role.ADMIN) {
-      throw new GraphQLError('Leadership files require Officer or Admin access', {
+    if (folderType === 'leadership' && role !== Role.ADULT_LEADER && role !== Role.ADMIN) {
+      throw new GraphQLError('Leadership files require Adult Leader or Admin access', {
         extensions: { code: 'FORBIDDEN' },
       });
     }

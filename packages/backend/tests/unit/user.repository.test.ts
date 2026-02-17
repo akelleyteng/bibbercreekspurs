@@ -26,7 +26,7 @@ describe('UserRepository - Unit Tests', () => {
       password_hash: '$2b$10$hashedpassword',
       first_name: 'John',
       last_name: 'Doe',
-      role: Role.MEMBER,
+      role: Role.PARENT,
     };
 
     const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
@@ -112,7 +112,7 @@ describe('UserRepository - Unit Tests', () => {
       password_hash: '$2b$10$hashedpassword',
       first_name: 'John',
       last_name: 'Doe',
-      role: Role.MEMBER,
+      role: Role.PARENT,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -180,7 +180,7 @@ describe('UserRepository - Unit Tests', () => {
       email: 'test@example.com',
       first_name: 'John',
       last_name: 'Doe',
-      role: Role.MEMBER,
+      role: Role.PARENT,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -250,7 +250,7 @@ describe('UserRepository - Unit Tests', () => {
             email: 'test@example.com',
             first_name: updateData.first_name,
             last_name: updateData.last_name,
-            role: Role.MEMBER,
+            role: Role.PARENT,
             created_at: new Date(),
             updated_at: new Date(),
           },
@@ -290,7 +290,7 @@ describe('UserRepository - Unit Tests', () => {
             email: 'test@example.com',
             first_name: updateData.first_name,
             last_name: 'Doe', // Not updated
-            role: Role.MEMBER,
+            role: Role.PARENT,
             created_at: new Date(),
             updated_at: new Date(),
           },
@@ -387,7 +387,7 @@ describe('UserRepository - Unit Tests', () => {
         email: 'user1@example.com',
         first_name: 'User',
         last_name: 'One',
-        role: Role.MEMBER,
+        role: Role.PARENT,
         created_at: new Date(),
         updated_at: new Date(),
       },
@@ -396,7 +396,7 @@ describe('UserRepository - Unit Tests', () => {
         email: 'user2@example.com',
         first_name: 'User',
         last_name: 'Two',
-        role: Role.OFFICER,
+        role: Role.ADULT_LEADER,
         created_at: new Date(),
         updated_at: new Date(),
       },

@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
 
+const ROLE_LABELS: Record<string, string> = {
+  PARENT: 'Parent',
+  ADULT_LEADER: 'Adult Leader',
+  YOUTH_MEMBER: 'Youth Member',
+  ADMIN: 'Admin',
+};
+
 interface YouthMember {
   id: string;
   firstName: string;
@@ -108,7 +115,7 @@ export default function MembersPage() {
                 <h3 className="font-bold text-gray-900">
                   {member.firstName} {member.lastName}
                 </h3>
-                <p className="text-sm text-gray-500">{member.role}</p>
+                <p className="text-sm text-gray-500">{ROLE_LABELS[member.role] || member.role}</p>
               </div>
             </div>
             {member.youthMembers && member.youthMembers.length > 0 && (

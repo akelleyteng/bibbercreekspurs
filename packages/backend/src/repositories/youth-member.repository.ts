@@ -22,6 +22,14 @@ export interface CreateYouthMemberData {
   horse_names?: string;
 }
 
+export interface UpdateYouthMemberData {
+  first_name?: string;
+  last_name?: string;
+  birthdate?: string | null;
+  project?: string | null;
+  horse_names?: string | null;
+}
+
 export class YouthMemberRepository {
   async create(data: CreateYouthMemberData): Promise<YouthMember> {
     try {
@@ -56,6 +64,50 @@ export class YouthMemberRepository {
       return result.rows;
     } catch (error) {
       logger.error('Error finding youth members by parent:', error);
+      throw error;
+    }
+  }
+
+  async update(id: string, data: UpdateYouthMemberData): Promise<YouthMember | null> {
+    try {
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      const fields: (keyof UpdateYouthMemberData)[] = ['first_name', 'last_name', 'birthdate', 'project', 'horse_names'];
+      for (const field of fields) {
+        if (data[field] !== undefined) {
+          updates.push(`${field} = $${paramIndex}`);
+          values.push(data[field]);
+          paramIndex++;
+        }
+      }
+
+      if (updates.length === 0) return null;
+
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(id);
+
+      const result = await db.query<YouthMember>(
+        `UPDATE youth_members SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+        values
+      );
+
+      if (result.rows.length === 0) return null;
+      logger.info(`Youth member updated: ${result.rows[0].first_name} ${result.rows[0].last_name}`);
+      return result.rows[0];
+    } catch (error) {
+      logger.error('Error updating youth member:', error);
+      throw error;
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      const result = await db.query('DELETE FROM youth_members WHERE id = $1', [id]);
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      logger.error('Error deleting youth member:', error);
       throw error;
     }
   }

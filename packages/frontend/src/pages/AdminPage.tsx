@@ -35,6 +35,36 @@ interface HolderOption {
   type: 'user' | 'youth';
 }
 
+interface AdminYouthMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  birthdate?: string;
+  project?: string;
+  horseNames?: string;
+}
+
+interface AdminMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  phone?: string;
+  address?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  profilePhotoUrl?: string;
+  youthMembers?: AdminYouthMember[];
+}
+
+const ROLE_OPTIONS = [
+  { value: 'PARENT', label: 'Parent' },
+  { value: 'ADULT_LEADER', label: 'Adult Leader' },
+  { value: 'YOUTH_MEMBER', label: 'Youth Member' },
+  { value: 'ADMIN', label: 'Admin' },
+];
+
 interface EventData {
   id: string;
   title: string;
@@ -76,7 +106,7 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'events' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'events' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [termYear, setTermYear] = useState(() => {
@@ -95,6 +125,13 @@ export default function AdminPage() {
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPostData[]>([]);
+  const [adminMembers, setAdminMembers] = useState<AdminMember[]>([]);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [memberForm, setMemberForm] = useState<Partial<AdminMember>>({});
+  const [memberSearch, setMemberSearch] = useState('');
+  const [editingYouthId, setEditingYouthId] = useState<string | null>(null);
+  const [youthForm, setYouthForm] = useState<Partial<AdminYouthMember>>({});
+  const [addingYouthForMemberId, setAddingYouthForMemberId] = useState<string | null>(null);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -180,21 +217,42 @@ export default function AdminPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        query: `query { users { id firstName lastName youthMembers { id firstName lastName } } }`,
+        query: `query { users { id firstName lastName } allYouthMembers { id firstName lastName } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data) {
+      const options: HolderOption[] = [];
+      if (result.data.users) {
+        for (const user of result.data.users) {
+          options.push({ id: user.id, name: `${user.firstName} ${user.lastName}`, type: 'user' });
+        }
+      }
+      if (result.data.allYouthMembers) {
+        for (const ym of result.data.allYouthMembers) {
+          options.push({ id: ym.id, name: `${ym.firstName} ${ym.lastName} (Youth)`, type: 'youth' });
+        }
+      }
+      options.sort((a, b) => a.name.localeCompare(b.name));
+      setHolderOptions(options);
+    }
+  }, [graphqlUrl]);
+
+  const fetchMembers = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl youthMembers { id firstName lastName birthdate project horseNames } } }`,
       }),
     });
     const result = await res.json();
     if (result.data?.users) {
-      const options: HolderOption[] = [];
-      for (const user of result.data.users) {
-        options.push({ id: user.id, name: `${user.firstName} ${user.lastName}`, type: 'user' });
-        if (user.youthMembers) {
-          for (const ym of user.youthMembers) {
-            options.push({ id: ym.id, name: `${ym.firstName} ${ym.lastName} (Youth)`, type: 'youth' });
-          }
-        }
-      }
-      setHolderOptions(options);
+      setAdminMembers(result.data.users);
     }
   }, [graphqlUrl]);
 
@@ -204,7 +262,8 @@ export default function AdminPage() {
     fetchBlogPosts();
     fetchOfficers(termYear);
     fetchHolderOptions();
-  }, [fetchTestimonials, fetchEvents, fetchBlogPosts, fetchOfficers, fetchHolderOptions, termYear]);
+    fetchMembers();
+  }, [fetchTestimonials, fetchEvents, fetchBlogPosts, fetchOfficers, fetchHolderOptions, fetchMembers, termYear]);
 
   const handleEditEvent = (eventId: string) => {
     setEditingEventId(eventId);
@@ -474,6 +533,159 @@ export default function AdminPage() {
     fetchOfficers(termYear);
   };
 
+  // Member handlers
+  const handleEditMember = (member: AdminMember) => {
+    setEditingMemberId(member.id);
+    setMemberForm({ ...member });
+    setEditingYouthId(null);
+    setAddingYouthForMemberId(null);
+  };
+
+  const handleCancelEditMember = () => {
+    setEditingMemberId(null);
+    setMemberForm({});
+    setEditingYouthId(null);
+    setYouthForm({});
+    setAddingYouthForMemberId(null);
+  };
+
+  const handleSaveMember = async () => {
+    if (!editingMemberId || !memberForm) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminUpdateUser($id: String!, $firstName: String, $lastName: String, $email: String, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
+          adminUpdateUser(id: $id, firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
+        }`,
+        variables: {
+          id: editingMemberId,
+          firstName: memberForm.firstName,
+          lastName: memberForm.lastName,
+          email: memberForm.email,
+          role: memberForm.role,
+          phone: memberForm.phone || '',
+          address: memberForm.address || '',
+          emergencyContact: memberForm.emergencyContact || '',
+          emergencyPhone: memberForm.emergencyPhone || '',
+        },
+      }),
+    });
+    const result = await res.json();
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    setEditingMemberId(null);
+    setMemberForm({});
+    fetchMembers();
+    fetchHolderOptions();
+  };
+
+  const handleDeleteMember = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminDeleteUser($id: String!) { adminDeleteUser(id: $id) }`,
+        variables: { id },
+      }),
+    });
+    fetchMembers();
+    fetchHolderOptions();
+  };
+
+  const handleSaveYouth = async (parentUserId: string) => {
+    const token = localStorage.getItem('token');
+    const isNew = addingYouthForMemberId === parentUserId;
+
+    if (isNew) {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: `mutation AdminCreateYouthMember($parentUserId: String!, $firstName: String!, $lastName: String!, $birthdate: String, $project: String, $horseNames: String) {
+            adminCreateYouthMember(parentUserId: $parentUserId, firstName: $firstName, lastName: $lastName, birthdate: $birthdate, project: $project, horseNames: $horseNames) { id }
+          }`,
+          variables: {
+            parentUserId,
+            firstName: youthForm.firstName || '',
+            lastName: youthForm.lastName || '',
+            birthdate: youthForm.birthdate || null,
+            project: youthForm.project || null,
+            horseNames: youthForm.horseNames || null,
+          },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors) {
+        alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+        return;
+      }
+    } else if (editingYouthId) {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: `mutation AdminUpdateYouthMember($id: String!, $firstName: String, $lastName: String, $birthdate: String, $project: String, $horseNames: String) {
+            adminUpdateYouthMember(id: $id, firstName: $firstName, lastName: $lastName, birthdate: $birthdate, project: $project, horseNames: $horseNames) { id }
+          }`,
+          variables: {
+            id: editingYouthId,
+            firstName: youthForm.firstName,
+            lastName: youthForm.lastName,
+            birthdate: youthForm.birthdate || null,
+            project: youthForm.project || null,
+            horseNames: youthForm.horseNames || null,
+          },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors) {
+        alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+        return;
+      }
+    }
+    setEditingYouthId(null);
+    setAddingYouthForMemberId(null);
+    setYouthForm({});
+    fetchMembers();
+    fetchHolderOptions();
+  };
+
+  const handleDeleteYouth = async (id: string, name: string) => {
+    if (!confirm(`Remove youth member ${name}?`)) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminDeleteYouthMember($id: String!) { adminDeleteYouthMember(id: $id) }`,
+        variables: { id },
+      }),
+    });
+    fetchMembers();
+    fetchHolderOptions();
+  };
+
   // Blog handlers
   const handleEditBlogPost = (postId: string) => {
     setEditingBlogPostId(postId);
@@ -562,7 +774,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-8">
         <nav className="-mb-px flex space-x-8">
-          {['home', 'events', 'blog', 'sponsors', 'testimonials', 'officers'].map((tab) => (
+          {['home', 'members', 'events', 'blog', 'sponsors', 'testimonials', 'officers'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -705,6 +917,232 @@ export default function AdminPage() {
             </div>
             <button className="btn-primary mt-4">Save Changes</button>
           </div>
+        </div>
+      )}
+
+      {/* Members */}
+      {activeTab === 'members' && (
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold">Manage Members</h3>
+            <input
+              type="text"
+              placeholder="Search members..."
+              className="input w-64"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+            />
+          </div>
+          <div className="space-y-4">
+            {adminMembers
+              .filter(m =>
+                !memberSearch ||
+                `${m.firstName} ${m.lastName}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                m.email.toLowerCase().includes(memberSearch.toLowerCase())
+              )
+              .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+              .map((member) => {
+                const isEditing = editingMemberId === member.id;
+                return (
+                  <div key={member.id} className="card">
+                    {!isEditing ? (
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <img
+                            src={member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff&size=48`}
+                            alt=""
+                            className="w-12 h-12 rounded-full flex-shrink-0"
+                          />
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{member.firstName} {member.lastName}</h4>
+                            <p className="text-sm text-gray-500">{member.email}</p>
+                            <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded font-medium ${
+                              member.role === 'ADMIN' ? 'bg-red-100 text-red-800' :
+                              member.role === 'ADULT_LEADER' ? 'bg-purple-100 text-purple-800' :
+                              member.role === 'YOUTH_MEMBER' ? 'bg-blue-100 text-blue-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {ROLE_OPTIONS.find(r => r.value === member.role)?.label || member.role}
+                            </span>
+                            {member.phone && <p className="text-sm text-gray-600 mt-1">{member.phone}</p>}
+                            {member.youthMembers && member.youthMembers.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium text-gray-500 uppercase">Youth Members:</p>
+                                {member.youthMembers.map(ym => (
+                                  <span key={ym.id} className="inline-block text-sm text-gray-700 mr-3">{ym.firstName} {ym.lastName}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <button onClick={() => handleEditMember(member)} className="btn-secondary text-sm">Edit</button>
+                          <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-red-600">Delete</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+                            <input className="input" value={memberForm.firstName || ''} onChange={e => setMemberForm(f => ({ ...f, firstName: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+                            <input className="input" value={memberForm.lastName || ''} onChange={e => setMemberForm(f => ({ ...f, lastName: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                            <input className="input" type="email" value={memberForm.email || ''} onChange={e => setMemberForm(f => ({ ...f, email: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                            <select className="input" value={memberForm.role || ''} onChange={e => setMemberForm(f => ({ ...f, role: e.target.value }))}>
+                              {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                            <input className="input" value={memberForm.phone || ''} onChange={e => setMemberForm(f => ({ ...f, phone: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                            <input className="input" value={memberForm.address || ''} onChange={e => setMemberForm(f => ({ ...f, address: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Contact</label>
+                            <input className="input" value={memberForm.emergencyContact || ''} onChange={e => setMemberForm(f => ({ ...f, emergencyContact: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Phone</label>
+                            <input className="input" value={memberForm.emergencyPhone || ''} onChange={e => setMemberForm(f => ({ ...f, emergencyPhone: e.target.value }))} />
+                          </div>
+                        </div>
+
+                        {/* Youth Members section */}
+                        <div className="border-t pt-4 mt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="text-sm font-semibold text-gray-700">Youth Members</h5>
+                            {addingYouthForMemberId !== member.id && (
+                              <button
+                                className="text-sm text-primary-600 hover:text-primary-700"
+                                onClick={() => {
+                                  setAddingYouthForMemberId(member.id);
+                                  setEditingYouthId(null);
+                                  setYouthForm({});
+                                }}
+                              >
+                                + Add Youth Member
+                              </button>
+                            )}
+                          </div>
+                          {member.youthMembers?.map(ym => (
+                            <div key={ym.id} className="mb-3">
+                              {editingYouthId === ym.id ? (
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-2">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+                                      <input className="input text-sm" value={youthForm.firstName || ''} onChange={e => setYouthForm(f => ({ ...f, firstName: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+                                      <input className="input text-sm" value={youthForm.lastName || ''} onChange={e => setYouthForm(f => ({ ...f, lastName: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Birthdate</label>
+                                      <input className="input text-sm" type="date" value={youthForm.birthdate || ''} onChange={e => setYouthForm(f => ({ ...f, birthdate: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Project</label>
+                                      <input className="input text-sm" value={youthForm.project || ''} onChange={e => setYouthForm(f => ({ ...f, project: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Horse Names</label>
+                                      <input className="input text-sm" value={youthForm.horseNames || ''} onChange={e => setYouthForm(f => ({ ...f, horseNames: e.target.value }))} />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button className="btn-primary text-sm" onClick={() => handleSaveYouth(member.id)}>Save</button>
+                                    <button className="btn-secondary text-sm" onClick={() => { setEditingYouthId(null); setYouthForm({}); }}>Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                  <span className="text-sm text-gray-800">{ym.firstName} {ym.lastName}</span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="text-xs text-primary-600 hover:underline"
+                                      onClick={() => {
+                                        setEditingYouthId(ym.id);
+                                        setAddingYouthForMemberId(null);
+                                        setYouthForm({
+                                          firstName: ym.firstName,
+                                          lastName: ym.lastName,
+                                          birthdate: ym.birthdate ? ym.birthdate.split('T')[0] : '',
+                                          project: ym.project || '',
+                                          horseNames: ym.horseNames || '',
+                                        });
+                                      }}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      className="text-xs text-red-600 hover:underline"
+                                      onClick={() => handleDeleteYouth(ym.id, `${ym.firstName} ${ym.lastName}`)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {addingYouthForMemberId === member.id && (
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-2">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+                                  <input className="input text-sm" value={youthForm.firstName || ''} onChange={e => setYouthForm(f => ({ ...f, firstName: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+                                  <input className="input text-sm" value={youthForm.lastName || ''} onChange={e => setYouthForm(f => ({ ...f, lastName: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Birthdate</label>
+                                  <input className="input text-sm" type="date" value={youthForm.birthdate || ''} onChange={e => setYouthForm(f => ({ ...f, birthdate: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Project</label>
+                                  <input className="input text-sm" value={youthForm.project || ''} onChange={e => setYouthForm(f => ({ ...f, project: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Horse Names</label>
+                                  <input className="input text-sm" value={youthForm.horseNames || ''} onChange={e => setYouthForm(f => ({ ...f, horseNames: e.target.value }))} />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button className="btn-primary text-sm" onClick={() => handleSaveYouth(member.id)}>Add</button>
+                                <button className="btn-secondary text-sm" onClick={() => { setAddingYouthForMemberId(null); setYouthForm({}); }}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 mt-4 pt-4 border-t">
+                          <button className="btn-primary" onClick={handleSaveMember}>Save Member</button>
+                          <button className="btn-secondary" onClick={handleCancelEditMember}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+          {adminMembers.length === 0 && (
+            <p className="text-gray-500 text-center py-8">No members found.</p>
+          )}
         </div>
       )}
 

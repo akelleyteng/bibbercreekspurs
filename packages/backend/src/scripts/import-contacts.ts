@@ -145,7 +145,7 @@ async function importContacts() {
           `INSERT INTO users (email, password_hash, first_name, last_name, role, phone, password_reset_required)
            VALUES ($1, $2, $3, $4, $5, $6, true)
            RETURNING id`,
-          [primaryEmail, passwordHash, contact.firstName, contact.lastName, Role.MEMBER, contact.phone || null]
+          [primaryEmail, passwordHash, contact.firstName, contact.lastName, Role.PARENT, contact.phone || null]
         );
         userId = userResult.rows[0].id;
         usersCreated++;

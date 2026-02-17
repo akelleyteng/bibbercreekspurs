@@ -38,7 +38,7 @@ export class AuthResolver {
         password_hash: passwordHash,
         first_name: input.firstName,
         last_name: input.lastName,
-        role: Role.MEMBER,
+        role: Role.PARENT,
         phone: input.phone,
         address: input.address,
         emergency_contact: input.emergencyContact,
