@@ -132,6 +132,8 @@ export default function AdminPage() {
   const [editingYouthId, setEditingYouthId] = useState<string | null>(null);
   const [youthForm, setYouthForm] = useState<Partial<AdminYouthMember>>({});
   const [addingYouthForMemberId, setAddingYouthForMemberId] = useState<string | null>(null);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [newMemberForm, setNewMemberForm] = useState<Partial<AdminMember>>({ role: 'PARENT' });
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -604,6 +606,45 @@ export default function AdminPage() {
     fetchHolderOptions();
   };
 
+  const handleCreateMember = async () => {
+    if (!newMemberForm.firstName || !newMemberForm.lastName || !newMemberForm.email) {
+      alert('First name, last name, and email are required.');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminCreateUser($firstName: String!, $lastName: String!, $email: String!, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
+          adminCreateUser(firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
+        }`,
+        variables: {
+          firstName: newMemberForm.firstName,
+          lastName: newMemberForm.lastName,
+          email: newMemberForm.email,
+          role: newMemberForm.role || 'PARENT',
+          phone: newMemberForm.phone || null,
+          address: newMemberForm.address || null,
+          emergencyContact: newMemberForm.emergencyContact || null,
+          emergencyPhone: newMemberForm.emergencyPhone || null,
+        },
+      }),
+    });
+    const result = await res.json();
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    setIsAddingMember(false);
+    setNewMemberForm({ role: 'PARENT' });
+    fetchMembers();
+    fetchHolderOptions();
+  };
+
   const handleSaveYouth = async (parentUserId: string) => {
     const token = localStorage.getItem('token');
     const isNew = addingYouthForMemberId === parentUserId;
@@ -925,14 +966,67 @@ export default function AdminPage() {
         <div>
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">Manage Members</h3>
-            <input
-              type="text"
-              placeholder="Search members..."
-              className="input w-64"
-              value={memberSearch}
-              onChange={(e) => setMemberSearch(e.target.value)}
-            />
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search members..."
+                className="input w-64"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+              />
+              <button onClick={() => { setIsAddingMember(true); setNewMemberForm({ role: 'PARENT' }); }} className="btn-primary whitespace-nowrap">
+                + Add Member
+              </button>
+            </div>
           </div>
+
+          {isAddingMember && (
+            <div className="card mb-6 border-2 border-primary-200">
+              <h4 className="font-semibold text-gray-900 mb-4">New Member</h4>
+              <p className="text-sm text-gray-500 mb-4">The member will be created with a temporary password and prompted to change it on first login.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                  <input className="input" value={newMemberForm.firstName || ''} onChange={e => setNewMemberForm(f => ({ ...f, firstName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                  <input className="input" value={newMemberForm.lastName || ''} onChange={e => setNewMemberForm(f => ({ ...f, lastName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                  <input className="input" type="email" value={newMemberForm.email || ''} onChange={e => setNewMemberForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                  <select className="input" value={newMemberForm.role || 'PARENT'} onChange={e => setNewMemberForm(f => ({ ...f, role: e.target.value }))}>
+                    {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                  <input className="input" value={newMemberForm.phone || ''} onChange={e => setNewMemberForm(f => ({ ...f, phone: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                  <input className="input" value={newMemberForm.address || ''} onChange={e => setNewMemberForm(f => ({ ...f, address: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Contact</label>
+                  <input className="input" value={newMemberForm.emergencyContact || ''} onChange={e => setNewMemberForm(f => ({ ...f, emergencyContact: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Phone</label>
+                  <input className="input" value={newMemberForm.emergencyPhone || ''} onChange={e => setNewMemberForm(f => ({ ...f, emergencyPhone: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button className="btn-primary" onClick={handleCreateMember}>Create Member</button>
+                <button className="btn-secondary" onClick={() => { setIsAddingMember(false); setNewMemberForm({ role: 'PARENT' }); }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             {adminMembers
               .filter(m =>

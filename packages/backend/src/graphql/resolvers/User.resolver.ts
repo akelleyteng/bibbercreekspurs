@@ -3,7 +3,7 @@ import { User } from '../types/User.type';
 import { YouthMember } from '../types/YouthMember.type';
 import { UserRepository } from '../../repositories/user.repository';
 import { YouthMemberRepository } from '../../repositories/youth-member.repository';
-import { verifyAccessToken } from '../../services/auth.service';
+import { verifyAccessToken, hashPassword } from '../../services/auth.service';
 import { Role } from '@4hclub/shared';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
@@ -121,6 +121,47 @@ export class UserResolver {
       throw new GraphQLError('Failed to fetch youth members', {
         extensions: { code: 'INTERNAL_ERROR' },
       });
+    }
+  }
+
+  @Mutation(() => User)
+  async adminCreateUser(
+    @Arg('firstName') firstName: string,
+    @Arg('lastName') lastName: string,
+    @Arg('email') email: string,
+    @Arg('role', { nullable: true }) role: string,
+    @Arg('phone', { nullable: true }) phone: string,
+    @Arg('address', { nullable: true }) address: string,
+    @Arg('emergencyContact', { nullable: true }) emergencyContact: string,
+    @Arg('emergencyPhone', { nullable: true }) emergencyPhone: string,
+    @Ctx() context: Context
+  ): Promise<User> {
+    await this.requireAdmin(context);
+
+    const tempPassword = 'Welcome2025!';
+    const passwordHash = await hashPassword(tempPassword);
+
+    try {
+      const created = await this.userRepo.create({
+        email: email.toLowerCase(),
+        password_hash: passwordHash,
+        first_name: firstName,
+        last_name: lastName,
+        role: (role as Role) || Role.PARENT,
+        phone: phone || undefined,
+        address: address || undefined,
+        emergency_contact: emergencyContact || undefined,
+        emergency_phone: emergencyPhone || undefined,
+        password_reset_required: true,
+      });
+
+      return this.mapUser(created);
+    } catch (error: any) {
+      if (error.message === 'Email already exists') {
+        throw new GraphQLError('A user with this email already exists', { extensions: { code: 'BAD_INPUT' } });
+      }
+      logger.error('adminCreateUser error:', error);
+      throw new GraphQLError('Failed to create user', { extensions: { code: 'INTERNAL_ERROR' } });
     }
   }
 

@@ -32,6 +32,7 @@ export interface CreateUserData {
   address?: string;
   emergency_contact?: string;
   emergency_phone?: string;
+  password_reset_required?: boolean;
 }
 
 export interface UpdateUserData {
@@ -61,8 +62,8 @@ export class UserRepository {
       const result = await db.query<UserWithPassword>(
         `INSERT INTO users (
           email, password_hash, first_name, last_name, role,
-          phone, address, emergency_contact, emergency_phone
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          phone, address, emergency_contact, emergency_phone, password_reset_required
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, email, first_name, last_name, role, phone, address,
                   emergency_contact, emergency_phone, profile_photo_url,
                   password_reset_required, created_at, updated_at`,
@@ -76,6 +77,7 @@ export class UserRepository {
           data.address || null,
           data.emergency_contact || null,
           data.emergency_phone || null,
+          data.password_reset_required ?? false,
         ]
       );
 
