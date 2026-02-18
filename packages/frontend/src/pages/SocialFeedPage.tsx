@@ -2,6 +2,7 @@ import { ReactionType } from '@4hclub/shared';
 import DOMPurify from 'dompurify';
 import { formatDistanceToNow } from 'date-fns';
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import RichTextEditor from '../components/RichTextEditor';
 import { useAuth } from '../context/AuthContext';
@@ -104,6 +105,20 @@ export default function SocialFeedPage() {
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
+
+  // Scroll to a specific post when navigating from dashboard (e.g., /feed#post-123)
+  const location = useLocation();
+  useEffect(() => {
+    if (!loading && location.hash) {
+      const el = document.getElementById(location.hash.slice(1));
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-primary-400');
+        const timer = setTimeout(() => el.classList.remove('ring-2', 'ring-primary-400'), 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [loading, location.hash]);
 
   const handleCreatePost = async () => {
     // Check if content is empty (tiptap returns <p></p> for empty)
@@ -284,6 +299,7 @@ export default function SocialFeedPage() {
           {posts.map((post) => (
             <div
               key={post.id}
+              id={`post-${post.id}`}
               className={`card ${post.isHidden ? 'opacity-60 border-yellow-300' : ''}`}
             >
               {/* Hidden badge for admins */}

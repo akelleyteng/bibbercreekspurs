@@ -127,7 +127,7 @@ export default function DashboardPage() {
               <p className="text-gray-500 text-sm">No recent posts.</p>
             ) : (
               recentPosts.map((post) => (
-                <div key={post.id} className="border-b pb-2">
+                <Link key={post.id} to={`/feed#post-${post.id}`} className="block border-b pb-2 hover:bg-gray-50 rounded p-2 -mx-2 transition-colors">
                   <div className="flex items-center justify-between">
                     <p className="text-sm">
                       <span className="font-semibold">{post.author.firstName} {post.author.lastName}</span> posted
@@ -137,7 +137,7 @@ export default function DashboardPage() {
                   <p className="text-gray-600 text-sm mt-1">
                     {(() => { const text = stripHtml(post.content); return text.length > 100 ? text.substring(0, 100) + '...' : text; })()}
                   </p>
-                </div>
+                </Link>
               ))
             )}
           </div>
