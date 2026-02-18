@@ -1,10 +1,12 @@
+// Load environment FIRST before any other imports
 import dotenv from 'dotenv';
 import path from 'path';
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+
+// Now import everything else
 import bcrypt from 'bcrypt';
 import db from '../models/database';
 import { logger } from '../utils/logger';
-
-dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const NEW_PASSWORD = 'bibbercreek';
 
