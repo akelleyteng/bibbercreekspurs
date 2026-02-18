@@ -1,19 +1,23 @@
-import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
 
 // Member layout with user menu dropdown (Profile/Help/Logout)
+// Rendered by AdaptiveLayout when user is authenticated — no auth check here.
 export default function MemberLayout() {
   const location = useLocation();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Type-narrowing guard (never executes — AdaptiveLayout guarantees user is set)
+  if (!user) return null;
 
   const isActive = (path: string) => {
     // Exact match
     if (location.pathname === path) return true;
-    // Also check if we're on a detail page (e.g., /admin/events/123 matches /admin/events)
+    // Also check if we're on a detail page (e.g., /events/123 matches /events)
     if (location.pathname.startsWith(path + '/')) return true;
     return false;
   };
@@ -29,32 +33,12 @@ export default function MemberLayout() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Show loading spinner while checking auth
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-2 text-sm text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Redirect to login if not authenticated
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // For admins, use admin routes for Events and Blog to keep sidebar
-  const isAdmin = user.role === 'ADMIN';
-
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
     { name: 'Social Feed', href: '/feed', icon: '💬' },
-    { name: 'Events', href: isAdmin ? '/admin/events' : '/events', icon: '📅' },
+    { name: 'Events', href: '/events', icon: '📅' },
     { name: 'Calendar', href: '/calendar', icon: '🗓️' },
-    { name: 'Blog', href: isAdmin ? '/admin/blog' : '/blog', icon: '📝' },
+    { name: 'Blog', href: '/blog', icon: '📝' },
     { name: 'Members', href: '/members', icon: '👥' },
     { name: 'Officers', href: '/officers', icon: '⭐' },
     { name: 'Files', href: '/files', icon: '📁' },
