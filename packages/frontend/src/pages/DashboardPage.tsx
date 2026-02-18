@@ -1,6 +1,12 @@
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+
+function stripHtml(html: string): string {
+  const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
+  return clean.replace(/&nbsp;/g, ' ').trim();
+}
 
 interface DashboardEvent {
   id: string;
@@ -129,7 +135,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-gray-400">{format(new Date(post.createdAt), 'MMM d')}</span>
                   </div>
                   <p className="text-gray-600 text-sm mt-1">
-                    {post.content.length > 100 ? post.content.substring(0, 100) + '...' : post.content}
+                    {(() => { const text = stripHtml(post.content); return text.length > 100 ? text.substring(0, 100) + '...' : text; })()}
                   </p>
                 </div>
               ))
