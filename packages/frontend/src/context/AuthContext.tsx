@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 
 interface User {
   id: string;
@@ -15,6 +15,9 @@ interface AuthContextType {
   isLoading: boolean;
   logout: () => Promise<void>;
 }
+
+// Refresh access token 2 minutes before the 15-minute expiry
+const TOKEN_REFRESH_INTERVAL_MS = 13 * 60 * 1000;
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -150,6 +153,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
   }, [fetchCurrentUser, tryRefreshToken]);
+
+  // Silently refresh the access token before it expires
+  const refreshSession = useCallback(async () => {
+    const refreshResult = await tryRefreshToken();
+    if (refreshResult) {
+      localStorage.setItem('token', refreshResult.accessToken);
+      localStorage.setItem('user', JSON.stringify(refreshResult.user));
+      setUser(refreshResult.user);
+    } else if (user) {
+      // Refresh failed while we thought we were logged in — session is dead
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('refreshToken');
+      setUser(null);
+    }
+  }, [tryRefreshToken, user]);
+
+  // Proactive refresh timer + tab re-focus refresh
+  const lastRefreshRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Periodic refresh every 13 minutes
+    lastRefreshRef.current = Date.now();
+    const interval = setInterval(() => {
+      lastRefreshRef.current = Date.now();
+      refreshSession();
+    }, TOKEN_REFRESH_INTERVAL_MS);
+
+    // Also refresh when tab becomes visible again (handles backgrounded tabs)
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        const elapsed = Date.now() - lastRefreshRef.current;
+        if (elapsed > TOKEN_REFRESH_INTERVAL_MS) {
+          lastRefreshRef.current = Date.now();
+          refreshSession();
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, refreshSession]);
 
   const logout = useCallback(async () => {
     try {
