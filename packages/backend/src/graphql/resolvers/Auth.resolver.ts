@@ -15,6 +15,25 @@ import { Role } from '@4hclub/shared';
 import { logger } from '../../utils/logger';
 import { GraphQLError } from 'graphql';
 
+function parseUserAgent(ua: string): string {
+  let browser = 'Unknown';
+  if (ua.includes('Edg/')) browser = 'Edge';
+  else if (ua.includes('OPR/') || ua.includes('Opera')) browser = 'Opera';
+  else if (ua.includes('Chrome/') && !ua.includes('Chromium')) browser = 'Chrome';
+  else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari';
+  else if (ua.includes('Firefox/')) browser = 'Firefox';
+
+  let os = 'Unknown';
+  if (ua.includes('iPhone')) os = 'iPhone';
+  else if (ua.includes('iPad')) os = 'iPad';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('Mac OS X')) os = 'macOS';
+  else if (ua.includes('Windows')) os = 'Windows';
+  else if (ua.includes('Linux')) os = 'Linux';
+
+  return `${browser} on ${os}`;
+}
+
 @Resolver()
 export class AuthResolver {
   private userRepository: UserRepository;
@@ -96,7 +115,7 @@ export class AuthResolver {
     @Arg('email') email: string,
     @Arg('password') password: string,
     @Arg('rememberMe', { nullable: true, defaultValue: false }) rememberMe: boolean,
-    @Ctx() { res }: Context
+    @Ctx() { req, res }: Context
   ): Promise<AuthPayload> {
     try {
       // Find user by email
@@ -135,6 +154,11 @@ export class AuthResolver {
       });
 
       logger.info(`User logged in: ${userWithPassword.email}`);
+
+      // Track last login time and device
+      const userAgent = req.headers['user-agent'] || '';
+      const device = userAgent ? parseUserAgent(userAgent) : null;
+      this.userRepository.updateLastLogin(userWithPassword.id, device);
 
       // Remove password_hash before returning
       const { password_hash, ...user } = userWithPassword;

@@ -56,7 +56,28 @@ interface AdminMember {
   emergencyContact?: string;
   emergencyPhone?: string;
   profilePhotoUrl?: string;
+  lastLogin?: string;
+  lastLoginDevice?: string;
+  postCount: number;
+  commentCount: number;
+  blogPostCount: number;
   youthMembers?: AdminYouthMember[];
+}
+
+function timeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
 }
 
 const ROLE_OPTIONS = [
@@ -251,7 +272,7 @@ export default function AdminPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        query: `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl youthMembers { id firstName lastName birthdate project horseNames } } }`,
+        query: `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl lastLogin lastLoginDevice postCount commentCount blogPostCount youthMembers { id firstName lastName birthdate project horseNames } } }`,
       }),
     });
     const result = await res.json();
@@ -1099,6 +1120,13 @@ export default function AdminPage() {
                               {ROLE_OPTIONS.find(r => r.value === member.role)?.label || member.role}
                             </span>
                             {member.phone && <p className="text-sm text-gray-600 mt-1">{member.phone}</p>}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+                              <span title={member.lastLogin ? format(new Date(member.lastLogin), 'MMM d, yyyy h:mm a') : undefined}>
+                                Last login: {member.lastLogin ? timeAgo(member.lastLogin) : 'Never'}
+                              </span>
+                              {member.lastLoginDevice && <span>{member.lastLoginDevice}</span>}
+                              <span>{member.postCount} posts · {member.commentCount} comments · {member.blogPostCount} blog articles</span>
+                            </div>
                             {member.youthMembers && member.youthMembers.length > 0 && (
                               <div className="mt-2">
                                 <p className="text-xs font-medium text-gray-500 uppercase">Youth Members:</p>
@@ -1262,6 +1290,30 @@ export default function AdminPage() {
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        {/* Activity Tracking */}
+                        <div className="border-t pt-4 mt-4">
+                          <h5 className="text-sm font-semibold text-gray-700 mb-3">Activity</h5>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                              <p className="text-2xl font-bold text-gray-900">{member.postCount}</p>
+                              <p className="text-xs text-gray-500">Posts</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                              <p className="text-2xl font-bold text-gray-900">{member.commentCount}</p>
+                              <p className="text-xs text-gray-500">Comments</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                              <p className="text-2xl font-bold text-gray-900">{member.blogPostCount}</p>
+                              <p className="text-xs text-gray-500">Blog Articles</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                              <p className="text-sm font-semibold text-gray-900">{member.lastLogin ? timeAgo(member.lastLogin) : 'Never'}</p>
+                              <p className="text-xs text-gray-500">Last Login</p>
+                              {member.lastLoginDevice && <p className="text-xs text-gray-400 mt-0.5">{member.lastLoginDevice}</p>}
+                            </div>
+                          </div>
                         </div>
 
                         {/* Password Reset */}

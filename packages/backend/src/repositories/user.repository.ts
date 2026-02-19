@@ -14,8 +14,16 @@ export interface User {
   emergency_phone?: string;
   profile_photo_url?: string;
   password_reset_required?: boolean;
+  last_login?: Date;
+  last_login_device?: string;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface UserActivityCounts {
+  post_count: number;
+  comment_count: number;
+  blog_post_count: number;
 }
 
 export interface UserWithPassword extends User {
@@ -66,7 +74,7 @@ export class UserRepository {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, email, first_name, last_name, role, phone, address,
                   emergency_contact, emergency_phone, profile_photo_url,
-                  password_reset_required, created_at, updated_at`,
+                  password_reset_required, last_login, last_login_device, created_at, updated_at`,
         [
           data.email,
           data.password_hash,
@@ -108,7 +116,8 @@ export class UserRepository {
       const result = await db.query<UserWithPassword>(
         `SELECT id, email, password_hash, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, password_reset_required, created_at, updated_at
+                profile_photo_url, password_reset_required,
+                last_login, last_login_device, created_at, updated_at
          FROM users
          WHERE email = $1`,
         [email]
@@ -135,7 +144,8 @@ export class UserRepository {
       const result = await db.query<User>(
         `SELECT id, email, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, password_reset_required, created_at, updated_at
+                profile_photo_url, password_reset_required,
+                last_login, last_login_device, created_at, updated_at
          FROM users
          WHERE id = $1`,
         [id]
@@ -200,7 +210,8 @@ export class UserRepository {
          WHERE id = $${paramIndex}
          RETURNING id, email, first_name, last_name, role,
                    phone, address, emergency_contact, emergency_phone,
-                   profile_photo_url, password_reset_required, created_at, updated_at`,
+                   profile_photo_url, password_reset_required,
+                   last_login, last_login_device, created_at, updated_at`,
         values
       );
 
@@ -251,7 +262,8 @@ export class UserRepository {
          WHERE id = $${paramIndex}
          RETURNING id, email, first_name, last_name, role,
                    phone, address, emergency_contact, emergency_phone,
-                   profile_photo_url, password_reset_required, created_at, updated_at`,
+                   profile_photo_url, password_reset_required,
+                   last_login, last_login_device, created_at, updated_at`,
         values
       );
 
@@ -300,7 +312,8 @@ export class UserRepository {
       const result = await db.query<User>(
         `SELECT id, email, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, password_reset_required, created_at, updated_at
+                profile_photo_url, password_reset_required,
+                last_login, last_login_device, created_at, updated_at
          FROM users
          ORDER BY created_at DESC`
       );
@@ -319,6 +332,42 @@ export class UserRepository {
    * @param forceResetOnLogin If true, user must change password on next login
    * @returns True if updated, false if user not found
    */
+  async updateLastLogin(id: string, device: string | null): Promise<void> {
+    try {
+      await db.query(
+        `UPDATE users SET last_login = NOW(), last_login_device = $1 WHERE id = $2`,
+        [device, id]
+      );
+    } catch (error) {
+      logger.error('Error updating last login:', error);
+    }
+  }
+
+  async getAllActivityCounts(): Promise<Map<string, UserActivityCounts>> {
+    try {
+      const result = await db.query<{ user_id: string } & UserActivityCounts>(
+        `SELECT
+          u.id AS user_id,
+          COALESCE((SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.deleted_at IS NULL AND p.is_hidden = false), 0) AS post_count,
+          COALESCE((SELECT COUNT(*)::int FROM comments c WHERE c.author_id = u.id), 0) AS comment_count,
+          COALESCE((SELECT COUNT(*)::int FROM blog_posts b WHERE b.author_id = u.id AND b.deleted_at IS NULL), 0) AS blog_post_count
+         FROM users u`
+      );
+      const map = new Map<string, UserActivityCounts>();
+      for (const row of result.rows) {
+        map.set(row.user_id, {
+          post_count: row.post_count,
+          comment_count: row.comment_count,
+          blog_post_count: row.blog_post_count,
+        });
+      }
+      return map;
+    } catch (error) {
+      logger.error('Error fetching activity counts:', error);
+      return new Map();
+    }
+  }
+
   async updatePassword(id: string, passwordHash: string, forceResetOnLogin: boolean = false): Promise<boolean> {
     try {
       const result = await db.query(

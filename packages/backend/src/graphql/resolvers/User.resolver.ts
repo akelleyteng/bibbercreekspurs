@@ -33,7 +33,7 @@ export class UserResolver {
     };
   }
 
-  private mapUser(u: any, youthMembers?: YouthMember[]): User {
+  private mapUser(u: any, youthMembers?: YouthMember[], activityCounts?: { post_count: number; comment_count: number; blog_post_count: number }): User {
     return {
       id: u.id,
       email: u.email,
@@ -46,6 +46,11 @@ export class UserResolver {
       emergencyPhone: u.emergency_phone,
       profilePhotoUrl: u.profile_photo_url,
       passwordResetRequired: u.password_reset_required || false,
+      lastLogin: u.last_login || undefined,
+      lastLoginDevice: u.last_login_device || undefined,
+      postCount: activityCounts?.post_count ?? 0,
+      commentCount: activityCounts?.comment_count ?? 0,
+      blogPostCount: activityCounts?.blog_post_count ?? 0,
       youthMembers,
       createdAt: u.created_at,
       updatedAt: u.updated_at,
@@ -83,11 +88,13 @@ export class UserResolver {
       verifyAccessToken(token);
 
       const dbUsers = await this.userRepo.findAll();
+      const activityMap = await this.userRepo.getAllActivityCounts();
 
       const users: User[] = [];
       for (const u of dbUsers) {
         const youthRows = await this.youthMemberRepo.findByParentId(u.id);
-        users.push(this.mapUser(u, youthRows.length > 0 ? youthRows.map(ym => this.mapYouthMember(ym)) : undefined));
+        const counts = activityMap.get(u.id);
+        users.push(this.mapUser(u, youthRows.length > 0 ? youthRows.map(ym => this.mapYouthMember(ym)) : undefined, counts));
       }
 
       return users;

@@ -48,6 +48,21 @@ export class User {
   @Field(() => [YouthMember], { nullable: true })
   youthMembers?: YouthMember[];
 
+  @Field(() => DateTimeScalar, { nullable: true })
+  lastLogin?: Date;
+
+  @Field({ nullable: true })
+  lastLoginDevice?: string;
+
+  @Field(() => Number, { defaultValue: 0 })
+  postCount!: number;
+
+  @Field(() => Number, { defaultValue: 0 })
+  commentCount!: number;
+
+  @Field(() => Number, { defaultValue: 0 })
+  blogPostCount!: number;
+
   @Field(() => DateTimeScalar)
   createdAt!: Date;
 
