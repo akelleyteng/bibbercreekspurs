@@ -1,6 +1,8 @@
 import { Visibility } from '@4hclub/shared';
 import { useState, useEffect } from 'react';
 
+import RichTextEditor from './RichTextEditor';
+
 interface BlogPostFormData {
   title: string;
   content: string;
@@ -93,13 +95,13 @@ export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mo
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Content *
                 </label>
-                <textarea
-                  required
-                  className="input"
-                  rows={10}
-                  value={formData.content}
-                  onChange={(e) => handleChange('content', e.target.value)}
+                <RichTextEditor
+                  key={`${isOpen}-${mode}`}
+                  content={formData.content}
+                  onChange={(html) => handleChange('content', html)}
                   placeholder="Write your blog post content here..."
+                  showHeadings
+                  showImageEmbed
                 />
               </div>
 

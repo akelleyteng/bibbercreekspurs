@@ -1,4 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react';
+import Image from '@tiptap/extension-image';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useEffect, useState } from 'react';
@@ -10,24 +11,28 @@ interface RichTextEditorProps {
   editable?: boolean;
   maxLength?: number;
   compact?: boolean;
+  showHeadings?: boolean;
+  showImageEmbed?: boolean;
 }
 
-export default function RichTextEditor({ content, onChange, placeholder, editable = true, maxLength, compact = false }: RichTextEditorProps) {
+export default function RichTextEditor({ content, onChange, placeholder, editable = true, maxLength, compact = false, showHeadings = false, showImageEmbed = false }: RichTextEditorProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [charCount, setCharCount] = useState(0);
 
+  const extensions = [
+    StarterKit,
+    Placeholder.configure({ placeholder: placeholder || 'Write something...' }),
+    ...(showImageEmbed ? [Image.configure({ inline: false, allowBase64: false })] : []),
+  ];
+
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({ placeholder: placeholder || 'Write something...' }),
-    ],
+    extensions,
     content,
     editable,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       const textLen = editor.state.doc.textContent.length;
       if (maxLength && textLen > maxLength) {
-        // Prevent typing beyond limit by truncating
         return;
       }
       setCharCount(textLen);
@@ -43,7 +48,6 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
     }
   }, [editor, editable]);
 
-  // Update char count when content changes externally
   useEffect(() => {
     if (editor) {
       setCharCount(editor.state.doc.textContent.length);
@@ -55,17 +59,47 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
   const showToolbar = editable && isFocused;
   const isOverLimit = maxLength ? charCount > maxLength : false;
 
+  const addImage = () => {
+    const url = window.prompt('Enter image URL:');
+    if (url) {
+      editor.chain().focus().setImage({ src: url }).run();
+    }
+  };
+
+  const btnClass = (active: boolean) =>
+    `p-1.5 rounded hover:bg-gray-200 text-sm ${active ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`;
+
   return (
     <div className={`border rounded-lg overflow-hidden transition-all ${
       isFocused ? 'border-primary-500 ring-2 ring-primary-500' : 'border-gray-300'
     }`}>
-      {/* Toolbar - only visible when focused */}
       {showToolbar && (
         <div className="flex items-center gap-1 p-2 border-b bg-gray-50 flex-wrap" onMouseDown={(e) => e.preventDefault()}>
+          {showHeadings && (
+            <>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                className={`${btnClass(editor.isActive('heading', { level: 2 }))} font-bold`}
+                title="Heading 2"
+              >
+                H2
+              </button>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                className={`${btnClass(editor.isActive('heading', { level: 3 }))} font-bold`}
+                title="Heading 3"
+              >
+                H3
+              </button>
+              <div className="w-px h-5 bg-gray-300 mx-1" />
+            </>
+          )}
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-1.5 rounded hover:bg-gray-200 text-sm font-bold ${editor.isActive('bold') ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`}
+            className={`${btnClass(editor.isActive('bold'))} font-bold`}
             title="Bold"
           >
             B
@@ -73,7 +107,7 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-1.5 rounded hover:bg-gray-200 text-sm italic ${editor.isActive('italic') ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`}
+            className={`${btnClass(editor.isActive('italic'))} italic`}
             title="Italic"
           >
             I
@@ -81,7 +115,7 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleStrike().run()}
-            className={`p-1.5 rounded hover:bg-gray-200 text-sm line-through ${editor.isActive('strike') ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`}
+            className={`${btnClass(editor.isActive('strike'))} line-through`}
             title="Strikethrough"
           >
             S
@@ -90,7 +124,7 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={`p-1.5 rounded hover:bg-gray-200 text-sm ${editor.isActive('bulletList') ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`}
+            className={btnClass(editor.isActive('bulletList'))}
             title="Bullet List"
           >
             &bull; List
@@ -98,7 +132,7 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={`p-1.5 rounded hover:bg-gray-200 text-sm ${editor.isActive('orderedList') ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`}
+            className={btnClass(editor.isActive('orderedList'))}
             title="Numbered List"
           >
             1. List
@@ -107,23 +141,34 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            className={`p-1.5 rounded hover:bg-gray-200 text-sm ${editor.isActive('blockquote') ? 'bg-gray-200 text-primary-700' : 'text-gray-600'}`}
+            className={btnClass(editor.isActive('blockquote'))}
             title="Quote"
           >
             &ldquo; Quote
           </button>
+          {showImageEmbed && (
+            <>
+              <div className="w-px h-5 bg-gray-300 mx-1" />
+              <button
+                type="button"
+                onClick={addImage}
+                className={btnClass(false)}
+                title="Insert Image"
+              >
+                Image
+              </button>
+            </>
+          )}
         </div>
       )}
-      {/* Editor content area - compact starts single-line, resizable when focused */}
       <div className={compact && !isFocused ? '' : 'resize-y overflow-auto'} style={compact && !isFocused ? {} : { minHeight: '80px' }}>
         <EditorContent
           editor={editor}
-          className={`prose prose-sm max-w-none p-3 [&_.ProseMirror]:outline-none ${
+          className={`prose prose-sm max-w-none p-3 [&_.ProseMirror]:outline-none [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded-lg ${
             compact && !isFocused ? '[&_.ProseMirror]:min-h-[20px]' : '[&_.ProseMirror]:min-h-[60px]'
           }`}
         />
       </div>
-      {/* Character counter */}
       {maxLength && isFocused && (
         <div className={`text-xs px-3 py-1 text-right border-t ${isOverLimit ? 'text-red-500 bg-red-50' : 'text-gray-400'}`}>
           {charCount}/{maxLength}

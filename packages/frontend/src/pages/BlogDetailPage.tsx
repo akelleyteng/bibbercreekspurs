@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
@@ -107,12 +108,10 @@ export default function BlogDetailPage() {
           </div>
         </div>
 
-        <div className="prose prose-lg max-w-none">
-          {post.excerpt && (
-            <p className="text-xl text-gray-700 leading-relaxed mb-6">{post.excerpt}</p>
-          )}
-          <p className="text-gray-700 leading-relaxed whitespace-pre-line">{post.content}</p>
-        </div>
+        <div
+          className="prose prose-lg max-w-none"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+        />
       </article>
     </div>
   );

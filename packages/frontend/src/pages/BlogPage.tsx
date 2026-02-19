@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -91,7 +92,7 @@ export default function BlogPage() {
               <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors mb-2">
                 {post.title}
               </h3>
-              {post.excerpt && <p className="text-gray-600">{post.excerpt}</p>}
+              {post.excerpt && <p className="text-gray-600">{DOMPurify.sanitize(post.excerpt, { ALLOWED_TAGS: [] }).replace(/&nbsp;/g, ' ')}</p>}
             </Link>
           ))}
         </div>

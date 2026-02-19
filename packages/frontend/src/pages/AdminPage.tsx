@@ -1,3 +1,4 @@
+import { Visibility } from '@4hclub/shared';
 import { format } from 'date-fns';
 import { useState, useEffect, useCallback } from 'react';
 
@@ -1532,13 +1533,18 @@ export default function AdminPage() {
         initialData={editingBlogPostId ? (() => {
           const bp = blogPosts.find((p) => p.id === editingBlogPostId);
           if (!bp) return undefined;
+          // Format publishedAt as datetime-local string (YYYY-MM-DDTHH:mm)
+          let publishedAt = '';
+          if (bp.publishedAt) {
+            try { publishedAt = format(new Date(bp.publishedAt), "yyyy-MM-dd'T'HH:mm"); } catch { /* ignore */ }
+          }
           return {
             title: bp.title,
             content: bp.content,
             excerpt: bp.excerpt || '',
-            visibility: bp.visibility as 'PUBLIC' | 'MEMBER_ONLY',
+            visibility: bp.visibility as Visibility,
             featuredImageUrl: bp.featuredImageUrl || '',
-            publishedAt: bp.publishedAt || '',
+            publishedAt,
           };
         })() : undefined}
       />
