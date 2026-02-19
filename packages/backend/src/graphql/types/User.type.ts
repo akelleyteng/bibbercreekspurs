@@ -1,4 +1,4 @@
-import { ObjectType, Field, ID, registerEnumType } from 'type-graphql';
+import { ObjectType, Field, ID, Int, registerEnumType } from 'type-graphql';
 import { Role } from '@4hclub/shared';
 import { DateTimeScalar } from './scalars';
 export { DateTimeScalar } from './scalars';
@@ -54,13 +54,13 @@ export class User {
   @Field({ nullable: true })
   lastLoginDevice?: string;
 
-  @Field(() => Number, { defaultValue: 0 })
+  @Field(() => Int, { defaultValue: 0 })
   postCount!: number;
 
-  @Field(() => Number, { defaultValue: 0 })
+  @Field(() => Int, { defaultValue: 0 })
   commentCount!: number;
 
-  @Field(() => Number, { defaultValue: 0 })
+  @Field(() => Int, { defaultValue: 0 })
   blogPostCount!: number;
 
   @Field(() => DateTimeScalar)
