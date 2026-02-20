@@ -22,198 +22,168 @@ function getCalendarClient(): any {
   return calendarClient;
 }
 
-const DAY_MAP: Record<string, string> = {
-  Sun: 'SU', Mon: 'MO', Tue: 'TU', Wed: 'WE', Thu: 'TH', Fri: 'FR', Sat: 'SA',
-};
+// ── In-Memory Cache ──────────────────────────────────────────────────
 
-const DAY_INDEX_MAP: Record<number, string> = {
-  0: 'SU', 1: 'MO', 2: 'TU', 3: 'WE', 4: 'TH', 5: 'FR', 6: 'SA',
-};
-
-function buildRRule(
-  frequency: string,
-  recurringEndDate: Date | null,
-  startTime: Date,
-  daysOfWeek?: string[],
-  monthlyPattern?: string,
-  interval?: number
-): string[] {
-  let rule = `RRULE:FREQ=${frequency.toUpperCase()}`;
-
-  if (interval && interval > 1) {
-    rule += `;INTERVAL=${interval}`;
-  }
-
-  if (frequency === 'weekly' && daysOfWeek?.length) {
-    const byDay = daysOfWeek
-      .map((d) => DAY_MAP[d])
-      .filter(Boolean)
-      .join(',');
-    if (byDay) rule += `;BYDAY=${byDay}`;
-  }
-
-  if (frequency === 'monthly' && monthlyPattern === 'nth_weekday') {
-    // e.g., 2nd Tuesday → BYDAY=2TU, 3rd Saturday → BYDAY=3SA
-    const ordinal = Math.ceil(startTime.getDate() / 7);
-    const weekdayCode = DAY_INDEX_MAP[startTime.getDay()];
-    rule += `;BYDAY=${ordinal}${weekdayCode}`;
-  }
-
-  if (recurringEndDate) {
-    const until = recurringEndDate.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-    rule += `;UNTIL=${until}`;
-  }
-
-  return [rule];
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
 }
 
-export interface CalendarEventParams {
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const eventsListCache = new Map<string, CacheEntry<MappedCalendarEvent[]>>();
+const eventCache = new Map<string, CacheEntry<MappedCalendarEvent>>();
+
+function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): void {
+  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+export function invalidateEventCache(eventId?: string): void {
+  eventsListCache.clear();
+  if (eventId) {
+    eventCache.delete(eventId);
+  } else {
+    eventCache.clear();
+  }
+}
+
+// ── Description Tag Parsing ──────────────────────────────────────────
+
+interface ParsedDescription {
+  description: string;
+  isPublic: boolean;
+  externalRegistrationUrl?: string;
+}
+
+export function parseEventDescription(raw: string | null | undefined): ParsedDescription {
+  if (!raw) return { description: '', isPublic: false };
+
+  let text = raw;
+  let isPublic = false;
+  let externalRegistrationUrl: string | undefined;
+
+  // [PUBLIC] - case insensitive
+  if (/\[PUBLIC\]/i.test(text)) {
+    isPublic = true;
+    text = text.replace(/\[PUBLIC\]/gi, '');
+  }
+
+  // [REGISTER: url]
+  const registerMatch = /\[REGISTER:\s*(https?:\/\/[^\]\s]+)\s*\]/i.exec(text);
+  if (registerMatch) {
+    externalRegistrationUrl = registerMatch[1];
+    text = text.replace(/\[REGISTER:\s*https?:\/\/[^\]\s]+\s*\]/gi, '');
+  }
+
+  return {
+    description: text.trim(),
+    isPublic,
+    externalRegistrationUrl,
+  };
+}
+
+// ── Mapped Event Type ────────────────────────────────────────────────
+
+export interface MappedCalendarEvent {
+  id: string;
   title: string;
   description: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   location?: string;
-  isRecurring?: boolean;
-  recurringFrequency?: string;
-  recurringEndDate?: Date | null;
-  recurringDaysOfWeek?: string[];
-  monthlyPattern?: string;
-  recurringInterval?: number;
-  reminders?: Array<{ method: string; minutes: number }>;
+  isAllDay: boolean;
+  visibility: 'PUBLIC' | 'MEMBER_ONLY';
+  externalRegistrationUrl?: string;
+  registrationCount: number;
+  attendees: Array<{ email: string; displayName?: string; responseStatus?: string }>;
+}
+
+function mapGoogleEvent(event: any): MappedCalendarEvent {
+  const parsed = parseEventDescription(event.description);
+
+  // Filter out resource rooms and the calendar itself from attendee count
+  const attendees = (event.attendees || []).filter(
+    (a: any) => !a.resource && !a.self
+  );
+
+  return {
+    id: event.id,
+    title: event.summary || '(No Title)',
+    description: parsed.description,
+    startTime: event.start?.dateTime || event.start?.date || '',
+    endTime: event.end?.dateTime || event.end?.date || '',
+    location: event.location || undefined,
+    isAllDay: !event.start?.dateTime,
+    visibility: parsed.isPublic ? 'PUBLIC' : 'MEMBER_ONLY',
+    externalRegistrationUrl: parsed.externalRegistrationUrl,
+    registrationCount: attendees.length,
+    attendees,
+  };
+}
+
+// ── API Functions ────────────────────────────────────────────────────
+
+/**
+ * List upcoming events from Google Calendar.
+ * Uses singleEvents: true to expand recurring events into individual instances.
+ */
+export async function listCalendarEvents(): Promise<MappedCalendarEvent[]> {
+  const cacheKey = 'upcoming';
+  const cached = getCached(eventsListCache, cacheKey);
+  if (cached) return cached;
+
+  const calendar = getCalendarClient();
+  if (!calendar) return [];
+
+  try {
+    const response = await calendar.events.list({
+      calendarId: env.GOOGLE_CALENDAR_ID,
+      timeMin: new Date().toISOString(),
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250,
+    });
+
+    const events = (response.data.items || []).map(mapGoogleEvent);
+    setCache(eventsListCache, cacheKey, events);
+    return events;
+  } catch (error) {
+    logger.error('Failed to list Google Calendar events', { error });
+    return [];
+  }
 }
 
 /**
- * Create a Google Calendar event. Returns the calendar event ID or null on failure.
+ * Get a single event by ID from Google Calendar.
  */
-export async function createCalendarEvent(params: CalendarEventParams): Promise<string | null> {
+export async function getCalendarEvent(eventId: string): Promise<MappedCalendarEvent | null> {
+  const cached = getCached(eventCache, eventId);
+  if (cached) return cached;
+
   const calendar = getCalendarClient();
   if (!calendar) return null;
 
   try {
-    const eventBody: any = {
-      summary: params.title,
-      description: params.description,
-      location: params.location,
-      start: {
-        dateTime: params.startTime.toISOString(),
-        timeZone: 'America/Denver',
-      },
-      end: {
-        dateTime: params.endTime.toISOString(),
-        timeZone: 'America/Denver',
-      },
-    };
-
-    if (params.isRecurring && params.recurringFrequency) {
-      eventBody.recurrence = buildRRule(
-        params.recurringFrequency,
-        params.recurringEndDate || null,
-        params.startTime,
-        params.recurringDaysOfWeek,
-        params.monthlyPattern,
-        params.recurringInterval
-      );
-    }
-
-    // Reminders
-    if (params.reminders && params.reminders.length > 0) {
-      eventBody.reminders = {
-        useDefault: false,
-        overrides: params.reminders.map((r) => ({
-          method: r.method,
-          minutes: r.minutes,
-        })),
-      };
-    }
-
-    const response = await calendar.events.insert({
+    const response = await calendar.events.get({
       calendarId: env.GOOGLE_CALENDAR_ID,
-      requestBody: eventBody,
-      sendUpdates: 'all',
+      eventId,
     });
 
-    const calendarEventId = response.data.id || null;
-    logger.info(`Google Calendar event created: ${calendarEventId}`);
-    return calendarEventId;
+    const mapped = mapGoogleEvent(response.data);
+    setCache(eventCache, eventId, mapped);
+    return mapped;
   } catch (error) {
-    logger.error('Failed to create Google Calendar event', { error, title: params.title });
+    logger.error('Failed to get Google Calendar event', { error, eventId });
     return null;
-  }
-}
-
-/**
- * Update a Google Calendar event. Returns true on success, false on failure.
- */
-export async function updateCalendarEvent(
-  googleCalendarId: string,
-  params: Partial<CalendarEventParams>
-): Promise<boolean> {
-  const calendar = getCalendarClient();
-  if (!calendar || !googleCalendarId) return false;
-
-  try {
-    const eventBody: any = {};
-
-    if (params.title !== undefined) eventBody.summary = params.title;
-    if (params.description !== undefined) eventBody.description = params.description;
-    if (params.location !== undefined) eventBody.location = params.location;
-    if (params.startTime !== undefined) {
-      eventBody.start = {
-        dateTime: params.startTime.toISOString(),
-        timeZone: 'America/Denver',
-      };
-    }
-    if (params.endTime !== undefined) {
-      eventBody.end = {
-        dateTime: params.endTime.toISOString(),
-        timeZone: 'America/Denver',
-      };
-    }
-
-    if (params.reminders && params.reminders.length > 0) {
-      eventBody.reminders = {
-        useDefault: false,
-        overrides: params.reminders.map((r) => ({
-          method: r.method,
-          minutes: r.minutes,
-        })),
-      };
-    }
-
-    await calendar.events.patch({
-      calendarId: env.GOOGLE_CALENDAR_ID,
-      eventId: googleCalendarId,
-      requestBody: eventBody,
-      sendUpdates: 'all',
-    });
-
-    logger.info(`Google Calendar event updated: ${googleCalendarId}`);
-    return true;
-  } catch (error) {
-    logger.error('Failed to update Google Calendar event', { error, googleCalendarId });
-    return false;
-  }
-}
-
-/**
- * Delete a Google Calendar event. Returns true on success, false on failure.
- */
-export async function deleteCalendarEvent(googleCalendarId: string): Promise<boolean> {
-  const calendar = getCalendarClient();
-  if (!calendar || !googleCalendarId) return false;
-
-  try {
-    await calendar.events.delete({
-      calendarId: env.GOOGLE_CALENDAR_ID,
-      eventId: googleCalendarId,
-      sendUpdates: 'all',
-    });
-
-    logger.info(`Google Calendar event deleted: ${googleCalendarId}`);
-    return true;
-  } catch (error) {
-    logger.error('Failed to delete Google Calendar event', { error, googleCalendarId });
-    return false;
   }
 }
 
@@ -223,13 +193,13 @@ export async function deleteCalendarEvent(googleCalendarId: string): Promise<boo
 export async function addAttendeeToEvent(
   googleCalendarId: string,
   email: string,
-  displayName?: string
+  displayName?: string,
+  sendUpdates: 'all' | 'none' = 'none'
 ): Promise<boolean> {
   const calendar = getCalendarClient();
   if (!calendar || !googleCalendarId) return false;
 
   try {
-    // Fetch current event to get existing attendees
     const response = await calendar.events.get({
       calendarId: env.GOOGLE_CALENDAR_ID,
       eventId: googleCalendarId,
@@ -237,8 +207,7 @@ export async function addAttendeeToEvent(
 
     const existingAttendees: any[] = response.data.attendees || [];
 
-    // Skip if already an attendee
-    if (existingAttendees.some((a: any) => a.email === email)) {
+    if (existingAttendees.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
       logger.info(`Attendee ${email} already on event ${googleCalendarId}`);
       return true;
     }
@@ -252,9 +221,10 @@ export async function addAttendeeToEvent(
       requestBody: {
         attendees: [...existingAttendees, newAttendee],
       },
-      sendUpdates: 'all',
+      sendUpdates,
     });
 
+    invalidateEventCache(googleCalendarId);
     logger.info(`Added attendee ${email} to Google Calendar event ${googleCalendarId}`);
     return true;
   } catch (error) {
@@ -268,7 +238,8 @@ export async function addAttendeeToEvent(
  */
 export async function removeAttendeeFromEvent(
   googleCalendarId: string,
-  email: string
+  email: string,
+  sendUpdates: 'all' | 'none' = 'all'
 ): Promise<boolean> {
   const calendar = getCalendarClient();
   if (!calendar || !googleCalendarId) return false;
@@ -280,9 +251,10 @@ export async function removeAttendeeFromEvent(
     });
 
     const existingAttendees: any[] = response.data.attendees || [];
-    const filtered = existingAttendees.filter((a: any) => a.email !== email);
+    const filtered = existingAttendees.filter(
+      (a: any) => a.email.toLowerCase() !== email.toLowerCase()
+    );
 
-    // Nothing to remove
     if (filtered.length === existingAttendees.length) {
       return true;
     }
@@ -293,9 +265,10 @@ export async function removeAttendeeFromEvent(
       requestBody: {
         attendees: filtered,
       },
-      sendUpdates: 'all',
+      sendUpdates,
     });
 
+    invalidateEventCache(googleCalendarId);
     logger.info(`Removed attendee ${email} from Google Calendar event ${googleCalendarId}`);
     return true;
   } catch (error) {

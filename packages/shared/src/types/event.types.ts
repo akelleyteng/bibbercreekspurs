@@ -1,84 +1,15 @@
-import { RegistrationStatus, Visibility } from '../enums/visibility.enum';
+import { Visibility } from '../enums/visibility.enum';
 
-export interface Event {
+export interface CalendarEvent {
   id: string;
   title: string;
   description: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   location?: string;
   visibility: Visibility;
-  eventType: 'internal' | 'external';
   externalRegistrationUrl?: string;
-  imageUrl?: string;
-  googleCalendarId?: string;
-  facebookEventId?: string;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-  seriesId?: string;
-  deletedAt?: Date;
-}
-
-export interface EventWithCreator extends Event {
-  creator: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    profileImageUrl?: string;
-  };
+  isAllDay: boolean;
   registrationCount: number;
-  userRegistrationStatus?: RegistrationStatus;
-}
-
-export interface EventRegistration {
-  id: string;
-  eventId: string;
-  userId: string;
-  status: RegistrationStatus;
-  registeredAt: Date;
-}
-
-export interface CreateEventRequest {
-  title: string;
-  description: string;
-  startTime: Date;
-  endTime: Date;
-  location?: string;
-  visibility: Visibility;
-  eventType: 'internal' | 'external';
-  externalRegistrationUrl?: string;
-  imageUrl?: string;
-  isRecurring?: boolean;
-  recurringFrequency?: 'daily' | 'weekly' | 'monthly';
-  recurringEndDate?: Date;
-  recurringDaysOfWeek?: string[];
-  publishToGoogleCalendar?: boolean;
-  publishToFacebook?: boolean;
-}
-
-export interface UpdateEventRequest {
-  title?: string;
-  description?: string;
-  startTime?: Date;
-  endTime?: Date;
-  location?: string;
-  visibility?: Visibility;
-  eventType?: 'internal' | 'external';
-  externalRegistrationUrl?: string;
-  imageUrl?: string;
-}
-
-export interface RegisterForEventRequest {
-  eventId: string;
-}
-
-export interface EventAttendee {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  profileImageUrl?: string;
-  registrationStatus: RegistrationStatus;
-  registeredAt: Date;
+  userRsvpStatus?: string;
 }

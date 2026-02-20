@@ -21,7 +21,9 @@ interface CalendarEvent {
   endTime: string;
   location?: string;
   description: string;
-  eventType: string;
+  visibility: string;
+  externalRegistrationUrl?: string;
+  isAllDay: boolean;
 }
 
 type ViewType = 'month' | 'week' | 'day';
@@ -41,7 +43,7 @@ export default function CalendarPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        query: `query { events { id title startTime endTime location description eventType } }`,
+        query: `query { events { id title startTime endTime location description visibility externalRegistrationUrl isAllDay } }`,
       }),
     })
       .then((res) => res.json())
@@ -63,6 +65,13 @@ export default function CalendarPage() {
 
   const handleToday = () => {
     setCurrentDate(new Date());
+  };
+
+  const getEventColor = (event: CalendarEvent) => {
+    if (event.externalRegistrationUrl) {
+      return 'bg-orange-100 text-orange-800 hover:bg-orange-200';
+    }
+    return 'bg-green-100 text-green-800 hover:bg-green-200';
   };
 
   const renderMonthView = () => {
@@ -106,14 +115,11 @@ export default function CalendarPage() {
                 <Link
                   key={event.id}
                   to={`/events/${event.id}`}
-                  className={`block text-xs px-2 py-1 rounded truncate ${
-                    event.eventType === 'internal'
-                      ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                      : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-                  }`}
+                  className={`block text-xs px-2 py-1 rounded truncate ${getEventColor(event)}`}
                   title={event.title}
                 >
-                  {format(new Date(event.startTime), 'h:mm a')} {event.title}
+                  {!event.isAllDay && format(new Date(event.startTime), 'h:mm a')}{' '}
+                  {event.title}
                 </Link>
               ))}
             </div>
@@ -156,13 +162,11 @@ export default function CalendarPage() {
               <Link
                 key={event.id}
                 to={`/events/${event.id}`}
-                className={`block text-sm px-3 py-2 rounded ${
-                  event.eventType === 'internal'
-                    ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                    : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-                }`}
+                className={`block text-sm px-3 py-2 rounded ${getEventColor(event)}`}
               >
-                <div className="font-semibold">{format(new Date(event.startTime), 'h:mm a')}</div>
+                {!event.isAllDay && (
+                  <div className="font-semibold">{format(new Date(event.startTime), 'h:mm a')}</div>
+                )}
                 <div className="truncate">{event.title}</div>
               </Link>
             ))}
@@ -196,23 +200,28 @@ export default function CalendarPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-primary-600">
-                      {format(new Date(event.startTime), 'h:mm a')}
-                    </span>
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                      event.eventType === 'internal'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-orange-100 text-orange-800'
-                    }`}>
-                      {event.eventType === 'internal' ? '📍 Internal' : '🔗 External'}
-                    </span>
+                    {!event.isAllDay && (
+                      <span className="text-lg font-bold text-primary-600">
+                        {format(new Date(event.startTime), 'h:mm a')}
+                      </span>
+                    )}
+                    {event.isAllDay && (
+                      <span className="text-lg font-bold text-primary-600">All Day</span>
+                    )}
+                    {event.externalRegistrationUrl && (
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        External Registration
+                      </span>
+                    )}
                   </div>
                 </div>
                 <h4 className="font-bold text-lg mb-2">{event.title}</h4>
                 <p className="text-sm text-gray-600 mb-2">{event.description}</p>
-                <div className="text-sm text-gray-500">
-                  📍 {event.location}
-                </div>
+                {event.location && (
+                  <div className="text-sm text-gray-500">
+                    &#128205; {event.location}
+                  </div>
+                )}
               </Link>
             ))}
           </div>
@@ -248,7 +257,7 @@ export default function CalendarPage() {
       <div className="card mb-6">
         <div className="flex items-center justify-between">
           <button onClick={handlePrevious} className="btn-secondary">
-            ← Previous
+            &larr; Previous
           </button>
           <h2 className="text-xl font-bold">
             {view === 'month' && format(currentDate, 'MMMM yyyy')}
@@ -260,7 +269,7 @@ export default function CalendarPage() {
               Today
             </button>
             <button onClick={handleNext} className="btn-secondary">
-              Next →
+              Next &rarr;
             </button>
           </div>
         </div>
@@ -271,11 +280,11 @@ export default function CalendarPage() {
         <div className="font-semibold text-gray-700">Legend:</div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-green-100 border border-green-200 rounded"></div>
-          <span className="text-gray-600">Internal Event (RSVP)</span>
+          <span className="text-gray-600">Club Event (RSVP)</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-orange-100 border border-orange-200 rounded"></div>
-          <span className="text-gray-600">External Event (Register Online)</span>
+          <span className="text-gray-600">External Registration</span>
         </div>
       </div>
 

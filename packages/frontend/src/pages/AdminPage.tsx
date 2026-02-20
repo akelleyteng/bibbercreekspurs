@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useState, useEffect, useCallback } from 'react';
 
 import BlogPostModal from '../components/BlogPostModal';
-import EventModal from '../components/EventModal';
+
 import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent, mockSponsors } from '../data/mockData';
@@ -99,20 +99,6 @@ const ROLE_OPTIONS = [
   { value: 'ADMIN', label: 'Admin' },
 ];
 
-interface EventData {
-  id: string;
-  title: string;
-  description: string;
-  startTime: string;
-  endTime: string;
-  location?: string;
-  visibility: string;
-  eventType: string;
-  externalRegistrationUrl?: string;
-  imageUrl?: string;
-  registrationCount: number;
-  creator: { id: string; firstName: string; lastName: string };
-}
 
 interface TestimonialData {
   id: string;
@@ -140,8 +126,7 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'events' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [termYear, setTermYear] = useState(() => {
     const now = new Date();
@@ -149,7 +134,6 @@ export default function AdminPage() {
     return `${year}-${year + 1}`;
   });
   const [holderOptions, setHolderOptions] = useState<HolderOption[]>([]);
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
   const [editingBlogPostId, setEditingBlogPostId] = useState<string | null>(null);
   const [isSponsorModalOpen, setIsSponsorModalOpen] = useState(false);
@@ -157,7 +141,6 @@ export default function AdminPage() {
   const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
   const [editingTestimonialId, setEditingTestimonialId] = useState<string | null>(null);
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
-  const [events, setEvents] = useState<EventData[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPostData[]>([]);
   const [adminMembers, setAdminMembers] = useState<AdminMember[]>([]);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -173,24 +156,6 @@ export default function AdminPage() {
   const [linkYouthToUserId, setLinkYouthToUserId] = useState('');
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-
-  const fetchEvents = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { events { id title description startTime endTime location visibility eventType externalRegistrationUrl imageUrl registrationCount creator { id firstName lastName } } }`,
-      }),
-    });
-    const result = await res.json();
-    if (result.data?.events) {
-      setEvents(result.data.events);
-    }
-  }, [graphqlUrl]);
 
   const fetchTestimonials = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -297,132 +262,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchTestimonials();
-    fetchEvents();
     fetchBlogPosts();
     fetchOfficers(termYear);
     fetchHolderOptions();
     fetchMembers();
-  }, [fetchTestimonials, fetchEvents, fetchBlogPosts, fetchOfficers, fetchHolderOptions, fetchMembers, termYear]);
-
-  const handleEditEvent = (eventId: string) => {
-    setEditingEventId(eventId);
-    setIsEventModalOpen(true);
-  };
-
-  const handleSaveEvent = async (data: any) => {
-    const token = localStorage.getItem('token');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
-    const startTime = new Date(`${data.startDate}T${data.startTime}`).toISOString();
-    const endTime = new Date(`${data.endDate}T${data.endTime}`).toISOString();
-
-    try {
-      let res: Response;
-
-      if (editingEventId) {
-        res = await fetch(graphqlUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: `mutation UpdateEvent($id: String!, $input: UpdateEventInput!) {
-              updateEvent(id: $id, input: $input) { id }
-            }`,
-            variables: {
-              id: editingEventId,
-              input: {
-                title: data.title,
-                description: data.description,
-                startTime,
-                endTime,
-                location: data.location || null,
-                visibility: data.visibility,
-                eventType: data.eventType,
-                externalRegistrationUrl: data.externalRegistrationUrl || null,
-                imageUrl: data.imageUrl || null,
-                isRecurring: data.isRecurring || false,
-                recurringFrequency: data.isRecurring ? data.recurringFrequency : null,
-                recurringEndDate: data.isRecurring && data.recurringEndDate ? data.recurringEndDate : null,
-                recurringDaysOfWeek: data.isRecurring && data.recurringDaysOfWeek?.length ? data.recurringDaysOfWeek : null,
-                monthlyPattern: data.isRecurring && data.recurringFrequency === 'monthly' ? data.monthlyPattern : null,
-                recurringInterval: data.isRecurring ? (data.recurringInterval || 1) : null,
-                publishToGoogleCalendar: data.publishToGoogleCalendar || false,
-                reminderMinutesBefore: data.publishToGoogleCalendar && data.reminderMinutesBefore?.length ? data.reminderMinutesBefore : null,
-                reminderMethods: data.publishToGoogleCalendar && data.reminderMethods?.length ? data.reminderMethods : null,
-              },
-            },
-          }),
-        });
-      } else {
-        res = await fetch(graphqlUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: `mutation CreateEvent($input: CreateEventInput!) {
-              createEvent(input: $input) { id }
-            }`,
-            variables: {
-              input: {
-                title: data.title,
-                description: data.description,
-                startTime,
-                endTime,
-                location: data.location || null,
-                visibility: data.visibility,
-                eventType: data.eventType,
-                externalRegistrationUrl: data.externalRegistrationUrl || null,
-                imageUrl: data.imageUrl || null,
-                isRecurring: data.isRecurring || false,
-                recurringFrequency: data.isRecurring ? data.recurringFrequency : null,
-                recurringEndDate: data.isRecurring && data.recurringEndDate ? data.recurringEndDate : null,
-                recurringDaysOfWeek: data.isRecurring && data.recurringDaysOfWeek?.length ? data.recurringDaysOfWeek : null,
-                monthlyPattern: data.isRecurring && data.recurringFrequency === 'monthly' ? data.monthlyPattern : null,
-                recurringInterval: data.isRecurring ? (data.recurringInterval || 1) : null,
-                publishToGoogleCalendar: data.publishToGoogleCalendar || false,
-                reminderMinutesBefore: data.publishToGoogleCalendar && data.reminderMinutesBefore?.length ? data.reminderMinutesBefore : null,
-                reminderMethods: data.publishToGoogleCalendar && data.reminderMethods?.length ? data.reminderMethods : null,
-              },
-            },
-          }),
-        });
-      }
-
-      const result = await res.json();
-      if (result.errors) {
-        alert(`Error saving event: ${result.errors[0]?.message || 'Unknown error'}`);
-        return;
-      }
-
-      setEditingEventId(null);
-      setIsEventModalOpen(false);
-      fetchEvents();
-    } catch (err) {
-      alert('Network error: Could not save event. Please try again.');
-    }
-  };
-
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to delete this event?')) return;
-
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation DeleteEvent($id: String!) {
-          deleteEvent(id: $id)
-        }`,
-        variables: { id: eventId },
-      }),
-    });
-
-    fetchEvents();
-  };
+  }, [fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchHolderOptions, fetchMembers, termYear]);
 
   // Sponsor handlers
   const handleCreateSponsor = (data: any) => {
@@ -979,7 +823,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-8">
         <nav className="-mb-px flex space-x-8">
-          {['home', 'members', 'events', 'blog', 'sponsors', 'testimonials', 'officers'].map((tab) => (
+          {['home', 'members', 'blog', 'sponsors', 'testimonials', 'officers'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -1619,91 +1463,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Events */}
-      {activeTab === 'events' && (
-        <div>
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">Manage Events</h3>
-            <button onClick={() => setIsEventModalOpen(true)} className="btn-primary">
-              + Add Event
-            </button>
-          </div>
-          {events.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No events yet. Add one above.</p>
-          ) : (
-            <div className="space-y-4">
-              {events.map((event) => (
-                <div key={event.id} className="card">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-semibold text-lg">{event.title}</h4>
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          event.eventType === 'internal'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-orange-100 text-orange-800'
-                        }`}>
-                          {event.eventType === 'internal' ? '📍 Internal' : '🔗 External'}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          event.visibility === 'PUBLIC'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {event.visibility === 'PUBLIC' ? '🌐 Public' : '🔒 Members'}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{event.description}</p>
-                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
-                        <div>
-                          <span className="font-medium">📅 Date:</span> {format(new Date(event.startTime), 'MMM d, yyyy')}
-                        </div>
-                        <div>
-                          <span className="font-medium">⏰ Time:</span> {format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}
-                        </div>
-                        <div>
-                          <span className="font-medium">📍 Location:</span> {event.location}
-                        </div>
-                        <div>
-                          <span className="font-medium">👥 RSVPs:</span> {event.registrationCount}
-                        </div>
-                      </div>
-                      {event.eventType === 'external' && event.externalRegistrationUrl && (
-                        <div className="mt-2 text-sm">
-                          <span className="font-medium">🔗 Registration:</span>{' '}
-                          <a
-                            href={event.externalRegistrationUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 hover:text-primary-700 underline"
-                          >
-                            {event.externalRegistrationUrl}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col space-y-2 ml-4">
-                      <button
-                        onClick={() => handleEditEvent(event.id)}
-                        className="btn-secondary text-sm whitespace-nowrap"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEvent(event.id)}
-                        className="btn-secondary text-sm text-red-600 whitespace-nowrap"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Blog */}
       {activeTab === 'blog' && (
         <div>
@@ -1772,36 +1531,6 @@ export default function AdminPage() {
           )}
         </div>
       )}
-
-      {/* Event Modal */}
-      <EventModal
-        isOpen={isEventModalOpen}
-        onClose={() => {
-          setIsEventModalOpen(false);
-          setEditingEventId(null);
-        }}
-        onSave={handleSaveEvent}
-        mode={editingEventId ? 'edit' : 'create'}
-        initialData={editingEventId ? (() => {
-          const ev = events.find((e) => e.id === editingEventId);
-          if (!ev) return undefined;
-          const start = new Date(ev.startTime);
-          const end = new Date(ev.endTime);
-          return {
-            title: ev.title,
-            description: ev.description,
-            startDate: format(start, 'yyyy-MM-dd'),
-            startTime: format(start, 'HH:mm'),
-            endDate: format(end, 'yyyy-MM-dd'),
-            endTime: format(end, 'HH:mm'),
-            location: ev.location || '',
-            eventType: ev.eventType as 'internal' | 'external',
-            visibility: ev.visibility as any,
-            externalRegistrationUrl: ev.externalRegistrationUrl || '',
-            imageUrl: ev.imageUrl || '',
-          };
-        })() : undefined}
-      />
 
       {/* Sponsor Modal */}
       <SponsorModal

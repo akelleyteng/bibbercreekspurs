@@ -12,13 +12,18 @@ interface EventDetailData {
   endTime: string;
   location?: string;
   visibility: string;
-  eventType: string;
   externalRegistrationUrl?: string;
-  imageUrl?: string;
+  isAllDay: boolean;
   registrationCount: number;
-  userRegistrationStatus?: string;
-  creator: { id: string; firstName: string; lastName: string };
+  userRsvpStatus?: string;
 }
+
+const EVENT_QUERY = `query GetEvent($id: String!) {
+  event(id: $id) {
+    id title description startTime endTime location visibility
+    externalRegistrationUrl isAllDay registrationCount userRsvpStatus
+  }
+}`;
 
 export default function EventDetailPage() {
   const { id } = useParams();
@@ -26,47 +31,43 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<EventDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rsvpLoading, setRsvpLoading] = useState(false);
+  const [showRsvpDialog, setShowRsvpDialog] = useState(false);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
-  useEffect(() => {
+  const fetchEvent = async () => {
     const token = localStorage.getItem('token');
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query GetEvent($id: String!) {
-          event(id: $id) {
-            id title description startTime endTime location visibility eventType
-            externalRegistrationUrl imageUrl registrationCount userRegistrationStatus
-            creator { id firstName lastName }
-          }
-        }`,
-        variables: { id },
-      }),
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.data?.event) {
-          setEvent(result.data.event);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: EVENT_QUERY,
+          variables: { id },
+        }),
+      });
+      const result = await res.json();
+      if (result.data?.event) {
+        setEvent(result.data.event);
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
+  useEffect(() => {
+    fetchEvent().finally(() => setLoading(false));
   }, [id, graphqlUrl]);
 
-  const handleRsvp = async () => {
+  const handleRsvp = async (addToCalendar: boolean) => {
     const token = localStorage.getItem('token');
     if (!token || !event) return;
 
     setRsvpLoading(true);
-    const isRsvped = event.userRegistrationStatus === 'REGISTERED';
-    const mutation = isRsvped
-      ? `mutation CancelRsvp($eventId: String!) { cancelRsvp(eventId: $eventId) }`
-      : `mutation RsvpEvent($eventId: String!) { rsvpEvent(eventId: $eventId) }`;
+    setShowRsvpDialog(false);
 
     await fetch(graphqlUrl, {
       method: 'POST',
@@ -75,33 +76,36 @@ export default function EventDetailPage() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        query: mutation,
-        variables: { eventId: event.id },
+        query: `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
+        variables: {
+          input: { eventId: event.id, addToCalendar },
+        },
       }),
     });
 
-    // Refresh event data
-    const res = await fetch(graphqlUrl, {
+    await fetchEvent();
+    setRsvpLoading(false);
+  };
+
+  const handleCancelRsvp = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !event) return;
+
+    setRsvpLoading(true);
+
+    await fetch(graphqlUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        query: `query GetEvent($id: String!) {
-          event(id: $id) {
-            id title description startTime endTime location visibility eventType
-            externalRegistrationUrl imageUrl registrationCount userRegistrationStatus
-            creator { id firstName lastName }
-          }
-        }`,
-        variables: { id: event.id },
+        query: `mutation CancelRsvp($eventId: String!) { cancelRsvp(eventId: $eventId) }`,
+        variables: { eventId: event.id },
       }),
     });
-    const result = await res.json();
-    if (result.data?.event) {
-      setEvent(result.data.event);
-    }
+
+    await fetchEvent();
     setRsvpLoading(false);
   };
 
@@ -122,45 +126,31 @@ export default function EventDetailPage() {
     );
   }
 
-  const isRsvped = event.userRegistrationStatus === 'REGISTERED';
+  const isRsvped = !!event.userRsvpStatus;
   const startTime = new Date(event.startTime);
   const endTime = new Date(event.endTime);
+  const hasExternalRegistration = !!event.externalRegistrationUrl;
 
   return (
     <div className="max-w-4xl mx-auto">
       <Link to="/events" className="text-primary-600 hover:text-primary-700 mb-4 inline-block">
-        ← Back to Events
+        &larr; Back to Events
       </Link>
 
       <div className="card">
-        {event.imageUrl && (
-          <img
-            src={event.imageUrl}
-            alt={event.title}
-            className="w-full h-64 object-cover rounded-lg mb-6"
-          />
-        )}
-
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-              {format(startTime, 'EEEE, MMMM d, yyyy')}
+              {event.isAllDay
+                ? format(startTime, 'EEEE, MMMM d, yyyy')
+                : format(startTime, 'EEEE, MMMM d, yyyy')}
             </span>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
               event.visibility === 'PUBLIC'
                 ? 'bg-blue-100 text-blue-800'
                 : 'bg-purple-100 text-purple-800'
             }`}>
-              {event.visibility === 'PUBLIC' ? '🌐 Public Event' : '🔒 Members Only'}
-            </span>
-          </div>
-          <div>
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-              event.eventType === 'internal'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-orange-100 text-orange-800'
-            }`}>
-              {event.eventType === 'internal' ? '📍 Internal Event (RSVP)' : '🔗 External Event (Register Online)'}
+              {event.visibility === 'PUBLIC' ? 'Public Event' : 'Members Only'}
             </span>
           </div>
         </div>
@@ -169,41 +159,35 @@ export default function EventDetailPage() {
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <div className="space-y-4">
-            <div className="flex items-start">
-              <span className="text-2xl mr-3">⏰</span>
-              <div>
-                <p className="font-semibold text-gray-900">Time</p>
-                <p className="text-gray-600">
-                  {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
-                </p>
+            {!event.isAllDay && (
+              <div className="flex items-start">
+                <span className="text-2xl mr-3">&#9200;</span>
+                <div>
+                  <p className="font-semibold text-gray-900">Time</p>
+                  <p className="text-gray-600">
+                    {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-start">
-              <span className="text-2xl mr-3">📍</span>
-              <div>
-                <p className="font-semibold text-gray-900">Location</p>
-                <p className="text-gray-600">{event.location}</p>
+            {event.location && (
+              <div className="flex items-start">
+                <span className="text-2xl mr-3">&#128205;</span>
+                <div>
+                  <p className="font-semibold text-gray-900">Location</p>
+                  <p className="text-gray-600">{event.location}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="space-y-4">
             <div className="flex items-start">
-              <span className="text-2xl mr-3">👤</span>
-              <div>
-                <p className="font-semibold text-gray-900">Organizer</p>
-                <p className="text-gray-600">
-                  {event.creator.firstName} {event.creator.lastName}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start">
-              <span className="text-2xl mr-3">👥</span>
+              <span className="text-2xl mr-3">&#128101;</span>
               <div>
                 <p className="font-semibold text-gray-900">Attendees</p>
-                <p className="text-gray-600">{event.registrationCount} registered</p>
+                <p className="text-gray-600">{event.registrationCount} attending</p>
               </div>
             </div>
           </div>
@@ -214,33 +198,108 @@ export default function EventDetailPage() {
           <p className="text-gray-700 whitespace-pre-line">{event.description}</p>
         </div>
 
-        {event.eventType === 'internal' ? (
-          isAuthenticated ? (
-            <button
-              onClick={handleRsvp}
-              disabled={rsvpLoading}
-              className={isRsvped ? 'btn-secondary' : 'btn-primary'}
-            >
-              {rsvpLoading ? 'Processing...' : isRsvped ? '✓ RSVP Confirmed — Click to Cancel' : 'RSVP to Event'}
-            </button>
-          ) : (
-            <Link to="/login" className="btn-primary inline-block">
-              Log In to RSVP
-            </Link>
-          )
-        ) : (
-          event.externalRegistrationUrl && (
+        {/* External Registration Link */}
+        {hasExternalRegistration && (
+          <div className="mb-6">
             <a
               href={event.externalRegistrationUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary inline-block"
             >
-              Register on External Site →
+              Register for this Event &rarr;
             </a>
+          </div>
+        )}
+
+        {/* RSVP section for logged-in users on events WITH external registration */}
+        {hasExternalRegistration && isAuthenticated && (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
+            <p className="text-sm text-yellow-800 mb-3">
+              <strong>Note:</strong> RSVP does not register you for this event.
+              You must register via the link above. RSVP adds this event to your
+              calendar so you get reminders.
+            </p>
+            {isRsvped ? (
+              <button
+                onClick={handleCancelRsvp}
+                disabled={rsvpLoading}
+                className="btn-secondary text-sm"
+              >
+                {rsvpLoading ? 'Processing...' : 'Cancel RSVP'}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowRsvpDialog(true)}
+                disabled={rsvpLoading}
+                className="btn-secondary text-sm"
+              >
+                RSVP for Calendar Reminders
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Standard RSVP for events WITHOUT external registration */}
+        {!hasExternalRegistration && isAuthenticated && (
+          isRsvped ? (
+            <button
+              onClick={handleCancelRsvp}
+              disabled={rsvpLoading}
+              className="btn-secondary"
+            >
+              {rsvpLoading ? 'Processing...' : 'RSVP Confirmed - Click to Cancel'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowRsvpDialog(true)}
+              disabled={rsvpLoading}
+              className="btn-primary"
+            >
+              RSVP to Event
+            </button>
           )
         )}
+
+        {!hasExternalRegistration && !isAuthenticated && (
+          <Link to="/login" className="btn-primary inline-block">
+            Log In to RSVP
+          </Link>
+        )}
       </div>
+
+      {/* Calendar Invite Dialog */}
+      {showRsvpDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Add to your Google Calendar?</h3>
+            <p className="text-gray-600 mb-6">
+              Would you like this event added to your personal Google Calendar?
+              You'll receive an email invitation with event details and reminders.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleRsvp(true)}
+                className="btn-primary flex-1"
+              >
+                Yes, add to my calendar
+              </button>
+              <button
+                onClick={() => handleRsvp(false)}
+                className="btn-secondary flex-1"
+              >
+                No thanks, just RSVP
+              </button>
+            </div>
+            <button
+              onClick={() => setShowRsvpDialog(false)}
+              className="mt-3 text-sm text-gray-500 hover:text-gray-700 w-full text-center"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

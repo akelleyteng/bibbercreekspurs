@@ -12,7 +12,8 @@ interface EventData {
   endTime: string;
   location?: string;
   visibility: string;
-  eventType: string;
+  externalRegistrationUrl?: string;
+  isAllDay: boolean;
   registrationCount: number;
 }
 
@@ -32,7 +33,7 @@ export default function EventsPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        query: `query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility eventType registrationCount } }`,
+        query: `query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility externalRegistrationUrl isAllDay registrationCount } }`,
       }),
     })
       .then((res) => res.json())
@@ -78,35 +79,35 @@ export default function EventsPage() {
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-purple-100 text-purple-800'
                   }`}>
-                    {event.visibility === 'PUBLIC' ? '🌐 Public' : '🔒 Members Only'}
+                    {event.visibility === 'PUBLIC' ? 'Public' : 'Members Only'}
                   </span>
                 </div>
-                <div>
-                  <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                    event.eventType === 'internal'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-orange-100 text-orange-800'
-                  }`}>
-                    {event.eventType === 'internal' ? '📍 Internal Event' : '🔗 External Event'}
+                {event.externalRegistrationUrl && (
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                    External Registration
                   </span>
-                </div>
+                )}
               </div>
 
               <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
               <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
 
               <div className="space-y-2 text-sm text-gray-600">
+                {event.location && (
+                  <div className="flex items-center">
+                    <span className="mr-2">&#128205;</span>
+                    <span>{event.location}</span>
+                  </div>
+                )}
+                {!event.isAllDay && (
+                  <div className="flex items-center">
+                    <span className="mr-2">&#9200;</span>
+                    <span>{format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}</span>
+                  </div>
+                )}
                 <div className="flex items-center">
-                  <span className="mr-2">📍</span>
-                  <span>{event.location}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="mr-2">⏰</span>
-                  <span>{format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="mr-2">👥</span>
-                  <span>{event.registrationCount} registered</span>
+                  <span className="mr-2">&#128101;</span>
+                  <span>{event.registrationCount} attending</span>
                 </div>
               </div>
             </Link>
