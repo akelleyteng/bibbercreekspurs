@@ -43,6 +43,16 @@ interface AdminYouthMember {
   birthdate?: string;
   project?: string;
   horseNames?: string;
+  userId?: string;
+}
+
+interface LinkedFamilyMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  profilePhotoUrl?: string;
 }
 
 interface AdminMember {
@@ -62,6 +72,8 @@ interface AdminMember {
   commentCount: number;
   blogPostCount: number;
   youthMembers?: AdminYouthMember[];
+  linkedChildren?: LinkedFamilyMember[];
+  linkedParents?: LinkedFamilyMember[];
 }
 
 function timeAgo(dateStr: string): string {
@@ -157,6 +169,8 @@ export default function AdminPage() {
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState<Partial<AdminMember>>({ role: 'PARENT' });
   const [resetPasswordForm, setResetPasswordForm] = useState<{ password: string; forceReset: boolean }>({ password: '', forceReset: true });
+  const [linkChildUserId, setLinkChildUserId] = useState('');
+  const [linkYouthToUserId, setLinkYouthToUserId] = useState('');
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -272,7 +286,7 @@ export default function AdminPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        query: `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl lastLogin lastLoginDevice postCount commentCount blogPostCount youthMembers { id firstName lastName birthdate project horseNames } } }`,
+        query: `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl lastLogin lastLoginDevice postCount commentCount blogPostCount youthMembers { id firstName lastName birthdate project horseNames userId } linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
       }),
     });
     const result = await res.json();
@@ -788,6 +802,95 @@ export default function AdminPage() {
     setResetPasswordForm({ password: '', forceReset: true });
   };
 
+  // Family link handlers
+  const handleAddFamilyLink = async (parentUserId: string, childUserId: string) => {
+    if (!childUserId) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AddFamilyLink($parentUserId: String!, $childUserId: String!) {
+          addFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId) { id }
+        }`,
+        variables: { parentUserId, childUserId },
+      }),
+    });
+    const result = await res.json();
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    setLinkChildUserId('');
+    fetchMembers();
+  };
+
+  const handleRemoveFamilyLink = async (parentUserId: string, childUserId: string) => {
+    if (!confirm('Remove this family link?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation RemoveFamilyLink($parentUserId: String!, $childUserId: String!) {
+          removeFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId)
+        }`,
+        variables: { parentUserId, childUserId },
+      }),
+    });
+    fetchMembers();
+  };
+
+  const handleLinkYouthToUser = async (youthMemberId: string, userId: string) => {
+    if (!userId) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation LinkYouthMemberToUser($youthMemberId: String!, $userId: String!) {
+          linkYouthMemberToUser(youthMemberId: $youthMemberId, userId: $userId)
+        }`,
+        variables: { youthMemberId, userId },
+      }),
+    });
+    const result = await res.json();
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    setLinkYouthToUserId('');
+    fetchMembers();
+  };
+
+  const handleUnlinkYouthFromUser = async (youthMemberId: string) => {
+    if (!confirm('Unlink this youth member from their user account?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation UnlinkYouthMemberFromUser($youthMemberId: String!) {
+          unlinkYouthMemberFromUser(youthMemberId: $youthMemberId)
+        }`,
+        variables: { youthMemberId },
+      }),
+    });
+    fetchMembers();
+  };
+
   // Blog handlers
   const handleEditBlogPost = (postId: string) => {
     setEditingBlogPostId(postId);
@@ -1135,6 +1238,22 @@ export default function AdminPage() {
                                 ))}
                               </div>
                             )}
+                            {member.linkedChildren && member.linkedChildren.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium text-gray-500 uppercase">Linked Children:</p>
+                                {member.linkedChildren.map(c => (
+                                  <span key={c.id} className="inline-block text-sm text-gray-700 mr-3">{c.firstName} {c.lastName}</span>
+                                ))}
+                              </div>
+                            )}
+                            {member.linkedParents && member.linkedParents.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium text-gray-500 uppercase">Linked Parents:</p>
+                                {member.linkedParents.map(p => (
+                                  <span key={p.id} className="inline-block text-sm text-gray-700 mr-3">{p.firstName} {p.lastName}</span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2 ml-4">
@@ -1288,6 +1407,140 @@ export default function AdminPage() {
                                 <button className="btn-primary text-sm" onClick={() => handleSaveYouth(member.id)}>Add</button>
                                 <button className="btn-secondary text-sm" onClick={() => { setAddingYouthForMemberId(null); setYouthForm({}); }}>Cancel</button>
                               </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Family Links */}
+                        <div className="border-t pt-4 mt-4">
+                          <h5 className="text-sm font-semibold text-gray-700 mb-3">Family Links</h5>
+
+                          {/* Linked Children */}
+                          {member.linkedChildren && member.linkedChildren.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Linked Child Accounts</p>
+                              {member.linkedChildren.map(child => (
+                                <div key={child.id} className="flex items-center justify-between bg-gray-50 p-2 rounded mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <img
+                                      src={child.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(child.firstName + ' ' + child.lastName)}&background=4f772d&color=fff&size=24`}
+                                      alt=""
+                                      className="w-6 h-6 rounded-full"
+                                    />
+                                    <span className="text-sm text-gray-800">{child.firstName} {child.lastName}</span>
+                                    <span className="text-xs text-gray-500">({child.email})</span>
+                                  </div>
+                                  <button
+                                    className="text-xs text-red-600 hover:underline"
+                                    onClick={() => handleRemoveFamilyLink(member.id, child.id)}
+                                  >
+                                    Unlink
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Linked Parents */}
+                          {member.linkedParents && member.linkedParents.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Linked Parent Accounts</p>
+                              {member.linkedParents.map(parent => (
+                                <div key={parent.id} className="flex items-center justify-between bg-gray-50 p-2 rounded mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <img
+                                      src={parent.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(parent.firstName + ' ' + parent.lastName)}&background=4f772d&color=fff&size=24`}
+                                      alt=""
+                                      className="w-6 h-6 rounded-full"
+                                    />
+                                    <span className="text-sm text-gray-800">{parent.firstName} {parent.lastName}</span>
+                                    <span className="text-xs text-gray-500">({parent.email})</span>
+                                  </div>
+                                  <button
+                                    className="text-xs text-red-600 hover:underline"
+                                    onClick={() => handleRemoveFamilyLink(parent.id, member.id)}
+                                  >
+                                    Unlink
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Link a child account */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <select
+                              className="input text-sm flex-1"
+                              value={linkChildUserId}
+                              onChange={e => setLinkChildUserId(e.target.value)}
+                            >
+                              <option value="">Link a child account...</option>
+                              {adminMembers
+                                .filter(m => m.id !== member.id && !member.linkedChildren?.some(c => c.id === m.id))
+                                .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+                                .map(m => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.firstName} {m.lastName} ({ROLE_OPTIONS.find(r => r.value === m.role)?.label || m.role})
+                                  </option>
+                                ))}
+                            </select>
+                            <button
+                              className="btn-primary text-sm whitespace-nowrap"
+                              onClick={() => handleAddFamilyLink(member.id, linkChildUserId)}
+                              disabled={!linkChildUserId}
+                            >
+                              Link Child
+                            </button>
+                          </div>
+
+                          {/* Youth member → account linking */}
+                          {member.youthMembers && member.youthMembers.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Youth Member Account Links</p>
+                              {member.youthMembers.map(ym => {
+                                const linkedUser = ym.userId ? adminMembers.find(m => m.id === ym.userId) : null;
+                                return (
+                                  <div key={ym.id} className="flex items-center justify-between bg-blue-50 p-2 rounded mb-1">
+                                    <span className="text-sm text-gray-800">{ym.firstName} {ym.lastName}</span>
+                                    {linkedUser ? (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-600">Linked to: {linkedUser.firstName} {linkedUser.lastName}</span>
+                                        <button
+                                          className="text-xs text-red-600 hover:underline"
+                                          onClick={() => handleUnlinkYouthFromUser(ym.id)}
+                                        >
+                                          Unlink
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          className="input text-xs w-48"
+                                          value={linkYouthToUserId}
+                                          onChange={e => setLinkYouthToUserId(e.target.value)}
+                                        >
+                                          <option value="">Link to account...</option>
+                                          {adminMembers
+                                            .filter(m => m.id !== member.id)
+                                            .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+                                            .map(m => (
+                                              <option key={m.id} value={m.id}>
+                                                {m.firstName} {m.lastName}
+                                              </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                          className="text-xs text-primary-600 hover:underline whitespace-nowrap"
+                                          onClick={() => handleLinkYouthToUser(ym.id, linkYouthToUserId)}
+                                          disabled={!linkYouthToUserId}
+                                        >
+                                          Link
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

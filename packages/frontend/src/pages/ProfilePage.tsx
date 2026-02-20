@@ -1,5 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { mockCurrentUser } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
+
+interface LinkedFamilyMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  profilePhotoUrl?: string;
+}
+
+interface FamilyData {
+  linkedChildren: LinkedFamilyMember[];
+  linkedParents: LinkedFamilyMember[];
+}
+
+interface UserOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
 
 // Profile page - member account management and password reset
 export default function ProfilePage() {
@@ -20,6 +42,91 @@ export default function ProfilePage() {
   });
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [familyData, setFamilyData] = useState<FamilyData>({ linkedChildren: [], linkedParents: [] });
+  const [allUsers, setAllUsers] = useState<UserOption[]>([]);
+  const [linkChildUserId, setLinkChildUserId] = useState('');
+  const { user: authUser } = useAuth();
+
+  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+  const fetchFamilyData = useCallback(async () => {
+    if (!authUser) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { users { id firstName lastName email role profilePhotoUrl linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.users) {
+      const me = result.data.users.find((u: any) => u.id === authUser.id);
+      if (me) {
+        setFamilyData({
+          linkedChildren: me.linkedChildren || [],
+          linkedParents: me.linkedParents || [],
+        });
+      }
+      setAllUsers(result.data.users.map((u: any) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName, role: u.role })));
+    }
+  }, [graphqlUrl, authUser]);
+
+  useEffect(() => {
+    fetchFamilyData();
+  }, [fetchFamilyData]);
+
+  const handleAddFamilyLink = async (childUserId: string) => {
+    if (!childUserId || !authUser) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AddFamilyLink($parentUserId: String!, $childUserId: String!) {
+          addFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId) { id }
+        }`,
+        variables: { parentUserId: authUser.id, childUserId },
+      }),
+    });
+    const result = await res.json();
+    if (result.errors) {
+      setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to link account' });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+    setLinkChildUserId('');
+    setMessage({ type: 'success', text: 'Youth account linked successfully!' });
+    setTimeout(() => setMessage(null), 3000);
+    fetchFamilyData();
+  };
+
+  const handleRemoveFamilyLink = async (childUserId: string) => {
+    if (!authUser || !confirm('Remove this family link?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation RemoveFamilyLink($parentUserId: String!, $childUserId: String!) {
+          removeFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId)
+        }`,
+        variables: { parentUserId: authUser.id, childUserId },
+      }),
+    });
+    setMessage({ type: 'success', text: 'Family link removed.' });
+    setTimeout(() => setMessage(null), 3000);
+    fetchFamilyData();
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -227,6 +334,97 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Family Section */}
+      {authUser && (familyData.linkedChildren.length > 0 || familyData.linkedParents.length > 0 || authUser.role === 'PARENT' || authUser.role === 'ADULT_LEADER' || authUser.role === 'ADMIN') && (
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Family</h2>
+
+          {/* Linked children (for parents) */}
+          {familyData.linkedChildren.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-600 mb-2">Linked Youth Accounts</p>
+              <div className="space-y-2">
+                {familyData.linkedChildren.map(child => (
+                  <div key={child.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={child.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(child.firstName + ' ' + child.lastName)}&background=4f772d&color=fff&size=32`}
+                        alt=""
+                        className="w-8 h-8 rounded-full"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{child.firstName} {child.lastName}</p>
+                        <p className="text-xs text-gray-500">{child.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFamilyLink(child.id)}
+                      className="text-sm text-red-600 hover:text-red-700"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Linked parents (for youth) */}
+          {familyData.linkedParents.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-600 mb-2">Linked Parent Accounts</p>
+              <div className="space-y-2">
+                {familyData.linkedParents.map(parent => (
+                  <div key={parent.id} className="flex items-center bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={parent.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(parent.firstName + ' ' + parent.lastName)}&background=4f772d&color=fff&size=32`}
+                        alt=""
+                        className="w-8 h-8 rounded-full"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{parent.firstName} {parent.lastName}</p>
+                        <p className="text-xs text-gray-500">{parent.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Link a new child (for parents/leaders/admin) */}
+          {authUser && (authUser.role === 'PARENT' || authUser.role === 'ADULT_LEADER' || authUser.role === 'ADMIN') && (
+            <div className="flex items-center gap-2 mt-3">
+              <select
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                value={linkChildUserId}
+                onChange={e => setLinkChildUserId(e.target.value)}
+              >
+                <option value="">Link a youth account...</option>
+                {allUsers
+                  .filter(u => u.id !== authUser.id && !familyData.linkedChildren.some(c => c.id === u.id) && (u.role === 'YOUTH_MEMBER'))
+                  .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+                  .map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                  ))}
+              </select>
+              <button
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm whitespace-nowrap disabled:opacity-50"
+                onClick={() => handleAddFamilyLink(linkChildUserId)}
+                disabled={!linkChildUserId}
+              >
+                Link
+              </button>
+            </div>
+          )}
+
+          {familyData.linkedChildren.length === 0 && familyData.linkedParents.length === 0 && (
+            <p className="text-sm text-gray-500">No family accounts linked yet.</p>
+          )}
+        </div>
+      )}
 
       {/* Password Section */}
       <div className="bg-white rounded-lg shadow-sm p-6">

@@ -1,5 +1,6 @@
 import { ObjectType, Field, ID, Int, registerEnumType } from 'type-graphql';
 import { Role } from '@4hclub/shared';
+import { LinkedFamilyMember } from './FamilyLink.type';
 import { DateTimeScalar } from './scalars';
 export { DateTimeScalar } from './scalars';
 import { YouthMember } from './YouthMember.type';
@@ -47,6 +48,12 @@ export class User {
 
   @Field(() => [YouthMember], { nullable: true })
   youthMembers?: YouthMember[];
+
+  @Field(() => [LinkedFamilyMember], { nullable: true })
+  linkedChildren?: LinkedFamilyMember[];
+
+  @Field(() => [LinkedFamilyMember], { nullable: true })
+  linkedParents?: LinkedFamilyMember[];
 
   @Field(() => DateTimeScalar, { nullable: true })
   lastLogin?: Date;

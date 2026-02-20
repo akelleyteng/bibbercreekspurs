@@ -9,6 +9,7 @@ export interface YouthMember {
   birthdate?: Date;
   project?: string;
   horse_names?: string;
+  user_id?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -108,6 +109,34 @@ export class YouthMemberRepository {
       return (result.rowCount ?? 0) > 0;
     } catch (error) {
       logger.error('Error deleting youth member:', error);
+      throw error;
+    }
+  }
+
+  async linkToUser(youthMemberId: string, userId: string): Promise<boolean> {
+    try {
+      const result = await db.query(
+        `UPDATE youth_members SET user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [userId, youthMemberId]
+      );
+      const updated = (result.rowCount ?? 0) > 0;
+      if (updated) logger.info(`Youth member ${youthMemberId} linked to user ${userId}`);
+      return updated;
+    } catch (error) {
+      logger.error('Error linking youth member to user:', error);
+      throw error;
+    }
+  }
+
+  async unlinkUser(youthMemberId: string): Promise<boolean> {
+    try {
+      const result = await db.query(
+        `UPDATE youth_members SET user_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [youthMemberId]
+      );
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      logger.error('Error unlinking youth member from user:', error);
       throw error;
     }
   }

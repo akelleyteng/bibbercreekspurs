@@ -3,6 +3,7 @@ import { User } from '../types/User.type';
 import { YouthMember } from '../types/YouthMember.type';
 import { UserRepository } from '../../repositories/user.repository';
 import { YouthMemberRepository } from '../../repositories/youth-member.repository';
+import { FamilyLinkRepository, LinkedUser } from '../../repositories/family-link.repository';
 import { verifyAccessToken, hashPassword } from '../../services/auth.service';
 import { Role } from '@4hclub/shared';
 import { Context } from '../context';
@@ -13,10 +14,12 @@ import { logger } from '../../utils/logger';
 export class UserResolver {
   private userRepo: UserRepository;
   private youthMemberRepo: YouthMemberRepository;
+  private familyLinkRepo: FamilyLinkRepository;
 
   constructor() {
     this.userRepo = new UserRepository();
     this.youthMemberRepo = new YouthMemberRepository();
+    this.familyLinkRepo = new FamilyLinkRepository();
   }
 
   private mapYouthMember(row: any): YouthMember {
@@ -28,12 +31,29 @@ export class UserResolver {
       birthdate: row.birthdate,
       project: row.project,
       horseNames: row.horse_names,
+      userId: row.user_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
   }
 
-  private mapUser(u: any, youthMembers?: YouthMember[], activityCounts?: { post_count: number; comment_count: number; blog_post_count: number }): User {
+  private mapLinkedUsers(users: LinkedUser[]) {
+    return users.map(u => ({
+      id: u.id,
+      firstName: u.first_name,
+      lastName: u.last_name,
+      email: u.email,
+      role: u.role,
+      profilePhotoUrl: u.profile_photo_url,
+    }));
+  }
+
+  private mapUser(
+    u: any,
+    youthMembers?: YouthMember[],
+    activityCounts?: { post_count: number; comment_count: number; blog_post_count: number },
+    familyLinks?: { parents: LinkedUser[]; children: LinkedUser[] },
+  ): User {
     return {
       id: u.id,
       email: u.email,
@@ -52,6 +72,8 @@ export class UserResolver {
       commentCount: activityCounts?.comment_count ?? 0,
       blogPostCount: activityCounts?.blog_post_count ?? 0,
       youthMembers,
+      linkedChildren: familyLinks?.children ? this.mapLinkedUsers(familyLinks.children) : [],
+      linkedParents: familyLinks?.parents ? this.mapLinkedUsers(familyLinks.parents) : [],
       createdAt: u.created_at,
       updatedAt: u.updated_at,
     };
@@ -89,12 +111,14 @@ export class UserResolver {
 
       const dbUsers = await this.userRepo.findAll();
       const activityMap = await this.userRepo.getAllActivityCounts();
+      const familyLinksMap = await this.familyLinkRepo.findAllGrouped();
 
       const users: User[] = [];
       for (const u of dbUsers) {
         const youthRows = await this.youthMemberRepo.findByParentId(u.id);
         const counts = activityMap.get(u.id);
-        users.push(this.mapUser(u, youthRows.length > 0 ? youthRows.map(ym => this.mapYouthMember(ym)) : undefined, counts));
+        const links = familyLinksMap.get(u.id);
+        users.push(this.mapUser(u, youthRows.length > 0 ? youthRows.map(ym => this.mapYouthMember(ym)) : undefined, counts, links));
       }
 
       return users;
