@@ -1,5 +1,6 @@
 import { InputType, Field } from 'type-graphql';
 import { IsEmail, MinLength, IsString } from 'class-validator';
+import { Role } from '@4hclub/shared';
 
 @InputType()
 export class RegisterInput {
@@ -19,6 +20,9 @@ export class RegisterInput {
   @IsString()
   lastName!: string;
 
+  @Field(() => Role)
+  role!: Role;
+
   @Field({ nullable: true })
   phone?: string;
 
@@ -30,4 +34,10 @@ export class RegisterInput {
 
   @Field({ nullable: true })
   emergencyPhone?: string;
+
+  @Field({ nullable: true })
+  youthFirstName?: string;
+
+  @Field({ nullable: true })
+  youthLastName?: string;
 }

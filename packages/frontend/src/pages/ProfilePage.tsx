@@ -1,6 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-import { mockCurrentUser } from '../data/mockData';
 import { useAuth } from '../context/AuthContext';
+
+const ROLE_LABELS: Record<string, string> = {
+  PARENT: 'Parent',
+  ADULT_LEADER: 'Adult Leader',
+  YOUTH_MEMBER: 'Youth Member',
+  ADMIN: 'Admin',
+};
+
+const TSHIRT_OPTIONS = [
+  '',
+  'Youth S',
+  'Youth M',
+  'Youth L',
+  'Adult XS',
+  'Adult S',
+  'Adult M',
+  'Adult L',
+  'Adult XL',
+  'Adult XXL',
+];
 
 interface LinkedFamilyMember {
   id: string;
@@ -23,16 +42,34 @@ interface UserOption {
   role: string;
 }
 
-// Profile page - member account management and password reset
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  role: string;
+  horseName: string;
+  project: string;
+  birthday: string;
+  tshirtSize: string;
+}
+
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: mockCurrentUser.firstName,
-    lastName: mockCurrentUser.lastName,
-    email: mockCurrentUser.email,
-    phone: mockCurrentUser.phone || '',
-    address: mockCurrentUser.address || '',
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [formData, setFormData] = useState<ProfileData>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    role: '',
+    horseName: '',
+    project: '',
+    birthday: '',
+    tshirtSize: '',
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -48,6 +85,38 @@ export default function ProfilePage() {
   const { user: authUser } = useAuth();
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+  const fetchProfileData = useCallback(async () => {
+    if (!authUser) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { me { id email firstName lastName role phone address horseName project birthday tshirtSize } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.me) {
+      const me = result.data.me;
+      setFormData({
+        firstName: me.firstName || '',
+        lastName: me.lastName || '',
+        email: me.email || '',
+        phone: me.phone || '',
+        address: me.address || '',
+        role: me.role || '',
+        horseName: me.horseName || '',
+        project: me.project || '',
+        birthday: me.birthday ? me.birthday.split('T')[0] : '',
+        tshirtSize: me.tshirtSize || '',
+      });
+      setProfileLoaded(true);
+    }
+  }, [graphqlUrl, authUser]);
 
   const fetchFamilyData = useCallback(async () => {
     if (!authUser) return;
@@ -76,8 +145,9 @@ export default function ProfilePage() {
   }, [graphqlUrl, authUser]);
 
   useEffect(() => {
+    fetchProfileData();
     fetchFamilyData();
-  }, [fetchFamilyData]);
+  }, [fetchProfileData, fetchFamilyData]);
 
   const handleAddFamilyLink = async (childUserId: string) => {
     if (!childUserId || !authUser) return;
@@ -128,7 +198,7 @@ export default function ProfilePage() {
     fetchFamilyData();
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -144,9 +214,39 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Connect to real API
-    setMessage({ type: 'success', text: 'Profile updated successfully!' });
-    setIsEditing(false);
+    const token = localStorage.getItem('token');
+
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: `mutation UpdateMyProfile($horseName: String, $project: String, $birthday: String, $tshirtSize: String) {
+            updateMyProfile(horseName: $horseName, project: $project, birthday: $birthday, tshirtSize: $tshirtSize) {
+              id horseName project birthday tshirtSize
+            }
+          }`,
+          variables: {
+            horseName: formData.horseName || null,
+            project: formData.project || null,
+            birthday: formData.birthday || null,
+            tshirtSize: formData.tshirtSize || null,
+          },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors) {
+        setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to update profile' });
+      } else {
+        setMessage({ type: 'success', text: 'Profile updated successfully!' });
+        setIsEditing(false);
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
+    }
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -163,18 +263,51 @@ export default function ProfilePage() {
       return;
     }
 
-    // TODO: Connect to real API (GraphQL changePassword mutation)
-    setMessage({ type: 'success', text: 'Password changed successfully!' });
-    setIsChangingPassword(false);
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: `mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+            changePassword(currentPassword: $currentPassword, newPassword: $newPassword)
+          }`,
+          variables: {
+            currentPassword: passwordData.currentPassword,
+            newPassword: passwordData.newPassword,
+          },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors) {
+        setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to change password' });
+      } else {
+        setMessage({ type: 'success', text: 'Password changed successfully!' });
+        setIsChangingPassword(false);
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
+    }
     setTimeout(() => setMessage(null), 3000);
   };
+
+  if (!profileLoaded) {
+    return (
+      <div className="max-w-4xl">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">My Profile</h1>
+        <p className="text-gray-500 text-center py-12">Loading profile...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl" data-page="profile" data-version="1.0">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">My Profile</h1>
 
-      {/* Success/Error Message */}
       {message && (
         <div
           className={`mb-6 p-4 rounded-lg ${
@@ -194,7 +327,7 @@ export default function ProfilePage() {
               onClick={() => setIsEditing(true)}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
-              ✏️ Edit Profile
+              Edit Profile
             </button>
           )}
         </div>
@@ -203,71 +336,71 @@ export default function ProfilePage() {
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                <p className="text-base font-medium text-gray-900 px-3 py-2">{formData.firstName}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                <p className="text-base font-medium text-gray-900 px-3 py-2">{formData.lastName}</p>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                required
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <p className="text-base font-medium text-gray-900 px-3 py-2">{formData.email}</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Address
-              </label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">4H Member Info</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Horse Name</label>
+                  <input
+                    type="text"
+                    name="horseName"
+                    value={formData.horseName}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="Your horse's name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                  <input
+                    type="text"
+                    name="project"
+                    value={formData.project}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="Your 4H project"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                  <input
+                    type="date"
+                    name="birthday"
+                    value={formData.birthday}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">T-Shirt Size</label>
+                  <select
+                    name="tshirtSize"
+                    value={formData.tshirtSize}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    {TSHIRT_OPTIONS.map(size => (
+                      <option key={size} value={size}>
+                        {size || '-- Select size --'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div className="flex space-x-3 pt-4">
@@ -275,19 +408,13 @@ export default function ProfilePage() {
                 type="submit"
                 className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
-                💾 Save Changes
+                Save Changes
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setIsEditing(false);
-                  setFormData({
-                    firstName: mockCurrentUser.firstName,
-                    lastName: mockCurrentUser.lastName,
-                    email: mockCurrentUser.email,
-                    phone: mockCurrentUser.phone || '',
-                    address: mockCurrentUser.address || '',
-                  });
+                  fetchProfileData();
                 }}
                 className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
               >
@@ -319,17 +446,38 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <p className="text-sm text-gray-600">Address</p>
-              <p className="text-base font-medium text-gray-900">{formData.address || 'Not provided'}</p>
-            </div>
-
-            <div>
               <p className="text-sm text-gray-600">Role</p>
               <p className="text-base font-medium text-gray-900">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-                  {mockCurrentUser.role}
+                  {ROLE_LABELS[formData.role] || formData.role}
                 </span>
               </p>
+            </div>
+
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-3">4H Member Info</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Horse Name</p>
+                  <p className="text-base font-medium text-gray-900">{formData.horseName || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Project</p>
+                  <p className="text-base font-medium text-gray-900">{formData.project || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Birthday</p>
+                  <p className="text-base font-medium text-gray-900">
+                    {formData.birthday
+                      ? new Date(formData.birthday + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                      : 'Not provided'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">T-Shirt Size</p>
+                  <p className="text-base font-medium text-gray-900">{formData.tshirtSize || 'Not provided'}</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -340,7 +488,6 @@ export default function ProfilePage() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Family</h2>
 
-          {/* Linked children (for parents) */}
           {familyData.linkedChildren.length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-600 mb-2">Linked Youth Accounts</p>
@@ -370,7 +517,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Linked parents (for youth) */}
           {familyData.linkedParents.length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-600 mb-2">Linked Parent Accounts</p>
@@ -394,7 +540,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Link a new child (for parents/leaders/admin) */}
           {authUser && (authUser.role === 'PARENT' || authUser.role === 'ADULT_LEADER' || authUser.role === 'ADMIN') && (
             <div className="flex items-center gap-2 mt-3">
               <select
@@ -438,7 +583,7 @@ export default function ProfilePage() {
               onClick={() => setIsChangingPassword(true)}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              🔒 Change Password
+              Change Password
             </button>
           )}
         </div>
@@ -446,9 +591,7 @@ export default function ProfilePage() {
         {isChangingPassword && (
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Current Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
               <input
                 type="password"
                 name="currentPassword"
@@ -460,9 +603,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                New Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
               <input
                 type="password"
                 name="newPassword"
@@ -476,9 +617,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm New Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
               <input
                 type="password"
                 name="confirmPassword"
@@ -495,7 +634,7 @@ export default function ProfilePage() {
                 type="submit"
                 className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
-                🔒 Update Password
+                Update Password
               </button>
               <button
                 type="button"

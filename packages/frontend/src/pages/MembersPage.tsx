@@ -24,15 +24,22 @@ interface MemberData {
   role: string;
   phone?: string;
   profilePhotoUrl?: string;
+  horseName?: string;
+  project?: string;
+  birthday?: string;
+  tshirtSize?: string;
   youthMembers?: YouthMember[];
   createdAt: string;
 }
+
+type RoleFilter = 'ALL' | 'YOUTH' | 'ADULT';
 
 export default function MembersPage() {
   const { isAuthenticated } = useAuth();
   const [members, setMembers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL');
 
   useEffect(() => {
     const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
@@ -50,7 +57,7 @@ export default function MembersPage() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        query: `query { users { id firstName lastName email role phone profilePhotoUrl youthMembers { id firstName lastName birthdate } createdAt } }`,
+        query: `query { users { id firstName lastName email role phone profilePhotoUrl horseName project birthday tshirtSize youthMembers { id firstName lastName birthdate } createdAt } }`,
       }),
     })
       .then((res) => res.json())
@@ -63,12 +70,19 @@ export default function MembersPage() {
       .finally(() => setLoading(false));
   }, [isAuthenticated]);
 
-  const filteredMembers = members.filter(
-    (user) =>
+  const filteredMembers = members.filter((user) => {
+    const matchesSearch =
       user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesRole =
+      roleFilter === 'ALL' ||
+      (roleFilter === 'YOUTH' && user.role === 'YOUTH_MEMBER') ||
+      (roleFilter === 'ADULT' && ['PARENT', 'ADULT_LEADER', 'ADMIN'].includes(user.role));
+
+    return matchesSearch && matchesRole;
+  });
 
   if (!isAuthenticated) {
     return (
@@ -92,7 +106,22 @@ export default function MembersPage() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Members</h1>
 
-      <div className="mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+        <div className="flex gap-1">
+          {(['ALL', 'YOUTH', 'ADULT'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setRoleFilter(filter)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                roleFilter === filter
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {filter === 'ALL' ? 'All Members' : filter === 'YOUTH' ? 'Youth' : 'Adults'}
+            </button>
+          ))}
+        </div>
         <input
           type="text"
           placeholder="Search members..."
@@ -118,6 +147,18 @@ export default function MembersPage() {
                 <p className="text-sm text-gray-500">{ROLE_LABELS[member.role] || member.role}</p>
               </div>
             </div>
+            {member.horseName && (
+              <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Horse:</span> {member.horseName}</p>
+            )}
+            {member.project && (
+              <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Project:</span> {member.project}</p>
+            )}
+            {member.birthday && (
+              <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Birthday:</span> {new Date(member.birthday).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</p>
+            )}
+            {member.tshirtSize && (
+              <p className="text-sm text-gray-600 mb-1"><span className="font-medium">T-Shirt:</span> {member.tshirtSize}</p>
+            )}
             {member.youthMembers && member.youthMembers.length > 0 && (
               <div className="mb-2">
                 <p className="text-sm font-medium text-gray-700">Youth Members:</p>

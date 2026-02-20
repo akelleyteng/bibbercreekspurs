@@ -46,6 +46,21 @@ export class User {
   @Field()
   passwordResetRequired!: boolean;
 
+  @Field({ nullable: true })
+  horseName?: string;
+
+  @Field({ nullable: true })
+  project?: string;
+
+  @Field(() => DateTimeScalar, { nullable: true })
+  birthday?: Date;
+
+  @Field({ nullable: true })
+  tshirtSize?: string;
+
+  @Field()
+  approvalStatus!: string;
+
   @Field(() => [YouthMember], { nullable: true })
   youthMembers?: YouthMember[];
 
@@ -96,4 +111,13 @@ export class RefreshTokenPayload {
 
   @Field(() => User)
   user!: User;
+}
+
+@ObjectType()
+export class RegisterPayload {
+  @Field()
+  success!: boolean;
+
+  @Field()
+  message!: string;
 }

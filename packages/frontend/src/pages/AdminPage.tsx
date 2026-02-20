@@ -71,6 +71,7 @@ interface AdminMember {
   postCount: number;
   commentCount: number;
   blogPostCount: number;
+  createdAt?: string;
   youthMembers?: AdminYouthMember[];
   linkedChildren?: LinkedFamilyMember[];
   linkedParents?: LinkedFamilyMember[];
@@ -154,6 +155,9 @@ export default function AdminPage() {
   const [resetPasswordForm, setResetPasswordForm] = useState<{ password: string; forceReset: boolean }>({ password: '', forceReset: true });
   const [linkChildUserId, setLinkChildUserId] = useState('');
   const [linkYouthToUserId, setLinkYouthToUserId] = useState('');
+  const [pendingMembers, setPendingMembers] = useState<AdminMember[]>([]);
+  const [decliningMemberId, setDecliningMemberId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -260,13 +264,67 @@ export default function AdminPage() {
     }
   }, [graphqlUrl]);
 
+  const fetchPendingMembers = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { pendingUsers { id firstName lastName email role createdAt } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.pendingUsers) {
+      setPendingMembers(result.data.pendingUsers);
+    }
+  }, [graphqlUrl]);
+
+  const handleApproveUser = async (id: string) => {
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminApproveUser($id: String!) { adminApproveUser(id: $id) { id } }`,
+        variables: { id },
+      }),
+    });
+    fetchPendingMembers();
+    fetchMembers();
+  };
+
+  const handleDeclineUser = async (id: string, reason: string) => {
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation AdminDeclineUser($id: String!, $reason: String) { adminDeclineUser(id: $id, reason: $reason) { id } }`,
+        variables: { id, reason: reason || null },
+      }),
+    });
+    setDecliningMemberId(null);
+    setDeclineReason('');
+    fetchPendingMembers();
+  };
+
   useEffect(() => {
     fetchTestimonials();
     fetchBlogPosts();
     fetchOfficers(termYear);
     fetchHolderOptions();
     fetchMembers();
-  }, [fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchHolderOptions, fetchMembers, termYear]);
+    fetchPendingMembers();
+  }, [fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchHolderOptions, fetchMembers, fetchPendingMembers, termYear]);
 
   // Sponsor handlers
   const handleCreateSponsor = (data: any) => {
@@ -972,6 +1030,73 @@ export default function AdminPage() {
       {/* Members */}
       {activeTab === 'members' && (
         <div>
+          {/* Pending Approval Section */}
+          {pendingMembers.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold mb-4 text-amber-700">
+                Pending Approval ({pendingMembers.length})
+              </h3>
+              <div className="space-y-3">
+                {pendingMembers.map(member => (
+                  <div key={member.id} className="card border-2 border-amber-200 bg-amber-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {member.firstName} {member.lastName}
+                        </h4>
+                        <p className="text-sm text-gray-600">{member.email}</p>
+                        <span className="text-xs text-gray-500">
+                          {ROLE_OPTIONS.find(r => r.value === member.role)?.label || member.role} &middot;
+                          Registered {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {decliningMemberId === member.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Reason (optional)"
+                              className="input text-sm w-48"
+                              value={declineReason}
+                              onChange={e => setDeclineReason(e.target.value)}
+                            />
+                            <button
+                              className="btn-secondary text-sm text-red-600"
+                              onClick={() => handleDeclineUser(member.id, declineReason)}
+                            >
+                              Confirm Decline
+                            </button>
+                            <button
+                              className="btn-secondary text-sm"
+                              onClick={() => { setDecliningMemberId(null); setDeclineReason(''); }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              className="btn-primary text-sm"
+                              onClick={() => handleApproveUser(member.id)}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="btn-secondary text-sm text-red-600"
+                              onClick={() => setDecliningMemberId(member.id)}
+                            >
+                              Decline
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">Manage Members</h3>
             <div className="flex items-center gap-3">

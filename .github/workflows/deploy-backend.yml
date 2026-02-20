@@ -75,8 +75,8 @@ jobs:
             --allow-unauthenticated \
             --service-account hclub-backend-sa@bibbercreekspurs-4h.iam.gserviceaccount.com \
             --add-cloudsql-instances bibbercreekspurs-4h:us-central1:hclub-db \
-            --set-env-vars "NODE_ENV=production,FRONTEND_URL=https://bibbercreekspurs4h.org,GOOGLE_CALENDAR_ID=bibbercreekspurs4h@gmail.com,GOOGLE_DRIVE_MEMBERS_FOLDER_ID=1QfI2W2196dV_J3phZda1L1GdwOswpAvh,GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID=13HCa0Q3Nk8QlYnnQiRW8WmeRcd2_ToaI" \
-            --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest" \
+            --set-env-vars "NODE_ENV=production,FRONTEND_URL=https://bibbercreekspurs4h.org,GOOGLE_CALENDAR_ID=bibbercreekspurs4h@gmail.com,GOOGLE_DRIVE_MEMBERS_FOLDER_ID=1QfI2W2196dV_J3phZda1L1GdwOswpAvh,GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID=13HCa0Q3Nk8QlYnnQiRW8WmeRcd2_ToaI,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=bibbercreekspurs4h@gmail.com,SMTP_FROM=Bibber Creek Spurs <bibbercreekspurs4h@gmail.com>" \
+            --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest,SMTP_PASS=smtp-password:latest" \
             --memory 512Mi \
             --cpu 1 \
             --timeout 300 \

@@ -141,6 +141,21 @@ export class YouthMemberRepository {
     }
   }
 
+  async findByName(firstName: string, lastName: string): Promise<YouthMember | null> {
+    try {
+      const result = await db.query<YouthMember>(
+        `SELECT * FROM youth_members
+         WHERE LOWER(first_name) = LOWER($1) AND LOWER(last_name) = LOWER($2)
+         LIMIT 1`,
+        [firstName, lastName]
+      );
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error) {
+      logger.error('Error finding youth member by name:', error);
+      throw error;
+    }
+  }
+
   async findAll(): Promise<YouthMember[]> {
     try {
       const result = await db.query<YouthMember>(

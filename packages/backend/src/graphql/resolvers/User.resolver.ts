@@ -5,6 +5,7 @@ import { UserRepository } from '../../repositories/user.repository';
 import { YouthMemberRepository } from '../../repositories/youth-member.repository';
 import { FamilyLinkRepository, LinkedUser } from '../../repositories/family-link.repository';
 import { verifyAccessToken, hashPassword } from '../../services/auth.service';
+import { emailService } from '../../services/email.service';
 import { Role } from '@4hclub/shared';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
@@ -66,6 +67,11 @@ export class UserResolver {
       emergencyPhone: u.emergency_phone,
       profilePhotoUrl: u.profile_photo_url,
       passwordResetRequired: u.password_reset_required || false,
+      horseName: u.horse_name,
+      project: u.project,
+      birthday: u.birthday,
+      tshirtSize: u.tshirt_size,
+      approvalStatus: u.approval_status,
       lastLogin: u.last_login || undefined,
       lastLoginDevice: u.last_login_device || undefined,
       postCount: activityCounts?.post_count ?? 0,
@@ -96,6 +102,18 @@ export class UserResolver {
     }
   }
 
+  private getAuthUserId(context: Context): string {
+    const authHeader = context.req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new GraphQLError('Not authenticated', {
+        extensions: { code: 'UNAUTHENTICATED' },
+      });
+    }
+    const token = authHeader.substring(7);
+    const payload = verifyAccessToken(token);
+    return payload.userId;
+  }
+
   @Query(() => [User])
   async users(@Ctx() context: Context): Promise<User[]> {
     const authHeader = context.req.headers.authorization;
@@ -107,14 +125,20 @@ export class UserResolver {
 
     try {
       const token = authHeader.substring(7);
-      verifyAccessToken(token);
+      const payload = verifyAccessToken(token);
 
+      const callingUser = await this.userRepo.findById(payload.userId);
       const dbUsers = await this.userRepo.findAll();
       const activityMap = await this.userRepo.getAllActivityCounts();
       const familyLinksMap = await this.familyLinkRepo.findAllGrouped();
 
+      // Non-admin users only see approved members
+      const visibleUsers = callingUser?.role === Role.ADMIN
+        ? dbUsers
+        : dbUsers.filter(u => u.approval_status === 'APPROVED');
+
       const users: User[] = [];
-      for (const u of dbUsers) {
+      for (const u of visibleUsers) {
         const youthRows = await this.youthMemberRepo.findByParentId(u.id);
         const counts = activityMap.get(u.id);
         const links = familyLinksMap.get(u.id);
@@ -129,6 +153,92 @@ export class UserResolver {
         extensions: { code: 'INTERNAL_ERROR' },
       });
     }
+  }
+
+  @Query(() => [User])
+  async pendingUsers(@Ctx() context: Context): Promise<User[]> {
+    await this.requireAdmin(context);
+
+    try {
+      const pending = await this.userRepo.findPending();
+      return pending.map(u => this.mapUser(u));
+    } catch (error: any) {
+      if (error instanceof GraphQLError) throw error;
+      logger.error('pendingUsers query error:', error);
+      throw new GraphQLError('Failed to fetch pending users', {
+        extensions: { code: 'INTERNAL_ERROR' },
+      });
+    }
+  }
+
+  @Mutation(() => User)
+  async adminApproveUser(
+    @Arg('id') id: string,
+    @Ctx() context: Context
+  ): Promise<User> {
+    await this.requireAdmin(context);
+
+    const updated = await this.userRepo.adminUpdate(id, { approval_status: 'APPROVED' });
+    if (!updated) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    // Send approval email (fire-and-forget)
+    emailService.notifyMemberApproved(
+      updated.email,
+      `${updated.first_name} ${updated.last_name}`,
+      updated.id
+    );
+
+    return this.mapUser(updated);
+  }
+
+  @Mutation(() => User)
+  async adminDeclineUser(
+    @Arg('id') id: string,
+    @Arg('reason', { nullable: true }) reason: string,
+    @Ctx() context: Context
+  ): Promise<User> {
+    await this.requireAdmin(context);
+
+    const updated = await this.userRepo.adminUpdate(id, { approval_status: 'DECLINED' });
+    if (!updated) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    // Send decline email (fire-and-forget)
+    emailService.notifyMemberDeclined(
+      updated.email,
+      `${updated.first_name} ${updated.last_name}`,
+      updated.id,
+      reason
+    );
+
+    return this.mapUser(updated);
+  }
+
+  @Mutation(() => User)
+  async updateMyProfile(
+    @Arg('horseName', { nullable: true }) horseName: string,
+    @Arg('project', { nullable: true }) project: string,
+    @Arg('birthday', { nullable: true }) birthday: string,
+    @Arg('tshirtSize', { nullable: true }) tshirtSize: string,
+    @Ctx() context: Context
+  ): Promise<User> {
+    const userId = this.getAuthUserId(context);
+
+    const updateData: any = {};
+    if (horseName !== undefined) updateData.horse_name = horseName || null;
+    if (project !== undefined) updateData.project = project || null;
+    if (birthday !== undefined) updateData.birthday = birthday || null;
+    if (tshirtSize !== undefined) updateData.tshirt_size = tshirtSize || null;
+
+    const updated = await this.userRepo.update(userId, updateData);
+    if (!updated) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    return this.mapUser(updated);
   }
 
   @Query(() => [YouthMember])
@@ -184,6 +294,7 @@ export class UserResolver {
         emergency_contact: emergencyContact || undefined,
         emergency_phone: emergencyPhone || undefined,
         password_reset_required: true,
+        // Admin-created users are auto-approved (DB default is 'APPROVED')
       });
 
       return this.mapUser(created);
