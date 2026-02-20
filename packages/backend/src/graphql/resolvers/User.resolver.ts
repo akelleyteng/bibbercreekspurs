@@ -125,17 +125,14 @@ export class UserResolver {
 
     try {
       const token = authHeader.substring(7);
-      const payload = verifyAccessToken(token);
+      verifyAccessToken(token);
 
-      const callingUser = await this.userRepo.findById(payload.userId);
       const dbUsers = await this.userRepo.findAll();
       const activityMap = await this.userRepo.getAllActivityCounts();
       const familyLinksMap = await this.familyLinkRepo.findAllGrouped();
 
-      // Non-admin users only see approved members
-      const visibleUsers = callingUser?.role === Role.ADMIN
-        ? dbUsers
-        : dbUsers.filter(u => u.approval_status === 'APPROVED');
+      // Member directory only shows approved members (even for admins)
+      const visibleUsers = dbUsers.filter(u => u.approval_status === 'APPROVED');
 
       const users: User[] = [];
       for (const u of visibleUsers) {
