@@ -1,32 +1,29 @@
 import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
 import { EventGQL } from '../types/Event.type';
 import { RsvpInput } from '../inputs/EventInput';
-import { UserRepository } from '../../repositories/user.repository';
 import { verifyAccessToken } from '../../services/auth.service';
+import { EventRsvpRepository } from '../../repositories/event-rsvp.repository';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
 import { logger } from '../../utils/logger';
 import {
   listCalendarEvents,
   getCalendarEvent,
-  addAttendeeToEvent,
-  removeAttendeeFromEvent,
-  invalidateEventCache,
   MappedCalendarEvent,
 } from '../../services/google-calendar.service';
 
 @Resolver()
 export class EventResolver {
-  private userRepo: UserRepository;
+  private rsvpRepo: EventRsvpRepository;
 
   constructor() {
-    this.userRepo = new UserRepository();
+    this.rsvpRepo = new EventRsvpRepository();
   }
 
   /**
-   * Try to extract user email from auth token. Returns null if not authenticated.
+   * Try to extract user info from auth token. Returns null if not authenticated.
    */
-  private tryGetUserEmail(context: Context): { userId: string; email: string } | null {
+  private tryGetAuth(context: Context): { userId: string; email: string } | null {
     try {
       const authHeader = context.req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
@@ -39,7 +36,7 @@ export class EventResolver {
     }
   }
 
-  private requireAuthEmail(context: Context): { userId: string; email: string } {
+  private requireAuth(context: Context): { userId: string; email: string } {
     const authHeader = context.req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new GraphQLError('Not authenticated', {
@@ -59,7 +56,7 @@ export class EventResolver {
     return { userId: payload.userId, email: payload.email };
   }
 
-  private mapToGQL(event: MappedCalendarEvent, userEmail?: string | null): EventGQL {
+  private async mapToGQL(event: MappedCalendarEvent, userId?: string): Promise<EventGQL> {
     const gql = new EventGQL();
     gql.id = event.id;
     gql.title = event.title;
@@ -70,13 +67,13 @@ export class EventResolver {
     gql.visibility = event.visibility;
     gql.externalRegistrationUrl = event.externalRegistrationUrl;
     gql.isAllDay = event.isAllDay;
-    gql.registrationCount = event.registrationCount;
 
-    if (userEmail) {
-      const attendee = event.attendees.find(
-        (a) => a.email.toLowerCase() === userEmail.toLowerCase()
-      );
-      gql.userRsvpStatus = attendee?.responseStatus || undefined;
+    // Get registration count and user RSVP status from database
+    gql.registrationCount = await this.rsvpRepo.countAttending(event.id);
+
+    if (userId) {
+      const rsvp = await this.rsvpRepo.findByEventAndUser(event.id, userId);
+      gql.userRsvpStatus = rsvp?.status || undefined;
     }
 
     return gql;
@@ -88,15 +85,13 @@ export class EventResolver {
     @Ctx() context: Context
   ): Promise<EventGQL[]> {
     const allEvents = await listCalendarEvents();
-    const auth = this.tryGetUserEmail(context);
+    const auth = this.tryGetAuth(context);
 
-    if (publicOnly || !auth) {
-      return allEvents
-        .filter((e) => e.visibility === 'PUBLIC')
-        .map((e) => this.mapToGQL(e, auth?.email));
-    }
+    const filtered = (publicOnly || !auth)
+      ? allEvents.filter((e) => e.visibility === 'PUBLIC')
+      : allEvents;
 
-    return allEvents.map((e) => this.mapToGQL(e, auth.email));
+    return Promise.all(filtered.map((e) => this.mapToGQL(e, auth?.userId)));
   }
 
   @Query(() => EventGQL, { nullable: true })
@@ -107,14 +102,13 @@ export class EventResolver {
     const calEvent = await getCalendarEvent(id);
     if (!calEvent) return null;
 
-    const auth = this.tryGetUserEmail(context);
+    const auth = this.tryGetAuth(context);
 
-    // MEMBER_ONLY events require authentication
     if (calEvent.visibility === 'MEMBER_ONLY' && !auth) {
       return null;
     }
 
-    return this.mapToGQL(calEvent, auth?.email);
+    return this.mapToGQL(calEvent, auth?.userId);
   }
 
   @Mutation(() => Boolean)
@@ -122,7 +116,7 @@ export class EventResolver {
     @Arg('input') input: RsvpInput,
     @Ctx() context: Context
   ): Promise<boolean> {
-    const { userId, email } = this.requireAuthEmail(context);
+    const { userId } = this.requireAuth(context);
 
     const event = await getCalendarEvent(input.eventId);
     if (!event) {
@@ -131,31 +125,16 @@ export class EventResolver {
       });
     }
 
-    // Look up user display name for attendee
-    const user = await this.userRepo.findById(userId);
-    const displayName = user
-      ? `${user.first_name} ${user.last_name}`
-      : undefined;
-
-    const sendUpdates = input.addToCalendar ? 'all' : 'none';
-
     try {
-      await addAttendeeToEvent(
-        input.eventId,
-        email,
-        displayName,
-        sendUpdates as 'all' | 'none'
-      );
+      await this.rsvpRepo.upsert(input.eventId, userId, input.status, input.guestCount);
     } catch (error: any) {
-      const message = error?.errors?.[0]?.message || error?.message || 'Unknown error';
-      logger.error('RSVP failed', { error, eventId: input.eventId, email });
-      throw new GraphQLError(`Failed to RSVP: ${message}`, {
+      logger.error('RSVP failed', { error, eventId: input.eventId, userId });
+      throw new GraphQLError(`Failed to RSVP: ${error.message}`, {
         extensions: { code: 'INTERNAL_SERVER_ERROR' },
       });
     }
 
-    invalidateEventCache(input.eventId);
-    logger.info(`User ${userId} RSVP'd to event ${input.eventId} (addToCalendar: ${input.addToCalendar})`);
+    logger.info(`User ${userId} RSVP'd to event ${input.eventId} (status: ${input.status})`);
     return true;
   }
 
@@ -164,19 +143,17 @@ export class EventResolver {
     @Arg('eventId') eventId: string,
     @Ctx() context: Context
   ): Promise<boolean> {
-    const { userId, email } = this.requireAuthEmail(context);
+    const { userId } = this.requireAuth(context);
 
     try {
-      await removeAttendeeFromEvent(eventId, email, 'all');
+      await this.rsvpRepo.delete(eventId, userId);
     } catch (error: any) {
-      const message = error?.errors?.[0]?.message || error?.message || 'Unknown error';
-      logger.error('Cancel RSVP failed', { error, eventId, email });
-      throw new GraphQLError(`Failed to cancel RSVP: ${message}`, {
+      logger.error('Cancel RSVP failed', { error, eventId, userId });
+      throw new GraphQLError(`Failed to cancel RSVP: ${error.message}`, {
         extensions: { code: 'INTERNAL_SERVER_ERROR' },
       });
     }
 
-    invalidateEventCache(eventId);
     logger.info(`User ${userId} cancelled RSVP for event ${eventId}`);
     return true;
   }

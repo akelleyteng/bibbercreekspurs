@@ -1,5 +1,5 @@
-import { InputType, Field } from 'type-graphql';
-import { IsBoolean, IsString } from 'class-validator';
+import { InputType, Field, Int } from 'type-graphql';
+import { IsString, IsInt, Min, IsIn } from 'class-validator';
 
 @InputType()
 export class RsvpInput {
@@ -7,7 +7,13 @@ export class RsvpInput {
   @IsString()
   eventId!: string;
 
-  @Field({ defaultValue: false })
-  @IsBoolean()
-  addToCalendar!: boolean;
+  @Field()
+  @IsString()
+  @IsIn(['ATTENDING', 'NOT_ATTENDING', 'MAYBE', 'ATTENDING_PLUS'])
+  status!: string;
+
+  @Field(() => Int, { defaultValue: 0 })
+  @IsInt()
+  @Min(0)
+  guestCount!: number;
 }

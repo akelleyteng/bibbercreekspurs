@@ -26,14 +26,26 @@ const EVENT_QUERY = `query GetEvent($id: String!) {
   }
 }`;
 
+const RSVP_OPTIONS = [
+  { value: 'ATTENDING', label: 'Will attend', icon: '\u2705' },
+  { value: 'MAYBE', label: 'Maybe', icon: '\uD83E\uDD14' },
+  { value: 'NOT_ATTENDING', label: "Won't attend", icon: '\u274C' },
+  { value: 'ATTENDING_PLUS', label: 'Attending + bringing others', icon: '\uD83D\uDC65' },
+];
+
+function rsvpLabel(status: string): string {
+  return RSVP_OPTIONS.find((o) => o.value === status)?.label || status;
+}
+
 export default function EventDetailPage() {
   const { id } = useParams();
   const { isAuthenticated } = useAuth();
   const [event, setEvent] = useState<EventDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rsvpLoading, setRsvpLoading] = useState(false);
-  const [showRsvpDialog, setShowRsvpDialog] = useState(false);
+  const [showRsvpPicker, setShowRsvpPicker] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
+  const [guestCount, setGuestCount] = useState(1);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -64,13 +76,13 @@ export default function EventDetailPage() {
     fetchEvent().finally(() => setLoading(false));
   }, [id, graphqlUrl]);
 
-  const handleRsvp = async (addToCalendar: boolean) => {
+  const handleRsvp = async (status: string, guests: number = 0) => {
     const token = localStorage.getItem('token');
     if (!token || !event) return;
 
     setRsvpLoading(true);
     setRsvpError(null);
-    setShowRsvpDialog(false);
+    setShowRsvpPicker(false);
 
     try {
       const res = await fetch(graphqlUrl, {
@@ -82,7 +94,7 @@ export default function EventDetailPage() {
         body: JSON.stringify({
           query: `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
           variables: {
-            input: { eventId: event.id, addToCalendar },
+            input: { eventId: event.id, status, guestCount: guests },
           },
         }),
       });
@@ -152,10 +164,10 @@ export default function EventDetailPage() {
     );
   }
 
-  const isRsvped = !!event.userRsvpStatus;
   const startTime = new Date(event.startTime);
   const endTime = new Date(event.endTime);
   const hasExternalRegistration = !!event.externalRegistrationUrl;
+  const userStatus = event.userRsvpStatus;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -167,9 +179,7 @@ export default function EventDetailPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-              {event.isAllDay
-                ? format(startTime, 'EEEE, MMMM d, yyyy')
-                : format(startTime, 'EEEE, MMMM d, yyyy')}
+              {format(startTime, 'EEEE, MMMM d, yyyy')}
             </span>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
               event.visibility === 'PUBLIC'
@@ -251,88 +261,105 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* RSVP section for logged-in users on events WITH external registration */}
+        {/* RSVP note for external registration events */}
         {hasExternalRegistration && isAuthenticated && (
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
             <p className="text-sm text-yellow-800 mb-3">
               <strong>Note:</strong> RSVP does not register you for this event.
-              You must register via the link above. RSVP adds this event to your
-              calendar so you get reminders.
+              You must register via the link above.
             </p>
-            {isRsvped ? (
-              <button
-                onClick={handleCancelRsvp}
-                disabled={rsvpLoading}
-                className="btn-secondary text-sm"
-              >
-                {rsvpLoading ? 'Processing...' : 'Cancel RSVP'}
-              </button>
+          </div>
+        )}
+
+        {/* RSVP Section */}
+        {isAuthenticated && (
+          <div>
+            {userStatus ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm text-gray-600">
+                  Your RSVP: <strong>{rsvpLabel(userStatus)}</strong>
+                </span>
+                <button
+                  onClick={() => setShowRsvpPicker(true)}
+                  disabled={rsvpLoading}
+                  className="btn-secondary text-sm"
+                >
+                  Change
+                </button>
+                <button
+                  onClick={handleCancelRsvp}
+                  disabled={rsvpLoading}
+                  className="text-sm text-red-600 hover:text-red-700 underline"
+                >
+                  {rsvpLoading ? 'Processing...' : 'Remove RSVP'}
+                </button>
+              </div>
             ) : (
               <button
-                onClick={() => setShowRsvpDialog(true)}
+                onClick={() => setShowRsvpPicker(true)}
                 disabled={rsvpLoading}
-                className="btn-secondary text-sm"
+                className="btn-primary"
               >
-                RSVP for Calendar Reminders
+                RSVP to Event
               </button>
             )}
           </div>
         )}
 
-        {/* Standard RSVP for events WITHOUT external registration */}
-        {!hasExternalRegistration && isAuthenticated && (
-          isRsvped ? (
-            <button
-              onClick={handleCancelRsvp}
-              disabled={rsvpLoading}
-              className="btn-secondary"
-            >
-              {rsvpLoading ? 'Processing...' : 'RSVP Confirmed - Click to Cancel'}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowRsvpDialog(true)}
-              disabled={rsvpLoading}
-              className="btn-primary"
-            >
-              RSVP to Event
-            </button>
-          )
-        )}
-
-        {!hasExternalRegistration && !isAuthenticated && (
+        {!isAuthenticated && (
           <Link to="/login" className="btn-primary inline-block">
             Log In to RSVP
           </Link>
         )}
       </div>
 
-      {/* Calendar Invite Dialog */}
-      {showRsvpDialog && (
+      {/* RSVP Status Picker Dialog */}
+      {showRsvpPicker && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Add to your Google Calendar?</h3>
-            <p className="text-gray-600 mb-6">
-              Would you like this event added to your personal Google Calendar?
-              You'll receive an email invitation with event details and reminders.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleRsvp(true)}
-                className="btn-primary flex-1"
-              >
-                Yes, add to my calendar
-              </button>
-              <button
-                onClick={() => handleRsvp(false)}
-                className="btn-secondary flex-1"
-              >
-                No thanks, just RSVP
-              </button>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">RSVP to this event</h3>
+            <div className="space-y-2 mb-4">
+              {RSVP_OPTIONS.map((option) => (
+                <div key={option.value}>
+                  <button
+                    onClick={() => {
+                      if (option.value === 'ATTENDING_PLUS') return;
+                      handleRsvp(option.value);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                      option.value === 'ATTENDING_PLUS'
+                        ? 'border-gray-200 bg-gray-50'
+                        : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'
+                    } ${userStatus === option.value ? 'border-primary-500 bg-primary-50' : ''}`}
+                  >
+                    <span className="mr-2">{option.icon}</span>
+                    {option.label}
+                  </button>
+                  {option.value === 'ATTENDING_PLUS' && (
+                    <div className="flex items-center gap-2 mt-2 ml-8">
+                      <label className="text-sm text-gray-600">How many guests?</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={guestCount}
+                        onChange={(e) => setGuestCount(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="input w-20 text-sm"
+                      />
+                      <button
+                        onClick={() => handleRsvp('ATTENDING_PLUS', guestCount)}
+                        className="btn-primary text-sm"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
             <button
-              onClick={() => setShowRsvpDialog(false)}
-              className="mt-3 text-sm text-gray-500 hover:text-gray-700 w-full text-center"
+              onClick={() => setShowRsvpPicker(false)}
+              className="text-sm text-gray-500 hover:text-gray-700 w-full text-center"
             >
               Cancel
             </button>
