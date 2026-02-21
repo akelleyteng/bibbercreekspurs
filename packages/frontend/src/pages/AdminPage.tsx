@@ -160,6 +160,7 @@ export default function AdminPage() {
   const [pendingMembers, setPendingMembers] = useState<AdminMember[]>([]);
   const [decliningMemberId, setDecliningMemberId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
+  const [officerError, setOfficerError] = useState<string | null>(null);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -498,51 +499,71 @@ export default function AdminPage() {
   // Role management handlers
   const handleCreateRole = async () => {
     if (!newRoleForm.name || !newRoleForm.label) return;
+    setOfficerError(null);
     const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation CreateOfficerRole($name: String!, $label: String!, $description: String!, $sortOrder: Int!) {
-          createOfficerRole(name: $name, label: $label, description: $description, sortOrder: $sortOrder) { id }
-        }`,
-        variables: {
-          name: newRoleForm.name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-          label: newRoleForm.label,
-          description: newRoleForm.description,
-          sortOrder: officerRoles.length + 1,
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      }),
-    });
-    setIsAddingRole(false);
-    setNewRoleForm({ name: '', label: '', description: '' });
-    fetchOfficerRoles();
+        body: JSON.stringify({
+          query: `mutation CreateOfficerRole($name: String!, $label: String!, $description: String!, $sortOrder: Int!) {
+            createOfficerRole(name: $name, label: $label, description: $description, sortOrder: $sortOrder) { id }
+          }`,
+          variables: {
+            name: newRoleForm.name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+            label: newRoleForm.label,
+            description: newRoleForm.description,
+            sortOrder: officerRoles.length + 1,
+          },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors?.length) {
+        setOfficerError(result.errors[0].message);
+        return;
+      }
+      setIsAddingRole(false);
+      setNewRoleForm({ name: '', label: '', description: '' });
+      fetchOfficerRoles();
+    } catch {
+      setOfficerError('Network error — please try again.');
+    }
   };
 
   const handleUpdateRole = async (roleId: string) => {
+    setOfficerError(null);
     const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation UpdateOfficerRole($id: String!, $label: String, $description: String) {
-          updateOfficerRole(id: $id, label: $label, description: $description) { id }
-        }`,
-        variables: {
-          id: roleId,
-          label: editRoleForm.label,
-          description: editRoleForm.description,
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      }),
-    });
-    setEditingRoleId(null);
-    fetchOfficerRoles();
+        body: JSON.stringify({
+          query: `mutation UpdateOfficerRole($id: String!, $label: String, $description: String) {
+            updateOfficerRole(id: $id, label: $label, description: $description) { id }
+          }`,
+          variables: {
+            id: roleId,
+            label: editRoleForm.label,
+            description: editRoleForm.description,
+          },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors?.length) {
+        setOfficerError(result.errors[0].message);
+        return;
+      }
+      setEditingRoleId(null);
+      fetchOfficerRoles();
+    } catch {
+      setOfficerError('Network error — please try again.');
+    }
   };
 
   const handleDeleteRole = async (roleId: string, roleName: string) => {
@@ -551,20 +572,30 @@ export default function AdminPage() {
       ? `This role has assignments in the current term. Deleting it will remove all assignments across all terms. Continue?`
       : `Delete this officer role? This cannot be undone.`;
     if (!confirm(msg)) return;
+    setOfficerError(null);
     const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation DeleteOfficerRole($id: String!) { deleteOfficerRole(id: $id) }`,
-        variables: { id: roleId },
-      }),
-    });
-    fetchOfficerRoles();
-    fetchOfficers(termYear);
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: `mutation DeleteOfficerRole($id: String!) { deleteOfficerRole(id: $id) }`,
+          variables: { id: roleId },
+        }),
+      });
+      const result = await res.json();
+      if (result.errors?.length) {
+        setOfficerError(result.errors[0].message);
+        return;
+      }
+      fetchOfficerRoles();
+      fetchOfficers(termYear);
+    } catch {
+      setOfficerError('Network error — please try again.');
+    }
   };
 
   // Member handlers
@@ -1841,15 +1872,38 @@ export default function AdminPage() {
       {/* Officers */}
       {activeTab === 'officers' && (
         <div>
-          {/* Role Management Section */}
-          <div className="mb-8">
+          {/* Add Role Section */}
+          <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Officer Roles</h3>
-              {!isAddingRole && (
-                <button onClick={() => setIsAddingRole(true)} className="btn-primary text-sm">
-                  + Add Role
-                </button>
-              )}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Term Year:</label>
+                  <select
+                    className="input w-auto"
+                    value={termYear}
+                    onChange={(e) => {
+                      setTermYear(e.target.value);
+                      fetchOfficers(e.target.value);
+                    }}
+                  >
+                    {(() => {
+                      const now = new Date();
+                      const currentYear = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+                      const years = [];
+                      for (let y = currentYear + 1; y >= currentYear - 3; y--) {
+                        years.push(`${y}-${y + 1}`);
+                      }
+                      return years.map(y => <option key={y} value={y}>{y}</option>);
+                    })()}
+                  </select>
+                </div>
+                {!isAddingRole && (
+                  <button onClick={() => setIsAddingRole(true)} className="btn-primary text-sm">
+                    + Add Role
+                  </button>
+                )}
+              </div>
             </div>
 
             {isAddingRole && (
@@ -1887,11 +1941,22 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              {officerRoles.map((role) => (
-                <div key={role.id} className="card py-3">
+            {officerError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                {officerError}
+              </div>
+            )}
+          </div>
+
+          {/* Officer Assignment Cards */}
+          <div className="space-y-4">
+            {officerRoles.map((role) => {
+              const assigned = officers.find(o => o.position === role.name);
+              return (
+                <div key={role.name} className="card">
                   {editingRoleId === role.id ? (
-                    <div>
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                      <h4 className="font-semibold text-sm mb-2">Edit Role</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
@@ -1915,69 +1980,7 @@ export default function AdminPage() {
                         <button onClick={() => setEditingRoleId(null)} className="btn-secondary text-sm">Cancel</button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-medium">{role.label}</span>
-                        <span className="text-xs text-gray-400 ml-2">({role.name})</span>
-                        {role.description && (
-                          <p className="text-sm text-gray-500">{role.description}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingRoleId(role.id);
-                            setEditRoleForm({ label: role.label, description: role.description });
-                          }}
-                          className="btn-secondary text-sm"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRole(role.id, role.name)}
-                          className="btn-secondary text-sm text-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Officer Assignments Section */}
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">Officer Assignments</h3>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Term Year:</label>
-              <select
-                className="input w-auto"
-                value={termYear}
-                onChange={(e) => {
-                  setTermYear(e.target.value);
-                  fetchOfficers(e.target.value);
-                }}
-              >
-                {(() => {
-                  const now = new Date();
-                  const currentYear = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
-                  const years = [];
-                  for (let y = currentYear + 1; y >= currentYear - 3; y--) {
-                    years.push(`${y}-${y + 1}`);
-                  }
-                  return years.map(y => <option key={y} value={y}>{y}</option>);
-                })()}
-              </select>
-            </div>
-          </div>
-          <div className="space-y-4">
-            {officerRoles.map((role) => {
-              const assigned = officers.find(o => o.position === role.name);
-              return (
-                <div key={role.name} className="card">
+                  ) : null}
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <h4 className="font-semibold">{role.label}</h4>
@@ -2026,6 +2029,27 @@ export default function AdminPage() {
                           Remove
                         </button>
                       )}
+                      <button
+                        onClick={() => {
+                          setEditingRoleId(role.id);
+                          setEditRoleForm({ label: role.label, description: role.description });
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+                        title="Edit role"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRole(role.id, role.name)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
+                        title="Delete role"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
