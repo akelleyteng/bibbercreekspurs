@@ -113,7 +113,8 @@ export async function uploadMedia(
     resumable: false,
   });
 
-  await file.makePublic();
+  // No per-file makePublic() needed — bucket uses uniform bucket-level access
+  // with allUsers granted objectViewer, so all objects are publicly readable.
 
   const publicUrl = `https://storage.googleapis.com/${env.GCP_STORAGE_BUCKET}/${gcsPath}`;
 
