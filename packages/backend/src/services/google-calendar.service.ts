@@ -197,40 +197,36 @@ export async function addAttendeeToEvent(
   sendUpdates: 'all' | 'none' = 'none'
 ): Promise<boolean> {
   const calendar = getCalendarClient();
-  if (!calendar || !googleCalendarId) return false;
+  if (!calendar) throw new Error('Google Calendar client not configured');
+  if (!googleCalendarId) throw new Error('Missing event ID');
 
-  try {
-    const response = await calendar.events.get({
-      calendarId: env.GOOGLE_CALENDAR_ID,
-      eventId: googleCalendarId,
-    });
+  const response = await calendar.events.get({
+    calendarId: env.GOOGLE_CALENDAR_ID,
+    eventId: googleCalendarId,
+  });
 
-    const existingAttendees: any[] = response.data.attendees || [];
+  const existingAttendees: any[] = response.data.attendees || [];
 
-    if (existingAttendees.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
-      logger.info(`Attendee ${email} already on event ${googleCalendarId}`);
-      return true;
-    }
-
-    const newAttendee: any = { email };
-    if (displayName) newAttendee.displayName = displayName;
-
-    await calendar.events.patch({
-      calendarId: env.GOOGLE_CALENDAR_ID,
-      eventId: googleCalendarId,
-      requestBody: {
-        attendees: [...existingAttendees, newAttendee],
-      },
-      sendUpdates,
-    });
-
-    invalidateEventCache(googleCalendarId);
-    logger.info(`Added attendee ${email} to Google Calendar event ${googleCalendarId}`);
+  if (existingAttendees.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
+    logger.info(`Attendee ${email} already on event ${googleCalendarId}`);
     return true;
-  } catch (error) {
-    logger.error('Failed to add attendee to Google Calendar event', { error, googleCalendarId, email });
-    return false;
   }
+
+  const newAttendee: any = { email };
+  if (displayName) newAttendee.displayName = displayName;
+
+  await calendar.events.patch({
+    calendarId: env.GOOGLE_CALENDAR_ID,
+    eventId: googleCalendarId,
+    requestBody: {
+      attendees: [...existingAttendees, newAttendee],
+    },
+    sendUpdates,
+  });
+
+  invalidateEventCache(googleCalendarId);
+  logger.info(`Added attendee ${email} to Google Calendar event ${googleCalendarId}`);
+  return true;
 }
 
 /**
@@ -242,37 +238,33 @@ export async function removeAttendeeFromEvent(
   sendUpdates: 'all' | 'none' = 'all'
 ): Promise<boolean> {
   const calendar = getCalendarClient();
-  if (!calendar || !googleCalendarId) return false;
+  if (!calendar) throw new Error('Google Calendar client not configured');
+  if (!googleCalendarId) throw new Error('Missing event ID');
 
-  try {
-    const response = await calendar.events.get({
-      calendarId: env.GOOGLE_CALENDAR_ID,
-      eventId: googleCalendarId,
-    });
+  const response = await calendar.events.get({
+    calendarId: env.GOOGLE_CALENDAR_ID,
+    eventId: googleCalendarId,
+  });
 
-    const existingAttendees: any[] = response.data.attendees || [];
-    const filtered = existingAttendees.filter(
-      (a: any) => a.email.toLowerCase() !== email.toLowerCase()
-    );
+  const existingAttendees: any[] = response.data.attendees || [];
+  const filtered = existingAttendees.filter(
+    (a: any) => a.email.toLowerCase() !== email.toLowerCase()
+  );
 
-    if (filtered.length === existingAttendees.length) {
-      return true;
-    }
-
-    await calendar.events.patch({
-      calendarId: env.GOOGLE_CALENDAR_ID,
-      eventId: googleCalendarId,
-      requestBody: {
-        attendees: filtered,
-      },
-      sendUpdates,
-    });
-
-    invalidateEventCache(googleCalendarId);
-    logger.info(`Removed attendee ${email} from Google Calendar event ${googleCalendarId}`);
+  if (filtered.length === existingAttendees.length) {
     return true;
-  } catch (error) {
-    logger.error('Failed to remove attendee from Google Calendar event', { error, googleCalendarId, email });
-    return false;
   }
+
+  await calendar.events.patch({
+    calendarId: env.GOOGLE_CALENDAR_ID,
+    eventId: googleCalendarId,
+    requestBody: {
+      attendees: filtered,
+    },
+    sendUpdates,
+  });
+
+  invalidateEventCache(googleCalendarId);
+  logger.info(`Removed attendee ${email} from Google Calendar event ${googleCalendarId}`);
+  return true;
 }

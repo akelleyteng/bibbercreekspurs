@@ -139,15 +139,17 @@ export class EventResolver {
 
     const sendUpdates = input.addToCalendar ? 'all' : 'none';
 
-    const success = await addAttendeeToEvent(
-      input.eventId,
-      email,
-      displayName,
-      sendUpdates as 'all' | 'none'
-    );
-
-    if (!success) {
-      throw new GraphQLError('Failed to RSVP', {
+    try {
+      await addAttendeeToEvent(
+        input.eventId,
+        email,
+        displayName,
+        sendUpdates as 'all' | 'none'
+      );
+    } catch (error: any) {
+      const message = error?.errors?.[0]?.message || error?.message || 'Unknown error';
+      logger.error('RSVP failed', { error, eventId: input.eventId, email });
+      throw new GraphQLError(`Failed to RSVP: ${message}`, {
         extensions: { code: 'INTERNAL_SERVER_ERROR' },
       });
     }
@@ -164,10 +166,12 @@ export class EventResolver {
   ): Promise<boolean> {
     const { userId, email } = this.requireAuthEmail(context);
 
-    const success = await removeAttendeeFromEvent(eventId, email, 'all');
-
-    if (!success) {
-      throw new GraphQLError('Failed to cancel RSVP', {
+    try {
+      await removeAttendeeFromEvent(eventId, email, 'all');
+    } catch (error: any) {
+      const message = error?.errors?.[0]?.message || error?.message || 'Unknown error';
+      logger.error('Cancel RSVP failed', { error, eventId, email });
+      throw new GraphQLError(`Failed to cancel RSVP: ${message}`, {
         extensions: { code: 'INTERNAL_SERVER_ERROR' },
       });
     }
