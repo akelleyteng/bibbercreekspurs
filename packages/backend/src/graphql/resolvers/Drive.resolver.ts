@@ -74,36 +74,8 @@ export class DriveResolver {
     };
   }
 
-  /**
-   * Determine which root folder a given folderId belongs to.
-   * Returns 'members', 'leadership', or null if not a recognized folder.
-   */
   private async getRootFolderType(folderId: string): Promise<'members' | 'leadership' | null> {
-    const membersFolderId = env.GOOGLE_DRIVE_MEMBERS_FOLDER_ID;
-    const leadershipFolderId = env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID;
-
-    // Direct match
-    if (folderId === membersFolderId) return 'members';
-    if (folderId === leadershipFolderId) return 'leadership';
-
-    // Check parent chain (one level up)
-    const metadata = await driveService.getFileMetadata(folderId);
-    if (!metadata?.parents) return null;
-
-    for (const parentId of metadata.parents) {
-      if (parentId === membersFolderId) return 'members';
-      if (parentId === leadershipFolderId) return 'leadership';
-      // Recurse one more level for deeper subfolders
-      const parentMeta = await driveService.getFileMetadata(parentId);
-      if (parentMeta?.parents) {
-        for (const grandparentId of parentMeta.parents) {
-          if (grandparentId === membersFolderId) return 'members';
-          if (grandparentId === leadershipFolderId) return 'leadership';
-        }
-      }
-    }
-
-    return null;
+    return driveService.getRootFolderType(folderId);
   }
 
   @Query(() => [DriveFolderInfoGQL])

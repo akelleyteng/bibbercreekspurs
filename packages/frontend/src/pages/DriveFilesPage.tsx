@@ -344,8 +344,8 @@ export default function DriveFilesPage() {
         <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">{error}</div>
       )}
 
-      {/* Admin toolbar */}
-      {isAdmin && (
+      {/* Toolbar: upload for all members, folder management for admins */}
+      {user && (
         <div className="flex items-center gap-3 mb-6">
           <input
             ref={fileInputRef}
@@ -361,37 +361,39 @@ export default function DriveFilesPage() {
             {uploading ? 'Uploading...' : 'Upload File'}
           </button>
 
-          {showNewFolderInput ? (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                className="input text-sm"
-                placeholder="Folder name"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateFolder();
-                  if (e.key === 'Escape') { setShowNewFolderInput(false); setNewFolderName(''); }
-                }}
-                autoFocus
-              />
-              <button onClick={handleCreateFolder} className="btn-primary text-sm">
-                Create
-              </button>
+          {isAdmin && (
+            showNewFolderInput ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  className="input text-sm"
+                  placeholder="Folder name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateFolder();
+                    if (e.key === 'Escape') { setShowNewFolderInput(false); setNewFolderName(''); }
+                  }}
+                  autoFocus
+                />
+                <button onClick={handleCreateFolder} className="btn-primary text-sm">
+                  Create
+                </button>
+                <button
+                  onClick={() => { setShowNewFolderInput(false); setNewFolderName(''); }}
+                  className="btn-secondary text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={() => { setShowNewFolderInput(false); setNewFolderName(''); }}
+                onClick={() => setShowNewFolderInput(true)}
                 className="btn-secondary text-sm"
               >
-                Cancel
+                New Folder
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowNewFolderInput(true)}
-              className="btn-secondary text-sm"
-            >
-              New Folder
-            </button>
+            )
           )}
         </div>
       )}
@@ -405,7 +407,7 @@ export default function DriveFilesPage() {
       ) : files.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-gray-500">This folder is empty.</p>
-          {isAdmin && (
+          {user && (
             <p className="text-gray-400 text-sm mt-2">Use the Upload button to add files.</p>
           )}
         </div>

@@ -19,11 +19,11 @@ router.post('/upload', async (req: Request, res: Response) => {
     const token = authHeader.substring(7);
     const payload = verifyAccessToken(token);
 
-    // 2. Admin role check
+    // 2. Verify user exists and is approved
     const userRepo = new UserRepository();
     const user = await userRepo.findById(payload.userId);
-    if (!user || user.role !== Role.ADMIN) {
-      res.status(403).json({ error: 'Admin access required' });
+    if (!user || user.approval_status !== 'APPROVED') {
+      res.status(403).json({ error: 'Account not approved' });
       return;
     }
 
@@ -55,7 +55,18 @@ router.post('/upload', async (req: Request, res: Response) => {
       return;
     }
 
-    // 5. Upload to Google Drive
+    // 5. Validate folder access
+    const folderType = await driveService.getRootFolderType(folderId);
+    if (!folderType) {
+      res.status(403).json({ error: 'Access denied: folder not in a recognized root' });
+      return;
+    }
+    if (folderType === 'leadership' && user.role !== Role.ADULT_LEADER && user.role !== Role.ADMIN) {
+      res.status(403).json({ error: 'Leadership files require Adult Leader or Admin access' });
+      return;
+    }
+
+    // 6. Upload to Google Drive
     const result = await driveService.uploadFile(
       file.originalname,
       file.mimetype,
@@ -68,7 +79,7 @@ router.post('/upload', async (req: Request, res: Response) => {
       return;
     }
 
-    logger.info(`File uploaded to Drive: ${result.name} (${result.id})`);
+    logger.info(`File uploaded to Drive by ${user.email}: ${result.name} (${result.id})`);
     res.status(200).json({ file: result });
   } catch (error: any) {
     logger.error('Upload failed', { error: error.message, stack: error.stack });

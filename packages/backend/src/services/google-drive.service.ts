@@ -2,14 +2,11 @@ import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { Readable } from 'stream';
 
-// Lazy-initialized Drive clients — googleapis is loaded on first use
+// Lazy-initialized Drive client — googleapis is loaded on first use
 // to avoid ts-node processing its massive type definitions at startup.
-//
-// Two clients:
-// 1. Service account client — for reads, listing, deleting, folder creation (metadata-only ops)
-// 2. OAuth2 client — for file uploads (service accounts lack storage quota on personal drives)
+// Uses the service account (same one used for Calendar). The Drive folders
+// must be shared with the service account email as Editor.
 let driveClient: any = null;
-let driveUploadClient: any = null;
 
 function getDriveClient(): any {
   if (!env.GOOGLE_DRIVE_MEMBERS_FOLDER_ID && !env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID) {
@@ -26,31 +23,6 @@ function getDriveClient(): any {
   }
 
   return driveClient;
-}
-
-/**
- * Get an OAuth2-authenticated Drive client for uploads.
- * Service accounts can't upload to personal drives (no storage quota),
- * so we use the folder owner's OAuth2 credentials for uploads.
- */
-function getDriveUploadClient(): any {
-  if (!env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET || !env.GOOGLE_DRIVE_OWNER_REFRESH_TOKEN) {
-    logger.warn('Drive upload OAuth2 credentials not configured — falling back to service account');
-    return getDriveClient();
-  }
-
-  if (!driveUploadClient) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { google } = require('googleapis');
-    const oauth2 = new google.auth.OAuth2(
-      env.GOOGLE_OAUTH_CLIENT_ID,
-      env.GOOGLE_OAUTH_CLIENT_SECRET
-    );
-    oauth2.setCredentials({ refresh_token: env.GOOGLE_DRIVE_OWNER_REFRESH_TOKEN });
-    driveUploadClient = google.drive({ version: 'v3', auth: oauth2 });
-  }
-
-  return driveUploadClient;
 }
 
 export interface DriveFileInfo {
@@ -144,7 +116,7 @@ export async function uploadFile(
   fileBuffer: Buffer,
   folderId: string
 ): Promise<DriveFileInfo | null> {
-  const drive = getDriveUploadClient();
+  const drive = getDriveClient();
   if (!drive) return null;
 
   try {
@@ -216,4 +188,37 @@ export async function createFolder(
     logger.error('Failed to create Google Drive folder', { error, folderName });
     return null;
   }
+}
+
+/**
+ * Determine which root folder a given folderId belongs to.
+ * Walks up the parent chain (up to 2 levels) to find a recognized root folder.
+ * Returns 'members', 'leadership', or null if not recognized.
+ */
+export async function getRootFolderType(folderId: string): Promise<'members' | 'leadership' | null> {
+  const membersFolderId = env.GOOGLE_DRIVE_MEMBERS_FOLDER_ID;
+  const leadershipFolderId = env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID;
+
+  // Direct match
+  if (folderId === membersFolderId) return 'members';
+  if (folderId === leadershipFolderId) return 'leadership';
+
+  // Check parent chain (one level up)
+  const metadata = await getFileMetadata(folderId);
+  if (!metadata?.parents) return null;
+
+  for (const parentId of metadata.parents) {
+    if (parentId === membersFolderId) return 'members';
+    if (parentId === leadershipFolderId) return 'leadership';
+    // Recurse one more level for deeper subfolders
+    const parentMeta = await getFileMetadata(parentId);
+    if (parentMeta?.parents) {
+      for (const grandparentId of parentMeta.parents) {
+        if (grandparentId === membersFolderId) return 'members';
+        if (grandparentId === leadershipFolderId) return 'leadership';
+      }
+    }
+  }
+
+  return null;
 }
