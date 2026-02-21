@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 
+import LinkifyText from '../components/LinkifyText';
 import { useAuth } from '../context/AuthContext';
 
 const EVENTS_PER_PAGE = 10;
@@ -43,8 +44,7 @@ export default function EventsPage() {
       .then((res) => res.json())
       .then((result) => {
         if (result.data?.events) {
-          // Reverse to show soonest upcoming events first (API returns ascending)
-          setEvents([...result.data.events].reverse());
+          setEvents(result.data.events);
         }
       })
       .catch(() => {})
@@ -122,13 +122,21 @@ export default function EventsPage() {
                 </div>
 
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
-                <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
+                <p className="text-gray-600 mb-4 line-clamp-2"><LinkifyText text={event.description} /></p>
 
                 <div className="space-y-2 text-sm text-gray-600">
                   {event.location && (
                     <div className="flex items-center">
                       <span className="mr-2">&#128205;</span>
-                      <span>{event.location}</span>
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(event.location)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {event.location}
+                      </a>
                     </div>
                   )}
                   {!event.isAllDay && (

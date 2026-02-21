@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
+import LinkifyText from '../components/LinkifyText';
 import { useAuth } from '../context/AuthContext';
 
 interface EventDetailData {
@@ -32,6 +33,7 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [showRsvpDialog, setShowRsvpDialog] = useState(false);
+  const [rsvpError, setRsvpError] = useState<string | null>(null);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -67,24 +69,36 @@ export default function EventDetailPage() {
     if (!token || !event) return;
 
     setRsvpLoading(true);
+    setRsvpError(null);
     setShowRsvpDialog(false);
 
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        query: `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
-        variables: {
-          input: { eventId: event.id, addToCalendar },
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-      }),
-    });
+        body: JSON.stringify({
+          query: `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
+          variables: {
+            input: { eventId: event.id, addToCalendar },
+          },
+        }),
+      });
 
-    await fetchEvent();
-    setRsvpLoading(false);
+      const result = await res.json();
+      if (result.errors?.length) {
+        setRsvpError(result.errors[0].message);
+        return;
+      }
+
+      await fetchEvent();
+    } catch (err) {
+      setRsvpError('Network error — please try again.');
+    } finally {
+      setRsvpLoading(false);
+    }
   };
 
   const handleCancelRsvp = async () => {
@@ -92,21 +106,33 @@ export default function EventDetailPage() {
     if (!token || !event) return;
 
     setRsvpLoading(true);
+    setRsvpError(null);
 
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        query: `mutation CancelRsvp($eventId: String!) { cancelRsvp(eventId: $eventId) }`,
-        variables: { eventId: event.id },
-      }),
-    });
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          query: `mutation CancelRsvp($eventId: String!) { cancelRsvp(eventId: $eventId) }`,
+          variables: { eventId: event.id },
+        }),
+      });
 
-    await fetchEvent();
-    setRsvpLoading(false);
+      const result = await res.json();
+      if (result.errors?.length) {
+        setRsvpError(result.errors[0].message);
+        return;
+      }
+
+      await fetchEvent();
+    } catch (err) {
+      setRsvpError('Network error — please try again.');
+    } finally {
+      setRsvpLoading(false);
+    }
   };
 
   if (loading) {
@@ -176,7 +202,14 @@ export default function EventDetailPage() {
                 <span className="text-2xl mr-3">&#128205;</span>
                 <div>
                   <p className="font-semibold text-gray-900">Location</p>
-                  <p className="text-gray-600">{event.location}</p>
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(event.location)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 hover:text-primary-700 underline"
+                  >
+                    {event.location}
+                  </a>
                 </div>
               </div>
             )}
@@ -195,8 +228,14 @@ export default function EventDetailPage() {
 
         <div className="mb-8">
           <h2 className="text-xl font-bold text-gray-900 mb-3">Description</h2>
-          <p className="text-gray-700 whitespace-pre-line">{event.description}</p>
+          <p className="text-gray-700 whitespace-pre-line"><LinkifyText text={event.description} /></p>
         </div>
+
+        {rsvpError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+            {rsvpError}
+          </div>
+        )}
 
         {/* External Registration Link */}
         {hasExternalRegistration && (
