@@ -1,5 +1,23 @@
-import { ObjectType, Field, ID } from 'type-graphql';
+import { ObjectType, Field, ID, Int } from 'type-graphql';
 import { DateTimeScalar } from './scalars';
+
+@ObjectType()
+export class OfficerRoleType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  name!: string;
+
+  @Field()
+  label!: string;
+
+  @Field()
+  description!: string;
+
+  @Field(() => Int)
+  sortOrder!: number;
+}
 
 @ObjectType()
 export class OfficerPositionHolder {

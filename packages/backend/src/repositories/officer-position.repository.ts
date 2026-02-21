@@ -1,6 +1,16 @@
 import db from '../models/database';
 import { logger } from '../utils/logger';
 
+export interface OfficerRoleRow {
+  id: string;
+  name: string;
+  label: string;
+  description: string;
+  sort_order: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface OfficerPositionRow {
   id: string;
   position: string;
@@ -20,6 +30,63 @@ export interface OfficerPositionRow {
 }
 
 export class OfficerPositionRepository {
+  // --- Role definitions ---
+
+  async findAllRoles(): Promise<OfficerRoleRow[]> {
+    const result = await db.query<OfficerRoleRow>(
+      'SELECT * FROM officer_roles ORDER BY sort_order ASC, name ASC'
+    );
+    return result.rows;
+  }
+
+  async createRole(name: string, label: string, description: string, sortOrder: number): Promise<OfficerRoleRow> {
+    const result = await db.query<OfficerRoleRow>(
+      `INSERT INTO officer_roles (name, label, description, sort_order)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [name.toUpperCase().replace(/\s+/g, '_'), label, description, sortOrder]
+    );
+    logger.info(`Officer role created: ${result.rows[0].name}`);
+    return result.rows[0];
+  }
+
+  async updateRole(id: string, data: { label?: string; description?: string; sortOrder?: number }): Promise<OfficerRoleRow | null> {
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (data.label !== undefined) { updates.push(`label = $${paramIndex++}`); values.push(data.label); }
+    if (data.description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(data.description); }
+    if (data.sortOrder !== undefined) { updates.push(`sort_order = $${paramIndex++}`); values.push(data.sortOrder); }
+
+    if (updates.length === 0) return null;
+
+    values.push(id);
+    const result = await db.query<OfficerRoleRow>(
+      `UPDATE officer_roles SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+    if (result.rows[0]) {
+      logger.info(`Officer role updated: ${result.rows[0].name}`);
+    }
+    return result.rows[0] || null;
+  }
+
+  async deleteRole(id: string): Promise<boolean> {
+    // First get the role name to clean up assignments
+    const role = await db.query<{ name: string }>('SELECT name FROM officer_roles WHERE id = $1', [id]);
+    if (role.rows.length === 0) return false;
+
+    // Delete any officer_positions referencing this role
+    await db.query('DELETE FROM officer_positions WHERE position = $1', [role.rows[0].name]);
+
+    const result = await db.query('DELETE FROM officer_roles WHERE id = $1', [id]);
+    logger.info(`Officer role deleted: ${role.rows[0].name}`);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // --- Position assignments ---
+
   async findByYear(termYear: string): Promise<OfficerPositionRow[]> {
     try {
       const result = await db.query<OfficerPositionRow>(

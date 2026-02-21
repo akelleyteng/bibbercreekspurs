@@ -8,16 +8,13 @@ import SponsorModal from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent, mockSponsors } from '../data/mockData';
 
-const OFFICER_POSITIONS = [
-  { key: 'PRESIDENT', label: 'President', description: 'Presides over meetings, builds agendas, delegates tasks, and ensures order using parliamentary procedure.' },
-  { key: 'VICE_PRESIDENT', label: 'Vice President', description: 'Fills in for the president, coordinates committees, and introduces guests.' },
-  { key: 'SECRETARY', label: 'Secretary', description: 'Keeps accurate minutes of meetings, records attendance, and handles correspondence.' },
-  { key: 'TREASURER', label: 'Treasurer', description: 'Manages club funds, keeps financial records, and reports on the budget.' },
-  { key: 'SERGEANT_AT_ARMS', label: 'Sergeant-at-Arms', description: 'Maintains order and sets up the room.' },
-  { key: 'NEWS_REPORTER', label: 'News Reporter', description: 'Writes articles about club activities for local media.' },
-  { key: 'RECREATION_LEADER', label: 'Recreation/Song Leader', description: 'Leads games, icebreakers, and songs.' },
-  { key: 'HISTORIAN', label: 'Historian', description: "Documents the club's year through photos and scrapbooks." },
-];
+interface OfficerRole {
+  id: string;
+  name: string;
+  label: string;
+  description: string;
+  sortOrder: number;
+}
 
 interface OfficerData {
   id: string;
@@ -129,12 +126,17 @@ interface BlogPostData {
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
   const [officers, setOfficers] = useState<OfficerData[]>([]);
+  const [officerRoles, setOfficerRoles] = useState<OfficerRole[]>([]);
   const [termYear, setTermYear] = useState(() => {
     const now = new Date();
     const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
     return `${year}-${year + 1}`;
   });
   const [holderOptions, setHolderOptions] = useState<HolderOption[]>([]);
+  const [isAddingRole, setIsAddingRole] = useState(false);
+  const [newRoleForm, setNewRoleForm] = useState({ name: '', label: '', description: '' });
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [editRoleForm, setEditRoleForm] = useState({ label: '', description: '' });
   const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
   const [editingBlogPostId, setEditingBlogPostId] = useState<string | null>(null);
   const [isSponsorModalOpen, setIsSponsorModalOpen] = useState(false);
@@ -213,6 +215,24 @@ export default function AdminPage() {
     const result = await res.json();
     if (result.data?.officerPositions) {
       setOfficers(result.data.officerPositions);
+    }
+  }, [graphqlUrl]);
+
+  const fetchOfficerRoles = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { officerRoles { id name label description sortOrder } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.officerRoles) {
+      setOfficerRoles(result.data.officerRoles);
     }
   }, [graphqlUrl]);
 
@@ -321,10 +341,11 @@ export default function AdminPage() {
     fetchTestimonials();
     fetchBlogPosts();
     fetchOfficers(termYear);
+    fetchOfficerRoles();
     fetchHolderOptions();
     fetchMembers();
     fetchPendingMembers();
-  }, [fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchHolderOptions, fetchMembers, fetchPendingMembers, termYear]);
+  }, [fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, termYear]);
 
   // Sponsor handlers
   const handleCreateSponsor = (data: any) => {
@@ -471,6 +492,78 @@ export default function AdminPage() {
         variables: { position, termYear },
       }),
     });
+    fetchOfficers(termYear);
+  };
+
+  // Role management handlers
+  const handleCreateRole = async () => {
+    if (!newRoleForm.name || !newRoleForm.label) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation CreateOfficerRole($name: String!, $label: String!, $description: String!, $sortOrder: Int!) {
+          createOfficerRole(name: $name, label: $label, description: $description, sortOrder: $sortOrder) { id }
+        }`,
+        variables: {
+          name: newRoleForm.name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+          label: newRoleForm.label,
+          description: newRoleForm.description,
+          sortOrder: officerRoles.length + 1,
+        },
+      }),
+    });
+    setIsAddingRole(false);
+    setNewRoleForm({ name: '', label: '', description: '' });
+    fetchOfficerRoles();
+  };
+
+  const handleUpdateRole = async (roleId: string) => {
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation UpdateOfficerRole($id: String!, $label: String, $description: String) {
+          updateOfficerRole(id: $id, label: $label, description: $description) { id }
+        }`,
+        variables: {
+          id: roleId,
+          label: editRoleForm.label,
+          description: editRoleForm.description,
+        },
+      }),
+    });
+    setEditingRoleId(null);
+    fetchOfficerRoles();
+  };
+
+  const handleDeleteRole = async (roleId: string, roleName: string) => {
+    const hasAssignments = officers.some(o => o.position === roleName);
+    const msg = hasAssignments
+      ? `This role has assignments in the current term. Deleting it will remove all assignments across all terms. Continue?`
+      : `Delete this officer role? This cannot be undone.`;
+    if (!confirm(msg)) return;
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation DeleteOfficerRole($id: String!) { deleteOfficerRole(id: $id) }`,
+        variables: { id: roleId },
+      }),
+    });
+    fetchOfficerRoles();
     fetchOfficers(termYear);
   };
 
@@ -1748,8 +1841,116 @@ export default function AdminPage() {
       {/* Officers */}
       {activeTab === 'officers' && (
         <div>
+          {/* Role Management Section */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Officer Roles</h3>
+              {!isAddingRole && (
+                <button onClick={() => setIsAddingRole(true)} className="btn-primary text-sm">
+                  + Add Role
+                </button>
+              )}
+            </div>
+
+            {isAddingRole && (
+              <div className="card mb-4 border-2 border-primary-200">
+                <h4 className="font-semibold mb-3">New Officer Role</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
+                    <input
+                      className="input"
+                      placeholder="e.g. Parliamentarian"
+                      value={newRoleForm.label}
+                      onChange={(e) => setNewRoleForm(f => ({
+                        ...f,
+                        label: e.target.value,
+                        name: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+                      }))}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Key: {newRoleForm.name || '...'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input
+                      className="input"
+                      placeholder="What does this officer do?"
+                      value={newRoleForm.description}
+                      onChange={(e) => setNewRoleForm(f => ({ ...f, description: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleCreateRole} className="btn-primary text-sm" disabled={!newRoleForm.label}>Save</button>
+                  <button onClick={() => { setIsAddingRole(false); setNewRoleForm({ name: '', label: '', description: '' }); }} className="btn-secondary text-sm">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {officerRoles.map((role) => (
+                <div key={role.id} className="card py-3">
+                  {editingRoleId === role.id ? (
+                    <div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                          <input
+                            className="input"
+                            value={editRoleForm.label}
+                            onChange={(e) => setEditRoleForm(f => ({ ...f, label: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                          <input
+                            className="input"
+                            value={editRoleForm.description}
+                            onChange={(e) => setEditRoleForm(f => ({ ...f, description: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleUpdateRole(role.id)} className="btn-primary text-sm">Save</button>
+                        <button onClick={() => setEditingRoleId(null)} className="btn-secondary text-sm">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{role.label}</span>
+                        <span className="text-xs text-gray-400 ml-2">({role.name})</span>
+                        {role.description && (
+                          <p className="text-sm text-gray-500">{role.description}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingRoleId(role.id);
+                            setEditRoleForm({ label: role.label, description: role.description });
+                          }}
+                          className="btn-secondary text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRole(role.id, role.name)}
+                          className="btn-secondary text-sm text-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Officer Assignments Section */}
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">Manage Officers</h3>
+            <h3 className="text-lg font-semibold">Officer Assignments</h3>
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Term Year:</label>
               <select
@@ -1773,14 +1974,14 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="space-y-4">
-            {OFFICER_POSITIONS.map((pos) => {
-              const assigned = officers.find(o => o.position === pos.key);
+            {officerRoles.map((role) => {
+              const assigned = officers.find(o => o.position === role.name);
               return (
-                <div key={pos.key} className="card">
+                <div key={role.name} className="card">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h4 className="font-semibold">{pos.label}</h4>
-                      <p className="text-sm text-gray-500">{pos.description}</p>
+                      <h4 className="font-semibold">{role.label}</h4>
+                      <p className="text-sm text-gray-500">{role.description}</p>
                       {assigned?.holder ? (
                         <div className="mt-2 flex items-center gap-2">
                           <img
@@ -1806,7 +2007,7 @@ export default function AdminPage() {
                         onChange={(e) => {
                           const [type, id] = e.target.value.split(':');
                           if (type && id) {
-                            handleSetOfficer(pos.key, id, type as 'user' | 'youth');
+                            handleSetOfficer(role.name, id, type as 'user' | 'youth');
                           }
                         }}
                       >
@@ -1819,7 +2020,7 @@ export default function AdminPage() {
                       </select>
                       {assigned?.holder && (
                         <button
-                          onClick={() => handleRemoveOfficer(pos.key)}
+                          onClick={() => handleRemoveOfficer(role.name)}
                           className="btn-secondary text-sm text-red-600"
                         >
                           Remove

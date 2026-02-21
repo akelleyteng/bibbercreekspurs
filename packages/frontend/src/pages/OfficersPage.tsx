@@ -15,8 +15,14 @@ interface OfficerData {
   holder?: OfficerHolder;
 }
 
+interface OfficerRole {
+  name: string;
+  sortOrder: number;
+}
+
 export default function OfficersPage() {
   const [officers, setOfficers] = useState<OfficerData[]>([]);
+  const [roles, setRoles] = useState<OfficerRole[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,18 +32,29 @@ export default function OfficersPage() {
     const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
     const termYear = `${year}-${year + 1}`;
 
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position label description holder { firstName lastName holderType profilePhotoUrl } } }`,
-        variables: { termYear },
-      }),
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.data?.officerPositions) {
-          setOfficers(result.data.officerPositions);
+    Promise.all([
+      fetch(graphqlUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position label description holder { firstName lastName holderType profilePhotoUrl } } }`,
+          variables: { termYear },
+        }),
+      }).then(res => res.json()),
+      fetch(graphqlUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query { officerRoles { name sortOrder } }`,
+        }),
+      }).then(res => res.json()),
+    ])
+      .then(([posResult, rolesResult]) => {
+        if (posResult.data?.officerPositions) {
+          setOfficers(posResult.data.officerPositions);
+        }
+        if (rolesResult.data?.officerRoles) {
+          setRoles(rolesResult.data.officerRoles);
         }
       })
       .catch(() => {})
@@ -53,16 +70,11 @@ export default function OfficersPage() {
     );
   }
 
-  // Define the canonical order of positions
-  const POSITION_ORDER = [
-    'PRESIDENT', 'VICE_PRESIDENT', 'SECRETARY', 'TREASURER',
-    'SERGEANT_AT_ARMS', 'NEWS_REPORTER', 'RECREATION_LEADER', 'HISTORIAN',
-  ];
-
-  // Sort by canonical order, assigned first
+  // Sort by role sort order from DB
+  const roleOrder = new Map(roles.map(r => [r.name, r.sortOrder]));
   const sortedOfficers = [...officers].sort((a, b) => {
-    const aIdx = POSITION_ORDER.indexOf(a.position);
-    const bIdx = POSITION_ORDER.indexOf(b.position);
+    const aIdx = roleOrder.get(a.position) ?? 999;
+    const bIdx = roleOrder.get(b.position) ?? 999;
     return aIdx - bIdx;
   });
 
