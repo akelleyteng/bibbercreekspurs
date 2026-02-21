@@ -81,5 +81,11 @@ jobs:
             --cpu 1 \
             --timeout 300 \
             --max-instances 10 \
-            --min-instances 0 \
-            --max-request-body-size 64Mi
+            --min-instances 0
+
+      - name: Set max request body size (for media uploads)
+        run: |
+          gcloud beta run services update hclub-backend \
+            --region us-central1 \
+            --max-request-body-size 64Mi 2>/dev/null || \
+          echo "Note: --max-request-body-size requires gcloud beta. Set manually via Cloud Console if needed."
