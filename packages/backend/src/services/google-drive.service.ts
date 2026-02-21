@@ -2,11 +2,15 @@ import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { Readable } from 'stream';
 
-// Lazy-initialized Drive client — googleapis is loaded on first use
+// Lazy-initialized Drive clients — googleapis is loaded on first use
 // to avoid ts-node processing its massive type definitions at startup.
-// Uses the service account (same one used for Calendar). The Drive folders
-// must be shared with the service account email as Editor.
+//
+// Two clients:
+// 1. Service account client — for reads, listing, deleting, folder creation (metadata-only ops)
+// 2. OAuth2 client — for file uploads (service accounts lack storage quota).
+//    Uses the Gmail OAuth2 app credentials with a Drive-scoped refresh token.
 let driveClient: any = null;
+let driveUploadClient: any = null;
 
 function getDriveClient(): any {
   if (!env.GOOGLE_DRIVE_MEMBERS_FOLDER_ID && !env.GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID) {
@@ -23,6 +27,33 @@ function getDriveClient(): any {
   }
 
   return driveClient;
+}
+
+/**
+ * Get an OAuth2-authenticated Drive client for uploads.
+ * Service accounts can't upload (no storage quota), so we use the
+ * app account's OAuth2 credentials. Reuses the Gmail OAuth2 app
+ * (GMAIL_CLIENT_ID/SECRET) with a Drive-scoped refresh token.
+ */
+function getDriveUploadClient(): any {
+  const clientId = env.GOOGLE_OAUTH_CLIENT_ID || env.GMAIL_CLIENT_ID;
+  const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET || env.GMAIL_CLIENT_SECRET;
+  const refreshToken = env.GOOGLE_DRIVE_OWNER_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    logger.warn('Drive upload OAuth2 credentials not configured — falling back to service account');
+    return getDriveClient();
+  }
+
+  if (!driveUploadClient) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { google } = require('googleapis');
+    const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2.setCredentials({ refresh_token: refreshToken });
+    driveUploadClient = google.drive({ version: 'v3', auth: oauth2 });
+  }
+
+  return driveUploadClient;
 }
 
 export interface DriveFileInfo {
@@ -116,7 +147,7 @@ export async function uploadFile(
   fileBuffer: Buffer,
   folderId: string
 ): Promise<DriveFileInfo | null> {
-  const drive = getDriveClient();
+  const drive = getDriveUploadClient();
   if (!drive) return null;
 
   try {

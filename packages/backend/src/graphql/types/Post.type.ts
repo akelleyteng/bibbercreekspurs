@@ -43,6 +43,30 @@ export class CommentGQL {
   createdAt!: Date;
 }
 
+@ObjectType()
+export class PostMediaGQL {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  mediaType!: string;
+
+  @Field()
+  publicUrl!: string;
+
+  @Field()
+  originalFilename!: string;
+
+  @Field()
+  mimeType!: string;
+
+  @Field()
+  fileSize!: number;
+
+  @Field()
+  sortOrder!: number;
+}
+
 @ObjectType('SocialPost')
 export class PostGQL {
   @Field(() => ID)
@@ -62,6 +86,9 @@ export class PostGQL {
 
   @Field(() => DateTimeScalar, { nullable: true })
   hiddenAt?: Date;
+
+  @Field(() => [PostMediaGQL])
+  media!: PostMediaGQL[];
 
   @Field(() => [CommentGQL])
   comments!: CommentGQL[];

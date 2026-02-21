@@ -1,7 +1,7 @@
 import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
-import { PostGQL, PostAuthor, CommentGQL, ReactionSummaryGQL } from '../types/Post.type';
+import { PostGQL, PostAuthor, CommentGQL, ReactionSummaryGQL, PostMediaGQL } from '../types/Post.type';
 import { CreatePostInput, UpdatePostInput } from '../inputs/PostInput';
-import { PostRepository, PostRow, CommentRow } from '../../repositories/post.repository';
+import { PostRepository, PostRow, CommentRow, PostMediaRow } from '../../repositories/post.repository';
 import { UserRepository } from '../../repositories/user.repository';
 import { verifyAccessToken } from '../../services/auth.service';
 import { Role } from '@4hclub/shared';
@@ -77,12 +77,25 @@ export class PostResolver {
     };
   }
 
+  private mapMediaRow(row: PostMediaRow): PostMediaGQL {
+    return {
+      id: row.id,
+      mediaType: row.media_type,
+      publicUrl: row.public_url,
+      originalFilename: row.original_filename,
+      mimeType: row.mime_type,
+      fileSize: row.file_size,
+      sortOrder: row.sort_order,
+    };
+  }
+
   private mapPost(
     row: PostRow,
     comments: CommentGQL[],
     reactions: ReactionSummaryGQL[],
     userReaction: string | undefined,
-    canEdit: boolean
+    canEdit: boolean,
+    media: PostMediaGQL[] = []
   ): PostGQL {
     return {
       id: row.id,
@@ -91,6 +104,7 @@ export class PostResolver {
       visibility: row.visibility,
       isHidden: row.is_hidden,
       hiddenAt: row.hidden_at || undefined,
+      media,
       comments,
       reactions,
       userReaction,
@@ -110,11 +124,12 @@ export class PostResolver {
 
     const postIds = rows.map(r => r.id);
 
-    // Batch fetch comments, reactions, and user reactions
-    const [allComments, allReactions, allUserReactions] = await Promise.all([
+    // Batch fetch comments, reactions, user reactions, and media
+    const [allComments, allReactions, allUserReactions, allMedia] = await Promise.all([
       this.postRepo.findCommentsByPostIds(postIds),
       this.postRepo.getReactionSummaries(postIds),
       this.postRepo.getUserReactions(postIds, userId),
+      this.postRepo.findMediaByPostIds(postIds),
     ]);
 
     // Group by post ID
@@ -137,12 +152,21 @@ export class PostResolver {
       userReactionByPost.set(ur.post_id, ur.reaction_type);
     }
 
+    const mediaByPost = new Map<string, PostMediaGQL[]>();
+    for (const m of allMedia) {
+      if (!m.post_id) continue;
+      const list = mediaByPost.get(m.post_id) || [];
+      list.push(this.mapMediaRow(m));
+      mediaByPost.set(m.post_id, list);
+    }
+
     return rows.map(row => this.mapPost(
       row,
       commentsByPost.get(row.id) || [],
       reactionsByPost.get(row.id) || [],
       userReactionByPost.get(row.id),
-      userId === row.author_id || isAdmin
+      userId === row.author_id || isAdmin,
+      mediaByPost.get(row.id) || []
     ));
   }
 
@@ -158,10 +182,11 @@ export class PostResolver {
     if (!row) return null;
     if (row.is_hidden && !isAdmin) return null;
 
-    const [comments, reactions, userReactions] = await Promise.all([
+    const [comments, reactions, userReactions, media] = await Promise.all([
       this.postRepo.findCommentsByPostIds([id]),
       this.postRepo.getReactionSummaries([id]),
       this.postRepo.getUserReactions([id], userId),
+      this.postRepo.findMediaByPostIds([id]),
     ]);
 
     return this.mapPost(
@@ -169,7 +194,8 @@ export class PostResolver {
       comments.map(c => this.mapComment(c)),
       reactions.map(r => ({ reactionType: r.reaction_type, count: parseInt(r.count, 10) })),
       userReactions[0]?.reaction_type,
-      userId === row.author_id || isAdmin
+      userId === row.author_id || isAdmin,
+      media.map(m => this.mapMediaRow(m))
     );
   }
 
@@ -188,7 +214,15 @@ export class PostResolver {
       visibility: input.visibility,
     });
 
-    return this.mapPost(row, [], [], undefined, true);
+    // Link uploaded media to this post
+    let media: PostMediaGQL[] = [];
+    if (input.mediaIds && input.mediaIds.length > 0) {
+      await this.postRepo.linkMediaToPost(row.id, input.mediaIds, userId);
+      const mediaRows = await this.postRepo.findMediaByPostIds([row.id]);
+      media = mediaRows.map(m => this.mapMediaRow(m));
+    }
+
+    return this.mapPost(row, [], [], undefined, true, media);
   }
 
   @Mutation(() => PostGQL)
@@ -216,6 +250,14 @@ export class PostResolver {
     const updated = await this.postRepo.update(id, data);
     if (!updated) {
       throw new GraphQLError('Post not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    // Re-link media if provided
+    if (input.mediaIds !== undefined) {
+      await this.postRepo.unlinkMediaFromPost(id);
+      if (input.mediaIds.length > 0) {
+        await this.postRepo.linkMediaToPost(id, input.mediaIds, userId);
+      }
     }
 
     // Refetch full post data

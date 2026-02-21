@@ -57,14 +57,26 @@ export interface ReactionSummary {
   count: number;
 }
 
+export interface PostMedia {
+  id: string;
+  mediaType: 'image' | 'video';
+  publicUrl: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
+  sortOrder: number;
+}
+
 export interface CreatePostRequest {
   content: string;
   visibility?: Visibility;
+  mediaIds?: string[];
 }
 
 export interface UpdatePostRequest {
   content?: string;
   visibility?: Visibility;
+  mediaIds?: string[];
 }
 
 export interface CreateCommentRequest {

@@ -147,21 +147,80 @@ else
     print_warning "JWT refresh secret already exists, skipping..."
 fi
 
-# Step 8: Grant service account access to secrets
+# Step 8: Set up Google Drive OAuth2 secrets for file uploads
+print_message "Setting up Google Drive OAuth2 secrets..."
+print_message "Service accounts lack storage quota, so Drive uploads use OAuth2."
+print_message "You need an OAuth2 Client ID from Google Cloud Console → APIs & Services → Credentials."
+
+if ! gcloud secrets describe google-oauth-client-id &> /dev/null; then
+    read -p "Enter your OAuth2 Client ID: " OAUTH_CLIENT_ID
+    echo -n "$OAUTH_CLIENT_ID" | gcloud secrets create google-oauth-client-id \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "Google OAuth client ID secret already exists, skipping..."
+fi
+
+if ! gcloud secrets describe google-oauth-client-secret &> /dev/null; then
+    read -p "Enter your OAuth2 Client Secret: " OAUTH_CLIENT_SECRET
+    echo -n "$OAUTH_CLIENT_SECRET" | gcloud secrets create google-oauth-client-secret \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "Google OAuth client secret already exists, skipping..."
+fi
+
+if ! gcloud secrets describe google-drive-refresh-token &> /dev/null; then
+    print_warning "Google Drive refresh token not set yet."
+    print_warning "After deployment, run: node scripts/get-drive-token.js"
+    print_warning "Then store it with: echo -n 'TOKEN' | gcloud secrets create google-drive-refresh-token --data-file=- --replication-policy=automatic"
+    # Create a placeholder so deployment doesn't fail
+    echo -n "PLACEHOLDER" | gcloud secrets create google-drive-refresh-token \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "Google Drive refresh token secret already exists, skipping..."
+fi
+
+# Step 9: Grant service account access to secrets
 print_message "Granting service account access to secrets..."
-for secret in db-password jwt-access-secret jwt-refresh-secret; do
+for secret in db-password jwt-access-secret jwt-refresh-secret google-oauth-client-id google-oauth-client-secret google-drive-refresh-token; do
     gcloud secrets add-iam-policy-binding "$secret" \
         --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
         --role="roles/secretmanager.secretAccessor" || true
 done
 
-# Step 9: Grant Cloud SQL access
+# Step 10: Grant Cloud SQL access
 print_message "Granting Cloud SQL access..."
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
     --role="roles/cloudsql.client" || true
 
-# Step 10: Build and deploy to Cloud Run
+# Step 10b: Create GCS bucket for social feed media uploads
+GCS_BUCKET="${GCS_BUCKET:-4hclub-uploads}"
+print_message "Setting up GCS bucket for media uploads: $GCS_BUCKET"
+if gcloud storage buckets describe "gs://$GCS_BUCKET" &> /dev/null; then
+    print_warning "GCS bucket already exists, skipping creation..."
+else
+    gcloud storage buckets create "gs://$GCS_BUCKET" \
+        --project="$PROJECT_ID" \
+        --location="$REGION" \
+        --uniform-bucket-level-access
+fi
+
+# Grant the service account upload/delete permissions
+print_message "Granting service account Storage Object Admin on bucket..."
+gcloud storage buckets add-iam-policy-binding "gs://$GCS_BUCKET" \
+    --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/storage.objectAdmin" || true
+
+# Make uploaded files publicly readable
+print_message "Enabling public read access on bucket..."
+gcloud storage buckets add-iam-policy-binding "gs://$GCS_BUCKET" \
+    --member="allUsers" \
+    --role="roles/storage.objectViewer" || true
+
+# Step 11: Build and deploy to Cloud Run
 print_message "Building container image with Cloud Build..."
 cd ../../  # Go to repo root for monorepo context
 gcloud builds submit \
@@ -170,7 +229,7 @@ gcloud builds submit \
     .
 cd packages/backend  # Return to backend directory
 
-# Step 11: Create DATABASE_URL secret with Cloud SQL Unix socket
+# Step 12: Create DATABASE_URL secret with Cloud SQL Unix socket
 print_message "Creating DATABASE_URL secret for Cloud SQL connection..."
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="db-password")
 
@@ -188,7 +247,7 @@ gcloud secrets add-iam-policy-binding database-url \
     --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor" || true
 
-# Step 12: Deploy to Cloud Run
+# Step 13: Deploy to Cloud Run
 print_message "Deploying to Cloud Run..."
 gcloud run deploy "$SERVICE_NAME" \
     --image "gcr.io/$PROJECT_ID/$SERVICE_NAME" \
@@ -197,15 +256,16 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --service-account "${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
     --add-cloudsql-instances "$CONNECTION_NAME" \
-    --set-env-vars "NODE_ENV=production,FRONTEND_URL=https://4hclub.example.com" \
-    --set-secrets "DATABASE_URL=database-url:latest,JWT_ACCESS_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest" \
+    --set-env-vars "NODE_ENV=production,FRONTEND_URL=https://4hclub.example.com,GCP_STORAGE_BUCKET=$GCS_BUCKET,GCP_PROJECT_ID=$PROJECT_ID" \
+    --set-secrets "DATABASE_URL=database-url:latest,JWT_ACCESS_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,GOOGLE_DRIVE_OWNER_REFRESH_TOKEN=google-drive-refresh-token:latest" \
     --memory 512Mi \
     --cpu 1 \
     --timeout 300 \
     --max-instances 10 \
-    --min-instances 0
+    --min-instances 0 \
+    --max-request-body-size 64Mi
 
-# Step 13: Get the service URL
+# Step 14: Get the service URL
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format="get(status.url)")
 
 print_message "Deployment complete!"
@@ -218,5 +278,7 @@ print_warning "Next steps:"
 echo "1. Run migrations: ./scripts/run-migrations-gcp.sh"
 echo "2. Seed the database: ./scripts/seed-db-gcp.sh"
 echo "3. Test the deployment: curl $SERVICE_URL/health"
+echo "4. Generate Drive refresh token: node scripts/get-drive-token.js"
+echo "   Then store it: echo -n 'TOKEN' | gcloud secrets versions add google-drive-refresh-token --data-file=-"
 echo ""
 print_message "Deployment script completed successfully! 🚀"

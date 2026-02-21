@@ -1,230 +1,143 @@
 # Bibber Creek Spurs 4-H Club Website
 
-A modern, scalable web application for managing the Bibber Creek Spurs 4-H club, built with React, Node.js, and PostgreSQL.
+A full-stack web application for the Bibber Creek Spurs 4-H Club, built as a monorepo with React frontend and Node.js/GraphQL backend.
+
+## Architecture
+
+```
+packages/
+  frontend/   - React + Vite (hosted on GitHub Pages)
+  backend/    - Express + Apollo GraphQL (hosted on Google Cloud Run)
+  shared/     - Shared TypeScript types and enums
+```
+
+- **Frontend**: React 18, Vite, TailwindCSS, Apollo Client — deployed to GitHub Pages at bibbercreekspurs4h.org
+- **Backend**: Express, Apollo Server, TypeGraphQL, PostgreSQL (Cloud SQL) — deployed to Google Cloud Run
+- **Shared**: Common TypeScript types, enums, and interfaces consumed by both frontend and backend
 
 ## Features
 
-- **Public Home Page**: Mission statement, testimonials, public events, blog feed, and sponsor carousel
-- **Member Portal**: Private social feed, member directory, and officers listing
-- **Event Management**: Create and manage public/private events with registration and Google Calendar integration
-- **Blog System**: Public and member-only blog posts with social media publishing
-- **Google Drive Integration**: Access to shared club files
-- **Email Notifications**: Automated notifications for events and blog posts via AWS SES
-- **Facebook Publishing**: Automatic publishing of events and blogs to the club's Facebook page
-- **Role-Based Access**: Member, Officer, and Admin roles with appropriate permissions
-
-## Tech Stack
-
-- **Frontend**: React 18, TypeScript, Tailwind CSS, Zustand, React Router
-- **Backend**: Node.js, Express, TypeScript, PostgreSQL, Redis
-- **Authentication**: JWT with refresh tokens, bcrypt password hashing
-- **Testing**: Jest, React Testing Library, Supertest
-- **Deployment**: AWS (ECS, RDS, S3, CloudFront, SES)
-
-## Project Structure
-
-```
-bibbercreekspurs/
-├── packages/
-│   ├── backend/          # Node.js/Express API
-│   ├── frontend/         # React application
-│   └── shared/           # Shared TypeScript types
-├── docker/               # Docker configurations
-├── .github/workflows/    # CI/CD pipelines
-└── docs/                 # Documentation
-```
+- **Member Management** — Registration, admin approval workflow, profiles with contact info and emergency details
+- **Family Linking** — Parent-youth account connections with admin and self-service management
+- **Events** — Google Calendar integration as source of truth for club events
+- **Document Library** — Google Drive-backed file uploads organized into member and leadership folders
+- **Social Feed** — Rich text posts (Tiptap editor) with image/video media attachments, comments, and reactions
+- **Member Directory** — Searchable directory of approved club members
+- **Role-based Access** — Admin, leader, and member roles with scoped permissions
 
 ## Prerequisites
 
-- Node.js 18+ and Yarn 1.22+
-- PostgreSQL 14+
-- Redis 6+
-- AWS account (for SES, S3, deployment)
-- Google Cloud account (for Calendar and Drive APIs)
-- Facebook Developer account (for Graph API)
+- Node.js >= 18
+- Yarn >= 1.22
+- PostgreSQL 14+ (local dev)
 
 ## Getting Started
 
-### 1. Install Dependencies
-
 ```bash
+# Install dependencies
 yarn install
-```
 
-### 2. Set Up Environment Variables
+# Build shared package
+yarn shared build
 
-Create `.env` files in both backend and frontend packages:
-
-**Backend** (`packages/backend/.env`):
-```env
-NODE_ENV=development
-PORT=4000
-DATABASE_URL=postgresql://user:password@localhost:5432/4hclub
-REDIS_URL=redis://localhost:6379
-JWT_ACCESS_SECRET=your-access-secret-here
-JWT_REFRESH_SECRET=your-refresh-secret-here
-AWS_REGION=us-east-1
-AWS_S3_BUCKET=4hclub-uploads
-GOOGLE_OAUTH_CLIENT_ID=your-client-id
-GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
-GOOGLE_DRIVE_FOLDER_ID=your-folder-id
-FACEBOOK_APP_ID=your-app-id
-FACEBOOK_APP_SECRET=your-app-secret
-FRONTEND_URL=http://localhost:3000
-```
-
-**Frontend** (`packages/frontend/.env`):
-```env
-VITE_API_URL=http://localhost:4000/api/v1
-```
-
-### 3. Set Up Database
-
-```bash
-# Create database
-createdb 4hclub
-
-# Run migrations
-yarn backend migrate
-
-# Seed initial data (creates admin user)
-yarn backend seed
-```
-
-### 4. Run Development Servers
-
-```bash
-# Run both frontend and backend concurrently
+# Start both frontend and backend in dev mode
 yarn dev
-
-# Or run individually
-yarn backend dev
-yarn frontend dev
 ```
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:4000
+The frontend runs at `http://localhost:5173` and the backend at `http://localhost:4000`.
+
+## Media Uploads (Social Feed)
+
+Social feed posts support image and video attachments stored in Google Cloud Storage (GCS).
+
+- **Images**: JPEG, PNG, GIF, WebP — up to 10 MB each
+- **Videos**: MP4, MOV, WebM — up to 50 MB each
+- **Limit**: 4 media items per post
+
+Files are uploaded via `POST /api/upload/media` (multipart/form-data with Bearer token auth) and stored in GCS at `social-feed/YYYY/MM/<uuid>.<ext>` with public read access. The upload returns a media ID that gets linked to the post during creation via the `createPost` GraphQL mutation.
+
+## Infrastructure & Deployment
+
+All GCP infrastructure is provisioned via **`packages/backend/scripts/deploy-gcp.sh`**. This script is the **source of truth** for infrastructure setup and should always be updated when deployment configuration changes. It handles:
+
+- Cloud SQL instance and database creation
+- Secret Manager secrets (JWT, database URL, OAuth credentials, SMTP)
+- Service account creation and IAM role bindings
+- GCS bucket for media uploads (with public read access)
+- Cloud Build container image build
+- Cloud Run service deployment
+
+**Automated deployments** are handled by GitHub Actions:
+
+| Workflow | Trigger | Target |
+|----------|---------|--------|
+| `deploy-backend.yml` | Push to `main` (backend/shared/cloudbuild changes) | Cloud Run via Cloud Build |
+| `deploy-frontend.yml` | Push to `main` (frontend changes) | GitHub Pages |
+
+### First-time GCP Setup
+
+```bash
+export GCP_PROJECT_ID=your-project-id
+cd packages/backend
+bash scripts/deploy-gcp.sh
+bash scripts/run-migrations-gcp.sh
+bash scripts/seed-db-gcp.sh
+```
+
+## Database Migrations
+
+Migrations live in `packages/backend/migrations/` and are numbered sequentially (e.g., `001_initial.sql`, `024_post_media.sql`). Run them against Cloud SQL with:
+
+```bash
+cd packages/backend
+bash scripts/run-migrations-gcp.sh
+```
 
 ## Development
 
 ### Running Tests
 
 ```bash
-# Run all tests
 yarn test
-
-# Run tests with coverage
 yarn test:coverage
-
-# Run tests in watch mode
-yarn backend test:watch
-yarn frontend test:watch
 ```
 
 ### Linting and Formatting
 
 ```bash
-# Lint all packages
 yarn lint
-
-# Format code
 yarn format
-
-# Check formatting
 yarn format:check
 ```
 
-### Database Migrations
+## Environment Variables
 
-```bash
-# Run pending migrations
-yarn backend migrate
+The backend expects these environment variables (managed via GCP Secret Manager in production):
 
-# Create new migration (manual file creation required)
-# Add file to packages/backend/migrations/
-```
-
-## API Documentation
-
-The API follows RESTful conventions with endpoints at `/api/v1/*`.
-
-### Authentication
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Login
-- `POST /api/v1/auth/refresh-token` - Refresh access token
-- `POST /api/v1/auth/forgot-password` - Request password reset
-
-### Users
-- `GET /api/v1/users` - List all members
-- `GET /api/v1/users/:id` - Get user profile
-- `GET /api/v1/users/officers` - List officers
-
-### Events
-- `GET /api/v1/events` - List events
-- `POST /api/v1/events` - Create event (officers/admins)
-- `POST /api/v1/events/:id/register` - Register for event
-
-### Blog
-- `GET /api/v1/blog` - List blog posts
-- `POST /api/v1/blog` - Create blog post
-
-See [API Documentation](./docs/api.md) for complete endpoint reference.
-
-## Deployment
-
-### CI/CD Pipeline
-GitHub Actions automatically:
-1. Runs tests on all pull requests
-2. Builds and deploys to staging on merge to `develop`
-3. Deploys to production on merge to `main`
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Access token signing secret |
+| `JWT_REFRESH_SECRET` | Refresh token signing secret |
+| `FRONTEND_URL` | Frontend origin for CORS |
+| `GCP_STORAGE_BUCKET` | GCS bucket name for media uploads |
+| `GCP_PROJECT_ID` | Google Cloud project ID |
+| `GOOGLE_OAUTH_CLIENT_ID` | OAuth2 client ID (Drive, Calendar) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth2 client secret |
+| `GOOGLE_DRIVE_OWNER_REFRESH_TOKEN` | OAuth2 refresh token for Drive uploads |
+| `GOOGLE_CALENDAR_ID` | Google Calendar ID for events |
+| `GOOGLE_DRIVE_MEMBERS_FOLDER_ID` | Drive folder for member-accessible documents |
+| `GOOGLE_DRIVE_LEADERSHIP_FOLDER_ID` | Drive folder for leadership-only documents |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email configuration |
 
 ## Security
 
-- Passwords hashed with bcrypt (10 rounds)
-- JWT tokens with short expiry (15 min access, 7 day refresh)
-- Role-based access control (RBAC)
-- CSRF protection
-- Input validation with Zod schemas
-- Rate limiting on all endpoints
-- HTTPS enforced in production
-
-## Contributing
-
-1. Create a feature branch from `develop`
-2. Write tests for new features
-3. Ensure all tests pass and code is formatted
-4. Submit pull request for review
-
-
-## Code Standards
-- TypeScript strict mode
-- TDD: write tests before implementation
-- Use Pressable (not TouchableOpacity) for touch targets
-- Minimum 44px touch targets for accessibility
-- Always include accessibilityLabel and accessibilityRole
-- Use SafeAreaView from react-native-safe-area-context
-- Use FlashList from @shopify/flash-list for all lists
-- Use expo-secure-store for token storage (never AsyncStorage for secrets)
-
-## Color Theme
-- Primary (Iron Blue): #003366
-- Action (Safety Orange): #D95319
-- Success (Teal): #008080
-- Error (Brick Red): #A80000
-- Warning (Amber): #CC7A00
-- Text Primary: #121212
-- Text Secondary: #4A5568
-- Background: #FFFFFF
-
-## Environment Variables
-- `EXPO_PUBLIC_API_URL` — Backend API URL
-- Set via `.env.local` (dev) or `.env.production` (prod)
-
-## Testing Guidelines
-- Use @testing-library/react-native
-- Mock external modules in jest.setup.ts
-- Test user interactions, not implementation details
-- Run tests before committing
+- Passwords hashed with bcrypt
+- JWT tokens with short expiry (15 min access, 7 day / 30 day refresh with Remember Me)
+- Role-based access control (Admin, Leader, Member)
+- Server-side HTML sanitization on social feed posts
+- Input validation via class-validator
+- CORS restricted to frontend origin
 
 ## License
 

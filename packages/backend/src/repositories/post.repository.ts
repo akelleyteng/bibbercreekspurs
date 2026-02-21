@@ -42,6 +42,30 @@ export interface UserReactionRow {
   reaction_type: string;
 }
 
+export interface PostMediaRow {
+  id: string;
+  post_id: string | null;
+  uploader_id: string;
+  media_type: string;
+  gcs_path: string;
+  public_url: string;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+  sort_order: number;
+  created_at: Date;
+}
+
+export interface CreateMediaData {
+  uploader_id: string;
+  media_type: string;
+  gcs_path: string;
+  public_url: string;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+}
+
 export interface CreatePostData {
   author_id: string;
   content: string;
@@ -256,5 +280,50 @@ export class PostRepository {
       );
       return true; // reaction added
     }
+  }
+
+  // Media
+  async createMedia(data: CreateMediaData): Promise<PostMediaRow> {
+    const result = await db.query<PostMediaRow>(
+      `INSERT INTO post_media (uploader_id, media_type, gcs_path, public_url,
+         original_filename, mime_type, file_size)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [data.uploader_id, data.media_type, data.gcs_path, data.public_url,
+       data.original_filename, data.mime_type, data.file_size]
+    );
+    return result.rows[0];
+  }
+
+  async linkMediaToPost(postId: string, mediaIds: string[], uploaderId: string): Promise<void> {
+    for (let i = 0; i < mediaIds.length; i++) {
+      await db.query(
+        `UPDATE post_media
+         SET post_id = $1, sort_order = $2
+         WHERE id = $3 AND uploader_id = $4 AND post_id IS NULL`,
+        [postId, i, mediaIds[i], uploaderId]
+      );
+    }
+  }
+
+  async findMediaByPostIds(postIds: string[]): Promise<PostMediaRow[]> {
+    if (postIds.length === 0) return [];
+    const result = await db.query<PostMediaRow>(
+      `SELECT * FROM post_media
+       WHERE post_id = ANY($1)
+       ORDER BY sort_order ASC, created_at ASC`,
+      [postIds]
+    );
+    return result.rows;
+  }
+
+  async unlinkMediaFromPost(postId: string): Promise<string[]> {
+    const result = await db.query<{ gcs_path: string }>(
+      `UPDATE post_media SET post_id = NULL
+       WHERE post_id = $1
+       RETURNING gcs_path`,
+      [postId]
+    );
+    return result.rows.map(r => r.gcs_path);
   }
 }

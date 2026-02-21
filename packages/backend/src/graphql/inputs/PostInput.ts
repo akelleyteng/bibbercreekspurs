@@ -1,9 +1,9 @@
 import { InputType, Field } from 'type-graphql';
-import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, MaxLength, ArrayMaxSize } from 'class-validator';
 
 @InputType()
 export class CreatePostInput {
-  @Field()
+  @Field({ defaultValue: '' })
   @IsString()
   @MaxLength(5000)
   content!: string;
@@ -11,6 +11,11 @@ export class CreatePostInput {
   @Field({ defaultValue: 'MEMBER_ONLY' })
   @IsEnum(['PUBLIC', 'MEMBER_ONLY'])
   visibility!: string;
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @ArrayMaxSize(4, { message: 'Maximum 4 media items per post' })
+  mediaIds?: string[];
 }
 
 @InputType()
@@ -25,4 +30,9 @@ export class UpdatePostInput {
   @IsOptional()
   @IsEnum(['PUBLIC', 'MEMBER_ONLY'])
   visibility?: string;
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @ArrayMaxSize(4, { message: 'Maximum 4 media items per post' })
+  mediaIds?: string[];
 }

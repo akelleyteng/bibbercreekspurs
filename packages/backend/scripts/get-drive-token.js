@@ -1,31 +1,32 @@
 #!/usr/bin/env node
 /**
- * One-time script to get an OAuth2 refresh token for the Google Drive folder owner.
+ * One-time script to get an OAuth2 refresh token for Google Drive uploads.
  *
  * Prerequisites:
- *   1. Go to https://console.cloud.google.com/apis/credentials
- *   2. Create an OAuth2 client (type: Desktop app or Web app)
- *   3. Note the Client ID and Client Secret
+ *   1. An OAuth2 client in Google Cloud Console (APIs & Services → Credentials)
+ *   2. GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env
+ *      (or GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET — same OAuth app works for both)
+ *   3. For "Web application" type clients: add http://localhost:3333/callback
+ *      as an Authorized redirect URI in the console
+ *      For "Desktop app" type clients: localhost redirects work automatically
  *
  * Usage:
- *   GOOGLE_OAUTH_CLIENT_ID=xxx GOOGLE_OAUTH_CLIENT_SECRET=yyy node scripts/get-drive-token.js
- *
- * Then sign in as the Google account that owns the Drive folders.
- * The script will print the refresh token — add it to your .env or Cloud Run env vars.
+ *   node scripts/get-drive-token.js
  */
 
+require('dotenv').config();
 const http = require('http');
 const { URL } = require('url');
 
-const CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+const CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID || process.env.GMAIL_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET;
 const REDIRECT_PORT = 3333;
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error('Error: Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.');
-  console.error('Example:');
-  console.error('  GOOGLE_OAUTH_CLIENT_ID=xxx GOOGLE_OAUTH_CLIENT_SECRET=yyy node scripts/get-drive-token.js');
+  console.error('Error: No OAuth2 credentials found.');
+  console.error('Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in your .env file,');
+  console.error('or GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET (same OAuth app works for both).');
   process.exit(1);
 }
 
@@ -93,8 +94,8 @@ const server = http.createServer(async (req, res) => {
     console.log('Refresh Token:', tokens.refresh_token);
     console.log('\nAdd this to your .env file:');
     console.log(`GOOGLE_DRIVE_OWNER_REFRESH_TOKEN=${tokens.refresh_token}`);
-    console.log('\nOr set it in Cloud Run:');
-    console.log(`gcloud run services update hclub-backend --region us-central1 --update-env-vars GOOGLE_DRIVE_OWNER_REFRESH_TOKEN=${tokens.refresh_token}`);
+    console.log('\nStore in Secret Manager for production:');
+    console.log(`echo -n '${tokens.refresh_token}' | gcloud secrets versions add google-drive-refresh-token --data-file=-`);
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end('<h2>Success!</h2><p>Refresh token has been printed in the terminal. You can close this window.</p>');
@@ -108,7 +109,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(REDIRECT_PORT, () => {
-  console.log(`\nOpen this URL in your browser and sign in as the Google account that owns the Drive folders:\n`);
+  console.log('\n=== Google Drive OAuth2 Token Generator ===\n');
+  console.log(`Using OAuth Client ID: ${CLIENT_ID.substring(0, 20)}...`);
+  console.log(`\nOpen this URL in your browser and sign in as bibbercreekspurs4h@gmail.com:\n`);
   console.log(authUrl);
   console.log(`\nWaiting for authorization...`);
 });
