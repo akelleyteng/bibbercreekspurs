@@ -102,67 +102,76 @@ export default function HomePage() {
   return (
     <div className="bg-white">
       {/* Hero Section */}
-      <div className="relative bg-primary-600 overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          <div className="relative z-10 pb-8 sm:pb-16 md:pb-20 lg:pb-28 xl:pb-32">
-            <main className="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
-              <div className="text-center">
-                <h1 className="text-4xl tracking-tight font-extrabold text-white sm:text-5xl md:text-6xl">
-                  <span className="block">Welcome to</span>
-                  <span className="block">Bibber Creek Spurs 4-H</span>
-                </h1>
-                <p className="mt-3 max-w-md mx-auto text-base text-primary-100 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-                  Empowering youth through hands-on learning, leadership development, and community
-                  engagement. Join us and discover your potential!
-                </p>
-                <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-                  <div className="rounded-md shadow">
-                    <Link
-                      to="/register"
-                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-gray-50 md:py-4 md:text-lg md:px-10"
-                    >
-                      Join Today
-                    </Link>
-                  </div>
-                  <div className="mt-3 rounded-md shadow sm:mt-0 sm:ml-3">
-                    <Link
-                      to="/events"
-                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-700 hover:bg-primary-800 md:py-4 md:text-lg md:px-10"
-                    >
-                      View Events
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </main>
+      <div className="relative hero-bg min-h-[30vh] max-h-[40vh] flex items-center overflow-hidden rounded-2xl mx-4 sm:mx-6 lg:mx-8 mt-4">
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+          <div className="text-center lg:text-left">
+            <h1 className="text-3xl tracking-tight font-extrabold text-white sm:text-4xl md:text-5xl">
+              Bibber Creek Spurs 4-H
+            </h1>
+            <p className="mt-3 text-gray-200 whitespace-nowrap text-[clamp(0.75rem,2vw,1.25rem)]">
+              Empowering youth through hands-on learning, leadership, and community engagement.
+            </p>
+            <div className="mt-4 md:mt-6 flex flex-wrap gap-2 md:gap-3 justify-center lg:justify-start">
+              <Link
+                to="/register"
+                className="px-3 py-1.5 text-xs sm:text-sm md:px-5 md:py-2 md:text-base font-medium rounded-md text-primary-700 bg-white hover:bg-gray-100 shadow transition-colors"
+              >
+                Join Today
+              </Link>
+              <Link
+                to="/events"
+                className="px-3 py-1.5 text-xs sm:text-sm md:px-5 md:py-2 md:text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 shadow transition-colors"
+              >
+                View Events
+              </Link>
+              <Link
+                to="/login"
+                className="px-3 py-1.5 text-xs sm:text-sm md:px-5 md:py-2 md:text-base font-medium rounded-md text-white border border-white/40 hover:bg-white/10 transition-colors"
+              >
+                Member Login
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Mission Section with Image */}
-      <div className="py-16 bg-gray-50">
+      {/* About Our Club */}
+      <div className="py-12 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="lg:grid lg:grid-cols-5 lg:gap-12 lg:items-start">
             <div className="lg:col-span-3 mb-8 lg:mb-0">
-              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl mb-6">
+              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl mb-4">
                 {mockHomeContent.mission.title}
               </h2>
-              <p className="text-lg text-gray-700 leading-relaxed mb-6">
+              <p className="text-base text-gray-700 leading-relaxed mb-6">
                 {mockHomeContent.mission.content}
               </p>
-              <div className="bg-white rounded-lg p-6 shadow-md">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">
-                  {mockHomeContent.about.title}
-                </h3>
-                <p className="text-gray-700 leading-relaxed">
-                  {mockHomeContent.about.content}
-                </p>
-                <div className="mt-6">
-                  <Link to="/register" className="btn-primary">
-                    Join Our Club
-                  </Link>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div className="flex items-start gap-2">
+                  <span className="text-xl">🐴</span>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-sm">Livestock & Animal Science</h3>
+                    <p className="text-gray-600 text-sm">Care and handling of horses and small animals</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xl">🌱</span>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-sm">Agriculture & Gardening</h3>
+                    <p className="text-gray-600 text-sm">Sustainable farming and hands-on projects</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xl">⭐</span>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-sm">Leadership Development</h3>
+                    <p className="text-gray-600 text-sm">Public speaking and community service</p>
+                  </div>
                 </div>
               </div>
+
             </div>
             <div className="lg:col-span-2">
               <img
@@ -172,51 +181,19 @@ export default function HomePage() {
               />
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Activities Section */}
-      <div className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
-            <div className="order-2 lg:order-1 relative mb-8 lg:mb-0">
-              <img
-                src={mockHomeContent.activitiesImageUrl}
-                alt="4-H member training with a horse in an indoor arena, demonstrating leadership and horsemanship skills"
-                className="rounded-lg shadow-xl w-full h-auto object-cover max-h-96"
-              />
-            </div>
-            <div className="order-1 lg:order-2">
-              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl mb-6">
-                Hands-On Learning
-              </h2>
-              <p className="text-xl text-gray-500 leading-relaxed mb-6">
-                Through our diverse programs, members develop essential life skills including leadership,
-                responsibility, and teamwork. From animal care to public speaking, every activity is
-                designed to help youth discover their passions and build confidence.
+          <div className="mt-8 max-w-2xl mx-auto">
+            <div className="bg-white rounded-lg p-6 shadow-md text-center">
+              <h3 className="text-xl font-bold text-gray-900 mb-3">
+                {mockHomeContent.about.title}
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                {mockHomeContent.about.content}
               </p>
-              <div className="space-y-4">
-                <div className="flex items-start">
-                  <span className="text-2xl mr-3">🐴</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900">Livestock & Animal Science</h3>
-                    <p className="text-gray-600">Learn proper care and handling of horses, cattle, and small animals</p>
-                  </div>
-                </div>
-                <div className="flex items-start">
-                  <span className="text-2xl mr-3">🌱</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900">Agriculture & Gardening</h3>
-                    <p className="text-gray-600">Explore sustainable farming and grow your own projects</p>
-                  </div>
-                </div>
-                <div className="flex items-start">
-                  <span className="text-2xl mr-3">⭐</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900">Leadership Development</h3>
-                    <p className="text-gray-600">Build confidence through public speaking and community service</p>
-                  </div>
-                </div>
+              <div className="mt-4">
+                <Link to="/register" className="btn-primary">
+                  Join Our Club
+                </Link>
               </div>
             </div>
           </div>
@@ -225,18 +202,18 @@ export default function HomePage() {
 
       {/* Upcoming Events */}
       {upcomingEvents.length > 0 && (
-        <div className="py-16 bg-white">
+        <div className="py-12 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
                 Upcoming Events
               </h2>
-              <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+              <p className="mt-3 max-w-2xl text-xl text-gray-500 mx-auto">
                 Join us for exciting activities and learning opportunities
               </p>
             </div>
 
-            <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-8 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {upcomingEvents.map((event) => (
                 <Link
                   key={event.id}
@@ -272,16 +249,16 @@ export default function HomePage() {
 
       {/* Blog Posts */}
       {recentPosts.length > 0 && (
-        <div className="py-16 bg-gray-50">
+        <div className="py-12 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Latest Stories</h2>
-              <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+              <p className="mt-3 max-w-2xl text-xl text-gray-500 mx-auto">
                 Read about our members' experiences and achievements
               </p>
             </div>
 
-            <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-8 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {recentPosts.map((post) => (
                 <Link key={post.id} to={`/blog/${post.slug}`} className="group">
                   {post.featuredImageUrl && (
@@ -323,7 +300,7 @@ export default function HomePage() {
 
       {/* Testimonials */}
       {testimonials.length > 0 && (
-        <div className="py-16 bg-white">
+        <div className="py-12 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
@@ -331,7 +308,7 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <div className="mt-12 grid gap-8 md:grid-cols-2">
+            <div className="mt-8 grid gap-8 md:grid-cols-2">
               {testimonials.map((testimonial) => (
                 <div key={testimonial.id} className="card">
                   <div className="flex items-center mb-4">
@@ -358,16 +335,16 @@ export default function HomePage() {
       )}
 
       {/* Sponsors */}
-      <div className="py-16 bg-gray-50">
+      <div className="py-12 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Our Sponsors</h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+            <p className="mt-3 max-w-2xl text-xl text-gray-500 mx-auto">
               Thank you to our generous supporters
             </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-2 gap-8 md:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-8 md:grid-cols-4">
             {mockSponsors.map((sponsor) => (
               <a
                 key={sponsor.id}
@@ -385,7 +362,7 @@ export default function HomePage() {
 
       {/* CTA Section */}
       <div className="bg-primary-600">
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
+        <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:py-12 lg:px-8 lg:flex lg:items-center lg:justify-between">
           <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
             <span className="block">Ready to get started?</span>
             <span className="block text-primary-200">Join our 4-H family today.</span>

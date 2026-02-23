@@ -48,6 +48,12 @@
     @apply bg-white rounded-lg shadow-md p-6;
   }
 
+  .hero-bg {
+    background-image: url('/images/clubride.avif');
+    background-size: cover;
+    background-position: center;
+  }
+
   /* Link focus styles */
   a:focus-visible {
     @apply outline-2 outline-offset-2 outline-primary-600 rounded;
