@@ -1,9 +1,16 @@
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
-// Lazy-initialized calendar client — googleapis is loaded on first use
-// to avoid ts-node processing its massive type definitions at startup
+// Lazy-initialized calendar clients — googleapis is loaded on first use
+// to avoid ts-node processing its massive type definitions at startup.
+//
+// Two clients:
+// 1. Service account client — for reads (listing, getting events)
+// 2. OAuth2 client — for writes (adding/removing attendees).
+//    Service accounts can't add attendees without Domain-Wide Delegation.
+//    Uses the calendar owner's OAuth2 refresh token instead.
 let calendarClient: any = null;
+let calendarWriteClient: any = null;
 
 function getCalendarClient(): any {
   if (!env.GOOGLE_CALENDAR_ID) {
@@ -20,6 +27,31 @@ function getCalendarClient(): any {
   }
 
   return calendarClient;
+}
+
+/**
+ * Get an OAuth2-authenticated Calendar client for writes (attendee management).
+ * Mirrors the Drive upload pattern in google-drive.service.ts.
+ */
+function getCalendarWriteClient(): any {
+  const clientId = env.GOOGLE_OAUTH_CLIENT_ID || env.GMAIL_CLIENT_ID;
+  const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET || env.GMAIL_CLIENT_SECRET;
+  const refreshToken = env.GOOGLE_CALENDAR_OWNER_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    logger.warn('Calendar write OAuth2 credentials not configured — attendee sync disabled');
+    return null;
+  }
+
+  if (!calendarWriteClient) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { google } = require('googleapis');
+    const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2.setCredentials({ refresh_token: refreshToken });
+    calendarWriteClient = google.calendar({ version: 'v3', auth: oauth2 });
+  }
+
+  return calendarWriteClient;
 }
 
 // ── In-Memory Cache ──────────────────────────────────────────────────
@@ -184,5 +216,106 @@ export async function getCalendarEvent(eventId: string): Promise<MappedCalendarE
   } catch (error) {
     logger.error('Failed to get Google Calendar event', { error, eventId });
     return null;
+  }
+}
+
+// ── Attendee Management (OAuth2 write client) ────────────────────────
+
+/**
+ * Add an attendee to a Google Calendar event.
+ * Uses the calendar owner's OAuth2 token so Google sends the invite email.
+ * Throws on failure — caller should catch and handle gracefully.
+ */
+export async function addAttendeeToEvent(eventId: string, email: string): Promise<void> {
+  const calendar = getCalendarWriteClient();
+  if (!calendar) {
+    logger.warn('Calendar write client not available — skipping attendee add', { eventId, email });
+    return;
+  }
+
+  try {
+    // Get the current event to read existing attendees
+    const response = await calendar.events.get({
+      calendarId: env.GOOGLE_CALENDAR_ID,
+      eventId,
+    });
+
+    const existingAttendees: Array<{ email: string }> = response.data.attendees || [];
+
+    // Skip if already an attendee
+    if (existingAttendees.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
+      logger.info(`Attendee ${email} already on event ${eventId} — skipping`);
+      return;
+    }
+
+    // Patch with the new attendee added
+    await calendar.events.patch({
+      calendarId: env.GOOGLE_CALENDAR_ID,
+      eventId,
+      sendUpdates: 'all',
+      requestBody: {
+        attendees: [...existingAttendees, { email }],
+      },
+    });
+
+    invalidateEventCache(eventId);
+    logger.info(`Added attendee ${email} to calendar event ${eventId}`);
+  } catch (error: any) {
+    logger.error('Failed to add attendee to calendar event', {
+      eventId,
+      email,
+      errorMessage: error?.message,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Remove an attendee from a Google Calendar event.
+ * Uses the calendar owner's OAuth2 token.
+ * Throws on failure — caller should catch and handle gracefully.
+ */
+export async function removeAttendeeFromEvent(eventId: string, email: string): Promise<void> {
+  const calendar = getCalendarWriteClient();
+  if (!calendar) {
+    logger.warn('Calendar write client not available — skipping attendee remove', { eventId, email });
+    return;
+  }
+
+  try {
+    const response = await calendar.events.get({
+      calendarId: env.GOOGLE_CALENDAR_ID,
+      eventId,
+    });
+
+    const existingAttendees: Array<{ email: string }> = response.data.attendees || [];
+    const filtered = existingAttendees.filter(
+      (a: any) => a.email.toLowerCase() !== email.toLowerCase()
+    );
+
+    // Skip if attendee wasn't present
+    if (filtered.length === existingAttendees.length) {
+      logger.info(`Attendee ${email} not on event ${eventId} — skipping removal`);
+      return;
+    }
+
+    await calendar.events.patch({
+      calendarId: env.GOOGLE_CALENDAR_ID,
+      eventId,
+      sendUpdates: 'all',
+      requestBody: {
+        attendees: filtered,
+      },
+    });
+
+    invalidateEventCache(eventId);
+    logger.info(`Removed attendee ${email} from calendar event ${eventId}`);
+  } catch (error: any) {
+    logger.error('Failed to remove attendee from calendar event', {
+      eventId,
+      email,
+      errorMessage: error?.message,
+    });
+    throw error;
   }
 }

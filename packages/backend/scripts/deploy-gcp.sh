@@ -182,9 +182,21 @@ else
     print_warning "Google Drive refresh token secret already exists, skipping..."
 fi
 
+if ! gcloud secrets describe google-calendar-refresh-token &> /dev/null; then
+    print_warning "Google Calendar refresh token not set yet."
+    print_warning "After deployment, run: node scripts/get-calendar-token.js"
+    print_warning "Then store it with: echo -n 'TOKEN' | gcloud secrets create google-calendar-refresh-token --data-file=- --replication-policy=automatic"
+    # Create a placeholder so deployment doesn't fail
+    echo -n "PLACEHOLDER" | gcloud secrets create google-calendar-refresh-token \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "Google Calendar refresh token secret already exists, skipping..."
+fi
+
 # Step 9: Grant service account access to secrets
 print_message "Granting service account access to secrets..."
-for secret in db-password jwt-access-secret jwt-refresh-secret google-oauth-client-id google-oauth-client-secret google-drive-refresh-token; do
+for secret in db-password jwt-access-secret jwt-refresh-secret google-oauth-client-id google-oauth-client-secret google-drive-refresh-token google-calendar-refresh-token; do
     gcloud secrets add-iam-policy-binding "$secret" \
         --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
         --role="roles/secretmanager.secretAccessor" || true
@@ -257,7 +269,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --service-account "${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
     --add-cloudsql-instances "$CONNECTION_NAME" \
     --set-env-vars "NODE_ENV=production,FRONTEND_URL=https://4hclub.example.com,GCP_STORAGE_BUCKET=$GCS_BUCKET,GCP_PROJECT_ID=$PROJECT_ID" \
-    --set-secrets "DATABASE_URL=database-url:latest,JWT_ACCESS_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,GOOGLE_DRIVE_OWNER_REFRESH_TOKEN=google-drive-refresh-token:latest" \
+    --set-secrets "DATABASE_URL=database-url:latest,JWT_ACCESS_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,GOOGLE_DRIVE_OWNER_REFRESH_TOKEN=google-drive-refresh-token:latest,GOOGLE_CALENDAR_OWNER_REFRESH_TOKEN=google-calendar-refresh-token:latest" \
     --memory 512Mi \
     --cpu 1 \
     --timeout 300 \
@@ -280,5 +292,7 @@ echo "2. Seed the database: ./scripts/seed-db-gcp.sh"
 echo "3. Test the deployment: curl $SERVICE_URL/health"
 echo "4. Generate Drive refresh token: node scripts/get-drive-token.js"
 echo "   Then store it: echo -n 'TOKEN' | gcloud secrets versions add google-drive-refresh-token --data-file=-"
+echo "5. Generate Calendar refresh token: node scripts/get-calendar-token.js"
+echo "   Then store it: echo -n 'TOKEN' | gcloud secrets versions add google-calendar-refresh-token --data-file=-"
 echo ""
 print_message "Deployment script completed successfully! 🚀"

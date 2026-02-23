@@ -52,4 +52,16 @@ export class EventRsvpRepository {
     );
     return result.rows[0] || null;
   }
+
+  async findAttendingWithEmails(googleEventId: string): Promise<Array<{ email: string }>> {
+    const result = await db.query<{ email: string }>(
+      `SELECT u.email
+       FROM event_rsvps r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.google_event_id = $1
+         AND r.status IN ('ATTENDING', 'ATTENDING_PLUS')`,
+      [googleEventId]
+    );
+    return result.rows;
+  }
 }

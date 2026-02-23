@@ -9,15 +9,20 @@ import { logger } from '../../utils/logger';
 import {
   listCalendarEvents,
   getCalendarEvent,
+  addAttendeeToEvent,
+  removeAttendeeFromEvent,
   MappedCalendarEvent,
 } from '../../services/google-calendar.service';
+import { UserRepository } from '../../repositories/user.repository';
 
 @Resolver()
 export class EventResolver {
   private rsvpRepo: EventRsvpRepository;
+  private userRepo: UserRepository;
 
   constructor() {
     this.rsvpRepo = new EventRsvpRepository();
+    this.userRepo = new UserRepository();
   }
 
   /**
@@ -135,6 +140,25 @@ export class EventResolver {
     }
 
     logger.info(`User ${userId} RSVP'd to event ${input.eventId} (status: ${input.status})`);
+
+    // Sync attendee to Google Calendar (fire-and-forget — DB is source of truth)
+    try {
+      const user = await this.userRepo.findById(userId);
+      if (user?.email) {
+        if (input.status === 'ATTENDING' || input.status === 'ATTENDING_PLUS') {
+          await addAttendeeToEvent(input.eventId, user.email);
+        } else {
+          await removeAttendeeFromEvent(input.eventId, user.email);
+        }
+      }
+    } catch (calError: any) {
+      logger.warn('Calendar attendee sync failed (RSVP still saved)', {
+        eventId: input.eventId,
+        userId,
+        error: calError?.message,
+      });
+    }
+
     return true;
   }
 
@@ -155,6 +179,21 @@ export class EventResolver {
     }
 
     logger.info(`User ${userId} cancelled RSVP for event ${eventId}`);
+
+    // Remove attendee from Google Calendar (fire-and-forget)
+    try {
+      const user = await this.userRepo.findById(userId);
+      if (user?.email) {
+        await removeAttendeeFromEvent(eventId, user.email);
+      }
+    } catch (calError: any) {
+      logger.warn('Calendar attendee removal failed (RSVP still cancelled)', {
+        eventId,
+        userId,
+        error: calError?.message,
+      });
+    }
+
     return true;
   }
 }
