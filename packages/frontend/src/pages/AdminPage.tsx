@@ -184,6 +184,12 @@ export default function AdminPage() {
   const [viewingMemberId, setViewingMemberId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
   const [officerError, setOfficerError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Home content state
   interface HomeContentSection {
@@ -283,7 +289,10 @@ export default function AdminPage() {
     setHomeSaving(sectionType);
     try {
       await saveHomeSectionRaw(sectionType);
-    } catch { /* ignore */ }
+      showToast('Changes saved successfully!');
+    } catch {
+      showToast('Failed to save changes.', 'error');
+    }
     setHomeSaving(null);
   };
 
@@ -1192,6 +1201,15 @@ export default function AdminPage() {
 
   return (
     <div>
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white transition-opacity ${
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Panel</h1>
 
       {/* Tabs */}
@@ -1385,7 +1403,10 @@ export default function AdminPage() {
                     saveHomeSectionRaw('program_area_2'),
                     saveHomeSectionRaw('program_area_3'),
                   ]);
-                } catch { /* ignore */ }
+                  showToast('Program areas saved successfully!');
+                } catch {
+                  showToast('Failed to save program areas.', 'error');
+                }
                 setHomeSaving(null);
               }}
             >

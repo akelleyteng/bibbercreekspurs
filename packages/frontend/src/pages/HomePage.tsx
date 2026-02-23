@@ -171,10 +171,10 @@ export default function HomePage() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
           <div className="text-center lg:text-left">
             <h1 className="text-3xl tracking-tight font-extrabold text-white sm:text-4xl md:text-5xl">
-              Bibber Creek Spurs 4-H
+              {hc('hero', 'title', 'Bibber Creek Spurs 4-H')}
             </h1>
             <p className="mt-3 text-gray-200 whitespace-nowrap text-[clamp(0.75rem,2vw,1.25rem)]">
-              Empowering youth through hands-on learning, leadership, and community engagement.
+              {hc('hero', 'content', 'Empowering youth through hands-on learning, leadership, and community engagement.')}
             </p>
             <div className="mt-4 md:mt-6 flex flex-wrap gap-2 md:gap-3 justify-center lg:justify-start">
               <Link
@@ -206,40 +206,33 @@ export default function HomePage() {
           <div className="lg:grid lg:grid-cols-5 lg:gap-12 lg:items-start">
             <div className="lg:col-span-3 mb-8 lg:mb-0">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl mb-4">
-                {mockHomeContent.mission.title}
+                {hc('mission', 'title', mockHomeContent.mission.title)}
               </h2>
-              <p className="text-base text-gray-700 leading-relaxed mb-6">
-                {mockHomeContent.mission.content}
-              </p>
+              <div
+                className="prose prose-base text-gray-700 leading-relaxed mb-6 max-w-none"
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(hc('mission', 'content', mockHomeContent.mission.content)) }}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="flex items-start gap-2">
-                  <span className="text-xl">🐴</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Livestock & Animal Science</h3>
-                    <p className="text-gray-600 text-sm">Care and handling of horses and small animals</p>
+                {[
+                  { type: 'program_area_1', icon: '🐴', title: 'Livestock & Animal Science', desc: 'Care and handling of horses and small animals' },
+                  { type: 'program_area_2', icon: '🌱', title: 'Agriculture & Gardening', desc: 'Sustainable farming and hands-on projects' },
+                  { type: 'program_area_3', icon: '⭐', title: 'Leadership Development', desc: 'Public speaking and community service' },
+                ].map((area) => (
+                  <div key={area.type} className="flex items-start gap-2">
+                    <span className="text-xl">{hcMeta(area.type, 'icon', area.icon)}</span>
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-sm">{hc(area.type, 'title', area.title)}</h3>
+                      <p className="text-gray-600 text-sm">{hc(area.type, 'content', area.desc)}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-xl">🌱</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Agriculture & Gardening</h3>
-                    <p className="text-gray-600 text-sm">Sustainable farming and hands-on projects</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-xl">⭐</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Leadership Development</h3>
-                    <p className="text-gray-600 text-sm">Public speaking and community service</p>
-                  </div>
-                </div>
+                ))}
               </div>
 
             </div>
             <div className="lg:col-span-2">
               <img
-                src={mockHomeContent.mission.imageUrl}
+                src={hc('mission', 'imageUrl', mockHomeContent.mission.imageUrl)}
                 alt="Young 4-H members interacting with a miniature horse, learning about animal care"
                 className="rounded-lg shadow-xl w-full h-auto object-cover max-h-96"
               />
@@ -249,11 +242,12 @@ export default function HomePage() {
           <div className="mt-8 max-w-2xl mx-auto">
             <div className="bg-white rounded-lg p-6 shadow-md text-center">
               <h3 className="text-xl font-bold text-gray-900 mb-3">
-                {mockHomeContent.about.title}
+                {hc('join_club', 'title', mockHomeContent.about.title)}
               </h3>
-              <p className="text-gray-700 leading-relaxed">
-                {mockHomeContent.about.content}
-              </p>
+              <div
+                className="prose prose-base text-gray-700 leading-relaxed max-w-none"
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(hc('join_club', 'content', mockHomeContent.about.content)) }}
+              />
               <div className="mt-4">
                 <Link to="/register" className="btn-primary">
                   Join Our Club
@@ -435,8 +429,8 @@ export default function HomePage() {
       <div className="bg-primary-600">
         <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:py-12 lg:px-8 lg:flex lg:items-center lg:justify-between">
           <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            <span className="block">Ready to get started?</span>
-            <span className="block text-primary-200">Join our 4-H family today.</span>
+            <span className="block">{hc('cta_banner', 'title', 'Ready to get started?')}</span>
+            <span className="block text-primary-200">{hc('cta_banner', 'content', 'Join our 4-H family today.')}</span>
           </h2>
           <div className="mt-8 flex lg:mt-0 lg:flex-shrink-0">
             <div className="inline-flex rounded-md shadow">
@@ -444,7 +438,7 @@ export default function HomePage() {
                 to="/register"
                 className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-gray-50"
               >
-                Become a Member
+                {hcMeta('cta_banner', 'buttonText', 'Become a Member')}
               </Link>
             </div>
           </div>
