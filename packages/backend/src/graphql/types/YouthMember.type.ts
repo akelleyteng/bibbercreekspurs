@@ -25,6 +25,9 @@ export class YouthMember {
   horseNames?: string;
 
   @Field({ nullable: true })
+  horseExperience?: string;
+
+  @Field({ nullable: true })
   userId?: string;
 
   @Field(() => DateTimeScalar)

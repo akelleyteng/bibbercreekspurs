@@ -40,4 +40,13 @@ export class RegisterInput {
 
   @Field({ nullable: true })
   youthLastName?: string;
+
+  @Field({ nullable: true })
+  birthday?: string;
+
+  @Field({ nullable: true })
+  horseName?: string;
+
+  @Field({ nullable: true })
+  horseExperience?: string;
 }

@@ -9,6 +9,7 @@ export interface YouthMember {
   birthdate?: Date;
   project?: string;
   horse_names?: string;
+  horse_experience?: string;
   user_id?: string;
   created_at: Date;
   updated_at: Date;
@@ -21,6 +22,7 @@ export interface CreateYouthMemberData {
   birthdate?: string;
   project?: string;
   horse_names?: string;
+  horse_experience?: string;
 }
 
 export interface UpdateYouthMemberData {
@@ -29,14 +31,15 @@ export interface UpdateYouthMemberData {
   birthdate?: string | null;
   project?: string | null;
   horse_names?: string | null;
+  horse_experience?: string | null;
 }
 
 export class YouthMemberRepository {
   async create(data: CreateYouthMemberData): Promise<YouthMember> {
     try {
       const result = await db.query<YouthMember>(
-        `INSERT INTO youth_members (parent_user_id, first_name, last_name, birthdate, project, horse_names)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO youth_members (parent_user_id, first_name, last_name, birthdate, project, horse_names, horse_experience)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [
           data.parent_user_id,
@@ -45,6 +48,7 @@ export class YouthMemberRepository {
           data.birthdate || null,
           data.project || null,
           data.horse_names || null,
+          data.horse_experience || null,
         ]
       );
 
@@ -75,7 +79,7 @@ export class YouthMemberRepository {
       const values: any[] = [];
       let paramIndex = 1;
 
-      const fields: (keyof UpdateYouthMemberData)[] = ['first_name', 'last_name', 'birthdate', 'project', 'horse_names'];
+      const fields: (keyof UpdateYouthMemberData)[] = ['first_name', 'last_name', 'birthdate', 'project', 'horse_names', 'horse_experience'];
       for (const field of fields) {
         if (data[field] !== undefined) {
           updates.push(`${field} = $${paramIndex}`);

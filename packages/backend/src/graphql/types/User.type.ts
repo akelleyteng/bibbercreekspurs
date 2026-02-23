@@ -50,6 +50,9 @@ export class User {
   horseName?: string;
 
   @Field({ nullable: true })
+  horseExperience?: string;
+
+  @Field({ nullable: true })
   project?: string;
 
   @Field(() => DateTimeScalar, { nullable: true })

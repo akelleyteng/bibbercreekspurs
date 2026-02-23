@@ -5,13 +5,13 @@ import { logger } from '../utils/logger';
 const USER_COLUMNS = `id, email, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
                 profile_photo_url, password_reset_required,
-                horse_name, project, birthday, tshirt_size, approval_status,
+                horse_name, horse_experience, project, birthday, tshirt_size, approval_status,
                 last_login, last_login_device, created_at, updated_at`;
 
 const USER_COLUMNS_WITH_PASSWORD = `id, email, password_hash, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
                 profile_photo_url, password_reset_required,
-                horse_name, project, birthday, tshirt_size, approval_status,
+                horse_name, horse_experience, project, birthday, tshirt_size, approval_status,
                 last_login, last_login_device, created_at, updated_at`;
 
 export interface User {
@@ -27,6 +27,7 @@ export interface User {
   profile_photo_url?: string;
   password_reset_required?: boolean;
   horse_name?: string;
+  horse_experience?: string;
   project?: string;
   birthday?: Date;
   tshirt_size?: string;
@@ -59,6 +60,7 @@ export interface CreateUserData {
   emergency_phone?: string;
   password_reset_required?: boolean;
   horse_name?: string;
+  horse_experience?: string;
   project?: string;
   birthday?: string;
   tshirt_size?: string;
@@ -74,6 +76,7 @@ export interface UpdateUserData {
   emergency_phone?: string;
   profile_photo_url?: string;
   horse_name?: string;
+  horse_experience?: string;
   project?: string;
   birthday?: string;
   tshirt_size?: string;
@@ -92,8 +95,8 @@ export class UserRepository {
         `INSERT INTO users (
           email, password_hash, first_name, last_name, role,
           phone, address, emergency_contact, emergency_phone, password_reset_required,
-          horse_name, project, birthday, tshirt_size, approval_status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          horse_name, horse_experience, project, birthday, tshirt_size, approval_status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING ${USER_COLUMNS}`,
         [
           data.email,
@@ -107,6 +110,7 @@ export class UserRepository {
           data.emergency_phone || null,
           data.password_reset_required ?? false,
           data.horse_name || null,
+          data.horse_experience || null,
           data.project || null,
           data.birthday || null,
           data.tshirt_size || null,
@@ -184,6 +188,7 @@ export class UserRepository {
         'emergency_phone',
         'profile_photo_url',
         'horse_name',
+        'horse_experience',
         'project',
         'birthday',
         'tshirt_size',
@@ -234,7 +239,7 @@ export class UserRepository {
       const allowedFields: (keyof AdminUpdateUserData)[] = [
         'first_name', 'last_name', 'email', 'role',
         'phone', 'address', 'emergency_contact', 'emergency_phone', 'profile_photo_url',
-        'horse_name', 'project', 'birthday', 'tshirt_size', 'approval_status',
+        'horse_name', 'horse_experience', 'project', 'birthday', 'tshirt_size', 'approval_status',
       ];
 
       for (const field of allowedFields) {

@@ -51,6 +51,7 @@ function mapDbUserToGql(user: DbUser): User {
     profilePhotoUrl: user.profile_photo_url,
     passwordResetRequired: user.password_reset_required || false,
     horseName: user.horse_name,
+    horseExperience: user.horse_experience,
     project: user.project,
     birthday: user.birthday,
     tshirtSize: user.tshirt_size,
@@ -100,6 +101,12 @@ export class AuthResolver {
         emergency_contact: input.emergencyContact,
         emergency_phone: input.emergencyPhone,
         approval_status: 'PENDING',
+        // Youth members registering themselves get horse/birthday fields on their user record
+        ...(input.role === Role.YOUTH_MEMBER ? {
+          birthday: input.birthday,
+          horse_name: input.horseName,
+          horse_experience: input.horseExperience,
+        } : {}),
       });
 
       // If parent and youth member info provided, handle youth member linking
@@ -114,6 +121,9 @@ export class AuthResolver {
             parent_user_id: user.id,
             first_name: input.youthFirstName,
             last_name: input.youthLastName,
+            birthdate: input.birthday,
+            horse_names: input.horseName,
+            horse_experience: input.horseExperience,
           });
         }
       }
