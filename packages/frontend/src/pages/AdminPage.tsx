@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useState, useEffect, useCallback } from 'react';
 
 import BlogPostModal from '../components/BlogPostModal';
-
+import RichTextEditor from '../components/RichTextEditor';
 import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
@@ -185,7 +185,107 @@ export default function AdminPage() {
   const [declineReason, setDeclineReason] = useState('');
   const [officerError, setOfficerError] = useState<string | null>(null);
 
+  // Home content state
+  interface HomeContentSection {
+    sectionType: string;
+    title: string;
+    content: string;
+    imageUrl: string;
+    metadata: Record<string, string> | null;
+  }
+  const [homeContent, setHomeContent] = useState<Record<string, HomeContentSection>>({});
+  const [homeContentLoaded, setHomeContentLoaded] = useState(false);
+  const [homeSaving, setHomeSaving] = useState<string | null>(null);
+
+  const SECTION_DEFAULTS: Record<string, Omit<HomeContentSection, 'sectionType'>> = {
+    hero: { title: 'Bibber Creek Spurs 4-H', content: 'Empowering youth through hands-on learning, leadership, and community engagement.', imageUrl: '', metadata: null },
+    mission: { title: mockHomeContent.mission.title, content: mockHomeContent.mission.content, imageUrl: mockHomeContent.mission.imageUrl, metadata: null },
+    program_area_1: { title: 'Livestock & Animal Science', content: 'Care and handling of horses and small animals', imageUrl: '', metadata: { icon: '🐴' } },
+    program_area_2: { title: 'Agriculture & Gardening', content: 'Sustainable farming and hands-on projects', imageUrl: '', metadata: { icon: '🌱' } },
+    program_area_3: { title: 'Leadership Development', content: 'Public speaking and community service', imageUrl: '', metadata: { icon: '⭐' } },
+    join_club: { title: mockHomeContent.about.title, content: mockHomeContent.about.content, imageUrl: '', metadata: null },
+    cta_banner: { title: 'Ready to get started?', content: 'Join our 4-H family today.', imageUrl: '', metadata: { buttonText: 'Become a Member' } },
+  };
+
+  const getSection = (sectionType: string): HomeContentSection => {
+    if (homeContent[sectionType]) return homeContent[sectionType];
+    const defaults = SECTION_DEFAULTS[sectionType] || { title: '', content: '', imageUrl: '', metadata: null };
+    return { sectionType, ...defaults };
+  };
+
+  const updateSection = (sectionType: string, updates: Partial<HomeContentSection>) => {
+    setHomeContent(prev => ({
+      ...prev,
+      [sectionType]: { ...getSection(sectionType), ...updates, sectionType },
+    }));
+  };
+
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+  const fetchHomeContent = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: `query { adminHomePageContent { id sectionType title content imageUrl metadata orderIndex isActive } }`,
+        }),
+      });
+      const result = await res.json();
+      if (result.data?.adminHomePageContent) {
+        const contentMap: Record<string, HomeContentSection> = {};
+        for (const section of result.data.adminHomePageContent) {
+          contentMap[section.sectionType] = {
+            sectionType: section.sectionType,
+            title: section.title || '',
+            content: section.content || '',
+            imageUrl: section.imageUrl || '',
+            metadata: section.metadata || null,
+          };
+        }
+        setHomeContent(contentMap);
+      }
+    } catch { /* ignore */ }
+    setHomeContentLoaded(true);
+  }, [graphqlUrl]);
+
+  const saveHomeSectionRaw = async (sectionType: string) => {
+    const section = getSection(sectionType);
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation UpsertHomeContent($input: UpsertHomeContentInput!) {
+          upsertHomeContent(input: $input) { id sectionType title content imageUrl metadata }
+        }`,
+        variables: {
+          input: {
+            sectionType: section.sectionType,
+            title: section.title || null,
+            content: section.content || '',
+            imageUrl: section.imageUrl || null,
+            metadata: section.metadata,
+          },
+        },
+      }),
+    });
+  };
+
+  const saveHomeSection = async (sectionType: string) => {
+    setHomeSaving(sectionType);
+    try {
+      await saveHomeSectionRaw(sectionType);
+    } catch { /* ignore */ }
+    setHomeSaving(null);
+  };
 
   const fetchSponsors = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -388,7 +488,8 @@ export default function AdminPage() {
     fetchHolderOptions();
     fetchMembers();
     fetchPendingMembers();
-  }, [fetchSponsors, fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, termYear]);
+    fetchHomeContent();
+  }, [fetchSponsors, fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, fetchHomeContent, termYear]);
 
   // Sponsor handlers
   const handleEditSponsor = (sponsorId: string) => {
@@ -1128,7 +1229,8 @@ export default function AdminPage() {
                   type="text"
                   className="input mb-3"
                   placeholder="Club name / heading"
-                  defaultValue="Bibber Creek Spurs 4-H"
+                  value={getSection('hero').title}
+                  onChange={e => updateSection('hero', { title: e.target.value })}
                 />
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tagline
@@ -1137,7 +1239,8 @@ export default function AdminPage() {
                   type="text"
                   className="input"
                   placeholder="Short tagline under the title"
-                  defaultValue="Empowering youth through hands-on learning, leadership, and community engagement."
+                  value={getSection('hero').content}
+                  onChange={e => updateSection('hero', { content: e.target.value })}
                 />
               </div>
               <div>
@@ -1145,31 +1248,32 @@ export default function AdminPage() {
                   Hero Background Image
                 </label>
                 <div className="mb-3">
-                  <div className="w-full h-32 rounded-lg border-2 border-gray-200 hero-bg bg-cover bg-center" />
+                  {getSection('hero').imageUrl ? (
+                    <img
+                      src={getSection('hero').imageUrl}
+                      alt="Hero background preview"
+                      className="w-full h-32 object-cover rounded-lg border-2 border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-full h-32 rounded-lg border-2 border-gray-200 hero-bg bg-cover bg-center" />
+                  )}
                 </div>
                 <input
                   type="text"
                   className="input mb-2"
-                  placeholder="Image URL"
-                  defaultValue="/images/hero-bg.avif"
+                  placeholder="Image URL (e.g. /images/hero-bg.avif)"
+                  value={getSection('hero').imageUrl}
+                  onChange={e => updateSection('hero', { imageUrl: e.target.value })}
                 />
-                <label className="btn-secondary text-sm cursor-pointer text-center block">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        alert('In production, this would upload to cloud storage. For now, use the Image URL field above.');
-                      }
-                    }}
-                  />
-                  Upload Image
-                </label>
               </div>
             </div>
-            <button className="btn-primary mt-4">Save Changes</button>
+            <button
+              className="btn-primary mt-4"
+              disabled={homeSaving === 'hero'}
+              onClick={() => saveHomeSection('hero')}
+            >
+              {homeSaving === 'hero' ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
 
           {/* About Our Club / Mission */}
@@ -1185,17 +1289,19 @@ export default function AdminPage() {
                   type="text"
                   className="input mb-3"
                   placeholder="Title"
-                  defaultValue={mockHomeContent.mission.title}
+                  value={getSection('mission').title}
+                  onChange={e => updateSection('mission', { title: e.target.value })}
                 />
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
+                  Description (Rich Text)
                 </label>
-                <textarea
-                  className="input"
-                  rows={6}
-                  placeholder="Mission content"
-                  defaultValue={mockHomeContent.mission.content}
-                />
+                {homeContentLoaded && (
+                  <RichTextEditor
+                    key={`mission-${homeContentLoaded}`}
+                    content={getSection('mission').content}
+                    onChange={(html: string) => updateSection('mission', { content: html })}
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1203,7 +1309,7 @@ export default function AdminPage() {
                 </label>
                 <div className="mb-3">
                   <img
-                    src={mockHomeContent.mission.imageUrl}
+                    src={getSection('mission').imageUrl || mockHomeContent.mission.imageUrl}
                     alt="Mission section preview"
                     className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                   />
@@ -1212,25 +1318,18 @@ export default function AdminPage() {
                   type="text"
                   className="input mb-2"
                   placeholder="Image URL"
-                  defaultValue={mockHomeContent.mission.imageUrl}
+                  value={getSection('mission').imageUrl}
+                  onChange={e => updateSection('mission', { imageUrl: e.target.value })}
                 />
-                <label className="btn-secondary text-sm cursor-pointer text-center block">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        alert('In production, this would upload to cloud storage. For now, use the Image URL field above.');
-                      }
-                    }}
-                  />
-                  Upload Image
-                </label>
               </div>
             </div>
-            <button className="btn-primary mt-4">Save Changes</button>
+            <button
+              className="btn-primary mt-4"
+              disabled={homeSaving === 'mission'}
+              onClick={() => saveHomeSection('mission')}
+            >
+              {homeSaving === 'mission' ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
 
           {/* Program Areas / Activity Cards */}
@@ -1238,42 +1337,60 @@ export default function AdminPage() {
             <h3 className="text-lg font-semibold mb-4">Program Areas</h3>
             <p className="text-sm text-gray-500 mb-4">The three program area cards shown below the mission description.</p>
             <div className="space-y-4">
-              {[
-                { emoji: '🐴', title: 'Livestock & Animal Science', description: 'Care and handling of horses and small animals' },
-                { emoji: '🌱', title: 'Agriculture & Gardening', description: 'Sustainable farming and hands-on projects' },
-                { emoji: '⭐', title: 'Leadership Development', description: 'Public speaking and community service' },
-              ].map((area, index) => (
-                <div key={index} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="flex-shrink-0">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Icon</label>
-                    <input
-                      type="text"
-                      className="input w-16 text-center text-xl"
-                      defaultValue={area.emoji}
-                    />
-                  </div>
-                  <div className="flex-1 grid md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+              {(['program_area_1', 'program_area_2', 'program_area_3'] as const).map((sectionType) => {
+                const section = getSection(sectionType);
+                return (
+                  <div key={sectionType} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex-shrink-0">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Icon</label>
                       <input
                         type="text"
-                        className="input"
-                        defaultValue={area.title}
+                        className="input w-16 text-center text-xl"
+                        value={section.metadata?.icon || ''}
+                        onChange={e => updateSection(sectionType, { metadata: { ...section.metadata, icon: e.target.value } })}
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                      <input
-                        type="text"
-                        className="input"
-                        defaultValue={area.description}
-                      />
+                    <div className="flex-1 grid md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={section.title}
+                          onChange={e => updateSection(sectionType, { title: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={section.content}
+                          onChange={e => updateSection(sectionType, { content: e.target.value })}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-            <button className="btn-primary mt-4">Save Changes</button>
+            <button
+              className="btn-primary mt-4"
+              disabled={homeSaving === 'program_areas'}
+              onClick={async () => {
+                setHomeSaving('program_areas');
+                try {
+                  await Promise.all([
+                    saveHomeSectionRaw('program_area_1'),
+                    saveHomeSectionRaw('program_area_2'),
+                    saveHomeSectionRaw('program_area_3'),
+                  ]);
+                } catch { /* ignore */ }
+                setHomeSaving(null);
+              }}
+            >
+              {homeSaving === 'program_areas' ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
 
           {/* Join Our Club card */}
@@ -1284,15 +1401,26 @@ export default function AdminPage() {
               type="text"
               className="input mb-3"
               placeholder="Title"
-              defaultValue={mockHomeContent.about.title}
+              value={getSection('join_club').title}
+              onChange={e => updateSection('join_club', { title: e.target.value })}
             />
-            <textarea
-              className="input"
-              rows={4}
-              placeholder="Content"
-              defaultValue={mockHomeContent.about.content}
-            />
-            <button className="btn-primary mt-4">Save Changes</button>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Content (Rich Text)
+            </label>
+            {homeContentLoaded && (
+              <RichTextEditor
+                key={`join_club-${homeContentLoaded}`}
+                content={getSection('join_club').content}
+                onChange={(html: string) => updateSection('join_club', { content: html })}
+              />
+            )}
+            <button
+              className="btn-primary mt-4"
+              disabled={homeSaving === 'join_club'}
+              onClick={() => saveHomeSection('join_club')}
+            >
+              {homeSaving === 'join_club' ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
 
           {/* Bottom CTA Banner */}
@@ -1308,7 +1436,8 @@ export default function AdminPage() {
                   type="text"
                   className="input mb-3"
                   placeholder="Main heading"
-                  defaultValue="Ready to get started?"
+                  value={getSection('cta_banner').title}
+                  onChange={e => updateSection('cta_banner', { title: e.target.value })}
                 />
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Heading Line 2
@@ -1317,7 +1446,8 @@ export default function AdminPage() {
                   type="text"
                   className="input"
                   placeholder="Sub-heading"
-                  defaultValue="Join our 4-H family today."
+                  value={getSection('cta_banner').content}
+                  onChange={e => updateSection('cta_banner', { content: e.target.value })}
                 />
               </div>
               <div>
@@ -1328,14 +1458,21 @@ export default function AdminPage() {
                   type="text"
                   className="input"
                   placeholder="Button label"
-                  defaultValue="Become a Member"
+                  value={getSection('cta_banner').metadata?.buttonText || ''}
+                  onChange={e => updateSection('cta_banner', { metadata: { ...getSection('cta_banner').metadata, buttonText: e.target.value } })}
                 />
               </div>
             </div>
             <div className="mt-4 p-4 bg-primary-600 rounded-lg">
               <p className="text-white text-sm">Preview: Green banner with heading + button</p>
             </div>
-            <button className="btn-primary mt-4">Save Changes</button>
+            <button
+              className="btn-primary mt-4"
+              disabled={homeSaving === 'cta_banner'}
+              onClick={() => saveHomeSection('cta_banner')}
+            >
+              {homeSaving === 'cta_banner' ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </div>
       )}

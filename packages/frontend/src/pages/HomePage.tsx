@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
@@ -46,12 +47,28 @@ interface HomeBlogPostData {
   };
 }
 
+interface HomeContentSection {
+  sectionType: string;
+  title: string;
+  content: string;
+  imageUrl: string;
+  metadata: Record<string, string> | null;
+}
+
 export default function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<HomeEventData[]>([]);
   const [recentPosts, setRecentPosts] = useState<HomeBlogPostData[]>([]);
   const [sponsors, setSponsors] = useState<HomeSponsorData[]>([]);
+  const [homeContent, setHomeContent] = useState<Record<string, HomeContentSection>>({});
+
+  const hc = (sectionType: string, field: 'title' | 'content' | 'imageUrl', fallback: string): string => {
+    return homeContent[sectionType]?.[field] || fallback;
+  };
+  const hcMeta = (sectionType: string, key: string, fallback: string): string => {
+    return homeContent[sectionType]?.metadata?.[key] || fallback;
+  };
 
   useEffect(() => {
     const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
@@ -112,6 +129,31 @@ export default function HomePage() {
       .then((result) => {
         if (result.data?.sponsors) {
           setSponsors(result.data.sponsors);
+        }
+      })
+      .catch(() => {});
+
+    fetch(graphqlUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `query { homePageContent { sectionType title content imageUrl metadata } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.homePageContent) {
+          const contentMap: Record<string, HomeContentSection> = {};
+          for (const section of result.data.homePageContent) {
+            contentMap[section.sectionType] = {
+              sectionType: section.sectionType,
+              title: section.title || '',
+              content: section.content || '',
+              imageUrl: section.imageUrl || '',
+              metadata: section.metadata || null,
+            };
+          }
+          setHomeContent(contentMap);
         }
       })
       .catch(() => {});
