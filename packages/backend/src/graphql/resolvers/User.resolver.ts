@@ -32,6 +32,7 @@ export class UserResolver {
       birthdate: row.birthdate,
       project: row.project,
       horseNames: row.horse_names,
+      horseExperience: row.horse_experience,
       userId: row.user_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -158,7 +159,12 @@ export class UserResolver {
 
     try {
       const pending = await this.userRepo.findPending();
-      return pending.map(u => this.mapUser(u));
+      const users: User[] = [];
+      for (const u of pending) {
+        const youthRows = await this.youthMemberRepo.findByParentId(u.id);
+        users.push(this.mapUser(u, youthRows.length > 0 ? youthRows.map(ym => this.mapYouthMember(ym)) : undefined));
+      }
+      return users;
     } catch (error: any) {
       if (error instanceof GraphQLError) throw error;
       logger.error('pendingUsers query error:', error);

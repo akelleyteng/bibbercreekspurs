@@ -40,6 +40,7 @@ interface AdminYouthMember {
   birthdate?: string;
   project?: string;
   horseNames?: string;
+  horseExperience?: string;
   userId?: string;
 }
 
@@ -63,6 +64,9 @@ interface AdminMember {
   emergencyContact?: string;
   emergencyPhone?: string;
   profilePhotoUrl?: string;
+  horseName?: string;
+  horseExperience?: string;
+  birthday?: string;
   lastLogin?: string;
   lastLoginDevice?: string;
   postCount: number;
@@ -96,6 +100,13 @@ const ROLE_OPTIONS = [
   { value: 'YOUTH_MEMBER', label: 'Youth Member' },
   { value: 'ADMIN', label: 'Admin' },
 ];
+
+const EXPERIENCE_LABELS: Record<string, string> = {
+  none: 'No Experience',
+  some: 'Some Experience',
+  regular: 'Regular Rider',
+  advanced: 'Advanced',
+};
 
 
 interface TestimonialData {
@@ -159,6 +170,7 @@ export default function AdminPage() {
   const [linkYouthToUserId, setLinkYouthToUserId] = useState('');
   const [pendingMembers, setPendingMembers] = useState<AdminMember[]>([]);
   const [decliningMemberId, setDecliningMemberId] = useState<string | null>(null);
+  const [viewingMemberId, setViewingMemberId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
   const [officerError, setOfficerError] = useState<string | null>(null);
 
@@ -294,7 +306,7 @@ export default function AdminPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        query: `query { pendingUsers { id firstName lastName email role createdAt } }`,
+        query: `query { pendingUsers { id firstName lastName email role phone horseName horseExperience birthday createdAt youthMembers { id firstName lastName birthdate horseNames horseExperience } } }`,
       }),
     });
     const result = await res.json();
@@ -1200,6 +1212,18 @@ export default function AdminPage() {
                         ) : (
                           <>
                             <button
+                              className="btn-outline text-sm"
+                              onClick={() => setViewingMemberId(viewingMemberId === member.id ? null : member.id)}
+                            >
+                              {viewingMemberId === member.id ? 'Hide' : 'View'}
+                            </button>
+                            <a
+                              href={`mailto:${member.email}`}
+                              className="btn-secondary text-sm inline-flex items-center"
+                            >
+                              Email
+                            </a>
+                            <button
                               className="btn-primary text-sm"
                               onClick={() => handleApproveUser(member.id)}
                             >
@@ -1215,6 +1239,52 @@ export default function AdminPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Expanded detail view */}
+                    {viewingMemberId === member.id && (
+                      <div className="mt-4 pt-4 border-t border-amber-200">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Phone</p>
+                            <p className="text-gray-900">{member.phone || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Birthday</p>
+                            <p className="text-gray-900">
+                              {member.birthday ? new Date(member.birthday).toLocaleDateString() : '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Horse Experience</p>
+                            <p className="text-gray-900">
+                              {member.horseExperience ? (EXPERIENCE_LABELS[member.horseExperience] || member.horseExperience) : '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Horse Name</p>
+                            <p className="text-gray-900">{member.horseName || '—'}</p>
+                          </div>
+                        </div>
+
+                        {member.youthMembers && member.youthMembers.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-2">Youth Members</p>
+                            <div className="space-y-2">
+                              {member.youthMembers.map(ym => (
+                                <div key={ym.id} className="bg-white rounded-md p-3 border border-amber-100">
+                                  <p className="font-medium text-gray-900">{ym.firstName} {ym.lastName}</p>
+                                  <div className="grid grid-cols-3 gap-3 mt-1 text-sm text-gray-600">
+                                    <span>Birthday: {ym.birthdate ? new Date(ym.birthdate).toLocaleDateString() : '—'}</span>
+                                    <span>Horse: {ym.horseNames || '—'}</span>
+                                    <span>Experience: {ym.horseExperience ? (EXPERIENCE_LABELS[ym.horseExperience] || ym.horseExperience) : '—'}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
