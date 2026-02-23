@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 import AdaptiveLayout from './layouts/AdaptiveLayout';
 import PublicLayout from './layouts/PublicLayout';
@@ -52,6 +52,8 @@ function App() {
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
+      {/* Redirect old Wix URLs that still rank on Google */}
+      <Route path="/contact8" element={<Navigate to="/register" replace />} />
     </Routes>
   );
 }
