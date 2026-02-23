@@ -4,7 +4,6 @@ import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import {
-  mockSponsors,
   mockHomeContent,
 } from '../data/mockData';
 
@@ -26,6 +25,13 @@ interface TestimonialData {
   imageUrl?: string;
 }
 
+interface HomeSponsorData {
+  id: string;
+  name: string;
+  logoUrl: string;
+  websiteUrl?: string;
+}
+
 interface HomeBlogPostData {
   id: string;
   title: string;
@@ -45,6 +51,7 @@ export default function HomePage() {
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<HomeEventData[]>([]);
   const [recentPosts, setRecentPosts] = useState<HomeBlogPostData[]>([]);
+  const [sponsors, setSponsors] = useState<HomeSponsorData[]>([]);
 
   useEffect(() => {
     const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
@@ -90,6 +97,21 @@ export default function HomePage() {
       .then((result) => {
         if (result.data?.blogPosts) {
           setRecentPosts(result.data.blogPosts.slice(0, 3));
+        }
+      })
+      .catch(() => {});
+
+    fetch(graphqlUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `query { sponsors(activeOnly: true) { id name logoUrl websiteUrl } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.data?.sponsors) {
+          setSponsors(result.data.sponsors);
         }
       })
       .catch(() => {});
@@ -335,30 +357,37 @@ export default function HomePage() {
       )}
 
       {/* Sponsors */}
-      <div className="py-12 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Our Sponsors</h2>
-            <p className="mt-3 max-w-2xl text-xl text-gray-500 mx-auto">
-              Thank you to our generous supporters
-            </p>
-          </div>
+      {sponsors.length > 0 && (
+        <div className="py-12 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Our Sponsors</h2>
+              <p className="mt-3 max-w-2xl text-xl text-gray-500 mx-auto">
+                Thank you to our generous supporters
+              </p>
+            </div>
 
-          <div className="mt-8 grid grid-cols-2 gap-8 md:grid-cols-4">
-            {mockSponsors.map((sponsor) => (
-              <a
-                key={sponsor.id}
-                href={sponsor.websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center p-6 bg-white rounded-lg hover:shadow-md transition-shadow"
-              >
-                <img src={sponsor.logoUrl} alt={sponsor.name} className="max-h-16" />
-              </a>
-            ))}
+            <div className="mt-8 grid grid-cols-2 gap-8 md:grid-cols-4">
+              {sponsors.map((sponsor) => (
+                <a
+                  key={sponsor.id}
+                  href={sponsor.websiteUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center p-6 bg-white rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <img
+                    src={sponsor.logoUrl}
+                    alt={sponsor.name}
+                    className="max-h-16 object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </a>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* CTA Section */}
       <div className="bg-primary-600">

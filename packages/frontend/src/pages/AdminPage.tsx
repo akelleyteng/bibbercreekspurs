@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 import BlogPostModal from '../components/BlogPostModal';
 
-import SponsorModal from '../components/SponsorModal';
+import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
-import { mockHomeContent, mockSponsors } from '../data/mockData';
+import { mockHomeContent } from '../data/mockData';
 
 interface OfficerRole {
   id: string;
@@ -109,6 +109,16 @@ const EXPERIENCE_LABELS: Record<string, string> = {
 };
 
 
+interface SponsorData {
+  id: string;
+  name: string;
+  logoUrl: string;
+  websiteUrl?: string;
+  description?: string;
+  orderIndex?: number;
+  isActive: boolean;
+}
+
 interface TestimonialData {
   id: string;
   authorName: string;
@@ -154,6 +164,7 @@ export default function AdminPage() {
   const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
   const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
   const [editingTestimonialId, setEditingTestimonialId] = useState<string | null>(null);
+  const [sponsors, setSponsors] = useState<SponsorData[]>([]);
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPostData[]>([]);
   const [adminMembers, setAdminMembers] = useState<AdminMember[]>([]);
@@ -175,6 +186,24 @@ export default function AdminPage() {
   const [officerError, setOfficerError] = useState<string | null>(null);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+
+  const fetchSponsors = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `query { sponsors(activeOnly: false) { id name logoUrl websiteUrl description orderIndex isActive } }`,
+      }),
+    });
+    const result = await res.json();
+    if (result.data?.sponsors) {
+      setSponsors(result.data.sponsors);
+    }
+  }, [graphqlUrl]);
 
   const fetchTestimonials = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -351,6 +380,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
+    fetchSponsors();
     fetchTestimonials();
     fetchBlogPosts();
     fetchOfficers(termYear);
@@ -358,34 +388,83 @@ export default function AdminPage() {
     fetchHolderOptions();
     fetchMembers();
     fetchPendingMembers();
-  }, [fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, termYear]);
+  }, [fetchSponsors, fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, termYear]);
 
   // Sponsor handlers
-  const handleCreateSponsor = (data: any) => {
-    console.log('Creating sponsor:', data);
-    alert('Sponsor added! (This is a prototype - no backend yet)');
-  };
-
   const handleEditSponsor = (sponsorId: string) => {
     setEditingSponsorId(sponsorId);
     setIsSponsorModalOpen(true);
   };
 
-  const handleSaveSponsor = (data: any) => {
+  const handleSaveSponsor = async (data: SponsorFormData) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
     if (editingSponsorId) {
-      console.log('Updating sponsor:', editingSponsorId, data);
-      alert('Sponsor updated! (This is a prototype - no backend yet)');
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation UpdateSponsor($id: String!, $input: UpdateSponsorInput!) {
+            updateSponsor(id: $id, input: $input) { id }
+          }`,
+          variables: {
+            id: editingSponsorId,
+            input: {
+              name: data.name,
+              logoUrl: data.logoUrl,
+              websiteUrl: data.websiteUrl || null,
+              description: data.description || null,
+            },
+          },
+        }),
+      });
     } else {
-      handleCreateSponsor(data);
+      await fetch(graphqlUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: `mutation CreateSponsor($input: CreateSponsorInput!) {
+            createSponsor(input: $input) { id }
+          }`,
+          variables: {
+            input: {
+              name: data.name,
+              logoUrl: data.logoUrl,
+              websiteUrl: data.websiteUrl || null,
+              description: data.description || null,
+            },
+          },
+        }),
+      });
     }
+
     setEditingSponsorId(null);
+    fetchSponsors();
   };
 
-  const handleDeleteSponsor = (sponsorId: string) => {
-    if (confirm('Are you sure you want to delete this sponsor?')) {
-      console.log('Deleting sponsor:', sponsorId);
-      alert('Sponsor deleted! (This is a prototype - no backend yet)');
-    }
+  const handleDeleteSponsor = async (sponsorId: string) => {
+    if (!confirm('Are you sure you want to delete this sponsor?')) return;
+
+    const token = localStorage.getItem('token');
+    await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        query: `mutation DeleteSponsor($id: String!) {
+          deleteSponsor(id: $id)
+        }`,
+        variables: { id: sponsorId },
+      }),
+    });
+
+    fetchSponsors();
   };
 
   // Testimonial handlers
@@ -1036,12 +1115,71 @@ export default function AdminPage() {
       {/* Home Content */}
       {activeTab === 'home' && (
         <div className="space-y-6">
+          {/* Hero Section */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">Mission Section</h3>
+            <h3 className="text-lg font-semibold mb-4">Hero Section</h3>
+            <p className="text-sm text-gray-500 mb-4">The banner at the top of the home page with background image and call-to-action buttons.</p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Content
+                  Hero Title
+                </label>
+                <input
+                  type="text"
+                  className="input mb-3"
+                  placeholder="Club name / heading"
+                  defaultValue="Bibber Creek Spurs 4-H"
+                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tagline
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Short tagline under the title"
+                  defaultValue="Empowering youth through hands-on learning, leadership, and community engagement."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hero Background Image
+                </label>
+                <div className="mb-3">
+                  <div className="w-full h-32 rounded-lg border-2 border-gray-200 hero-bg bg-cover bg-center" />
+                </div>
+                <input
+                  type="text"
+                  className="input mb-2"
+                  placeholder="Image URL"
+                  defaultValue="/images/hero-bg.avif"
+                />
+                <label className="btn-secondary text-sm cursor-pointer text-center block">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        alert('In production, this would upload to cloud storage. For now, use the Image URL field above.');
+                      }
+                    }}
+                  />
+                  Upload Image
+                </label>
+              </div>
+            </div>
+            <button className="btn-primary mt-4">Save Changes</button>
+          </div>
+
+          {/* About Our Club / Mission */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">About Our Club</h3>
+            <p className="text-sm text-gray-500 mb-4">The main content section with mission text, image, and program areas.</p>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Section Title
                 </label>
                 <input
                   type="text"
@@ -1049,6 +1187,9 @@ export default function AdminPage() {
                   placeholder="Title"
                   defaultValue={mockHomeContent.mission.title}
                 />
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
                 <textarea
                   className="input"
                   rows={6}
@@ -1058,7 +1199,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mission Image
+                  Section Image
                 </label>
                 <div className="mb-3">
                   <img
@@ -1073,32 +1214,72 @@ export default function AdminPage() {
                   placeholder="Image URL"
                   defaultValue={mockHomeContent.mission.imageUrl}
                 />
-                <div className="flex gap-2">
-                  <label className="btn-secondary text-sm cursor-pointer flex-1 text-center">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          alert('In production, this would upload to cloud storage. For now, use the Image URL field above.');
-                        }
-                      }}
-                    />
-                    📁 Upload Image
-                  </label>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Upload a new image or paste an image URL above
-                </p>
+                <label className="btn-secondary text-sm cursor-pointer text-center block">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        alert('In production, this would upload to cloud storage. For now, use the Image URL field above.');
+                      }
+                    }}
+                  />
+                  Upload Image
+                </label>
               </div>
             </div>
             <button className="btn-primary mt-4">Save Changes</button>
           </div>
 
+          {/* Program Areas / Activity Cards */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">About / Join Section</h3>
+            <h3 className="text-lg font-semibold mb-4">Program Areas</h3>
+            <p className="text-sm text-gray-500 mb-4">The three program area cards shown below the mission description.</p>
+            <div className="space-y-4">
+              {[
+                { emoji: '🐴', title: 'Livestock & Animal Science', description: 'Care and handling of horses and small animals' },
+                { emoji: '🌱', title: 'Agriculture & Gardening', description: 'Sustainable farming and hands-on projects' },
+                { emoji: '⭐', title: 'Leadership Development', description: 'Public speaking and community service' },
+              ].map((area, index) => (
+                <div key={index} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Icon</label>
+                    <input
+                      type="text"
+                      className="input w-16 text-center text-xl"
+                      defaultValue={area.emoji}
+                    />
+                  </div>
+                  <div className="flex-1 grid md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                      <input
+                        type="text"
+                        className="input"
+                        defaultValue={area.title}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                      <input
+                        type="text"
+                        className="input"
+                        defaultValue={area.description}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button className="btn-primary mt-4">Save Changes</button>
+          </div>
+
+          {/* Join Our Club card */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">Join Our Club Card</h3>
+            <p className="text-sm text-gray-500 mb-4">The centered call-to-action card below the About section.</p>
             <input
               type="text"
               className="input mb-3"
@@ -1114,49 +1295,45 @@ export default function AdminPage() {
             <button className="btn-primary mt-4">Save Changes</button>
           </div>
 
+          {/* Bottom CTA Banner */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">Activities Section Image</h3>
-            <div className="grid md:grid-cols-2 gap-6">
+            <h3 className="text-lg font-semibold mb-4">Bottom Call-to-Action Banner</h3>
+            <p className="text-sm text-gray-500 mb-4">The green banner at the bottom of the home page.</p>
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Image Preview
-                </label>
-                <img
-                  src={mockHomeContent.activitiesImageUrl}
-                  alt="Activities section preview"
-                  className="w-full h-64 object-cover rounded-lg border-2 border-gray-200"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Image URL
+                  Heading Line 1
                 </label>
                 <input
                   type="text"
-                  className="input mb-2"
-                  placeholder="Image URL"
-                  defaultValue={mockHomeContent.activitiesImageUrl}
+                  className="input mb-3"
+                  placeholder="Main heading"
+                  defaultValue="Ready to get started?"
                 />
-                <div className="flex gap-2 mb-4">
-                  <label className="btn-secondary text-sm cursor-pointer flex-1 text-center">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          alert('In production, this would upload to cloud storage. For now, use the Image URL field above.');
-                        }
-                      }}
-                    />
-                    📁 Upload Image
-                  </label>
-                </div>
-                <p className="text-xs text-gray-500">
-                  This image appears in the "Hands-On Learning" section on the home page
-                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Heading Line 2
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Sub-heading"
+                  defaultValue="Join our 4-H family today."
+                />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Button Text
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Button label"
+                  defaultValue="Become a Member"
+                />
+              </div>
+            </div>
+            <div className="mt-4 p-4 bg-primary-600 rounded-lg">
+              <p className="text-white text-sm">Preview: Green banner with heading + button</p>
             </div>
             <button className="btn-primary mt-4">Save Changes</button>
           </div>
@@ -1860,6 +2037,16 @@ export default function AdminPage() {
         }}
         onSave={handleSaveSponsor}
         mode={editingSponsorId ? 'edit' : 'create'}
+        initialData={editingSponsorId ? (() => {
+          const s = sponsors.find((sp) => sp.id === editingSponsorId);
+          if (!s) return undefined;
+          return {
+            name: s.name,
+            logoUrl: s.logoUrl,
+            websiteUrl: s.websiteUrl || '',
+            description: s.description || '',
+          };
+        })() : undefined}
       />
 
       {/* Testimonial Modal */}
@@ -1911,31 +2098,50 @@ export default function AdminPage() {
               + Add Sponsor
             </button>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            {mockSponsors.map((sponsor) => (
-              <div key={sponsor.id} className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <img src={sponsor.logoUrl} alt={sponsor.name} className="h-12" />
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEditSponsor(sponsor.id)}
-                      className="btn-secondary text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSponsor(sponsor.id)}
-                      className="btn-secondary text-sm text-red-600"
-                    >
-                      Delete
-                    </button>
+          {sponsors.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No sponsors yet. Add one above.</p>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {sponsors.map((sponsor) => (
+                <div key={sponsor.id} className={`card ${!sponsor.isActive ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <img
+                      src={sponsor.logoUrl}
+                      alt={sponsor.name}
+                      className="h-12 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex items-center gap-2">
+                      {!sponsor.isActive && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Hidden
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleEditSponsor(sponsor.id)}
+                        className="btn-secondary text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSponsor(sponsor.id)}
+                        className="btn-secondary text-sm text-red-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
+                  <p className="font-semibold">{sponsor.name}</p>
+                  {sponsor.websiteUrl && (
+                    <a href={sponsor.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 hover:underline">
+                      {sponsor.websiteUrl}
+                    </a>
+                  )}
+                  {sponsor.description && <p className="text-sm text-gray-600 mt-1">{sponsor.description}</p>}
                 </div>
-                <p className="font-semibold">{sponsor.name}</p>
-                <p className="text-sm text-gray-600 mt-1">{sponsor.description}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
