@@ -1,0 +1,320 @@
+import db from '../models/database';
+import { logger } from '../utils/logger';
+
+export interface PresentationMeetingRow {
+  id: string;
+  google_event_id: string;
+  total_slots: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PresentationReservationRow {
+  id: string;
+  meeting_id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PresentationFileRow {
+  id: string;
+  uploaded_by: string;
+  drive_file_id: string;
+  drive_file_name: string;
+  drive_file_url: string | null;
+  file_type: string; // 'presentation' | 'image' | 'recording'
+  created_at: Date;
+}
+
+export interface ReservationWithUser extends PresentationReservationRow {
+  first_name: string;
+  last_name: string;
+  profile_photo_url: string | null;
+}
+
+export interface ReservationWithMeeting extends PresentationReservationRow {
+  google_event_id: string;
+  total_slots: number;
+}
+
+export class PresentationRepository {
+  // ── Meeting methods (admin) ──
+
+  async createMeeting(
+    googleEventId: string,
+    totalSlots: number,
+    notes: string | null,
+    createdBy: string
+  ): Promise<PresentationMeetingRow> {
+    const result = await db.query<PresentationMeetingRow>(
+      `INSERT INTO presentation_meetings (google_event_id, total_slots, notes, created_by)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [googleEventId, totalSlots, notes, createdBy]
+    );
+    logger.info(`Presentation meeting created: event=${googleEventId} slots=${totalSlots}`);
+    return result.rows[0];
+  }
+
+  async updateMeeting(
+    id: string,
+    updates: { totalSlots?: number; notes?: string | null }
+  ): Promise<PresentationMeetingRow | null> {
+    const sets: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.totalSlots !== undefined) {
+      sets.push(`total_slots = $${idx++}`);
+      values.push(updates.totalSlots);
+    }
+    if (updates.notes !== undefined) {
+      sets.push(`notes = $${idx++}`);
+      values.push(updates.notes);
+    }
+
+    if (sets.length === 0) return this.findMeetingById(id);
+
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const result = await db.query<PresentationMeetingRow>(
+      `UPDATE presentation_meetings SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    return result.rows[0] || null;
+  }
+
+  async deleteMeeting(id: string): Promise<boolean> {
+    const result = await db.query(
+      'DELETE FROM presentation_meetings WHERE id = $1',
+      [id]
+    );
+    logger.info(`Presentation meeting deleted: id=${id}`);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async findMeetingById(id: string): Promise<PresentationMeetingRow | null> {
+    const result = await db.query<PresentationMeetingRow>(
+      'SELECT * FROM presentation_meetings WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] || null;
+  }
+
+  async findMeetingByEventId(googleEventId: string): Promise<PresentationMeetingRow | null> {
+    const result = await db.query<PresentationMeetingRow>(
+      'SELECT * FROM presentation_meetings WHERE google_event_id = $1',
+      [googleEventId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async findAllMeetings(): Promise<PresentationMeetingRow[]> {
+    const result = await db.query<PresentationMeetingRow>(
+      'SELECT * FROM presentation_meetings ORDER BY created_at DESC'
+    );
+    return result.rows;
+  }
+
+  // ── Reservation methods (member) ──
+
+  async createReservation(
+    meetingId: string,
+    userId: string,
+    title: string,
+    description: string | null
+  ): Promise<PresentationReservationRow> {
+    const result = await db.query<PresentationReservationRow>(
+      `INSERT INTO presentation_reservations (meeting_id, user_id, title, description)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [meetingId, userId, title, description]
+    );
+    logger.info(`Presentation reserved: meeting=${meetingId} user=${userId} title="${title}"`);
+    return result.rows[0];
+  }
+
+  async updateReservation(
+    id: string,
+    updates: { title?: string; description?: string | null }
+  ): Promise<PresentationReservationRow | null> {
+    const sets: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.title !== undefined) {
+      sets.push(`title = $${idx++}`);
+      values.push(updates.title);
+    }
+    if (updates.description !== undefined) {
+      sets.push(`description = $${idx++}`);
+      values.push(updates.description);
+    }
+
+    if (sets.length === 0) return this.findReservationById(id);
+
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const result = await db.query<PresentationReservationRow>(
+      `UPDATE presentation_reservations SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    return result.rows[0] || null;
+  }
+
+  async deleteReservation(id: string): Promise<boolean> {
+    const result = await db.query(
+      'DELETE FROM presentation_reservations WHERE id = $1',
+      [id]
+    );
+    logger.info(`Presentation reservation deleted: id=${id}`);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async findReservationById(id: string): Promise<PresentationReservationRow | null> {
+    const result = await db.query<PresentationReservationRow>(
+      'SELECT * FROM presentation_reservations WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] || null;
+  }
+
+  async findReservationsByMeeting(meetingId: string): Promise<ReservationWithUser[]> {
+    const result = await db.query<ReservationWithUser>(
+      `SELECT r.*, u.first_name, u.last_name, u.profile_photo_url
+       FROM presentation_reservations r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.meeting_id = $1
+       ORDER BY r.created_at ASC`,
+      [meetingId]
+    );
+    return result.rows;
+  }
+
+  async findReservationsByUser(userId: string): Promise<ReservationWithMeeting[]> {
+    const result = await db.query<ReservationWithMeeting>(
+      `SELECT r.*, m.google_event_id, m.total_slots
+       FROM presentation_reservations r
+       JOIN presentation_meetings m ON m.id = r.meeting_id
+       WHERE r.user_id = $1
+       ORDER BY r.created_at DESC`,
+      [userId]
+    );
+    return result.rows;
+  }
+
+  async countReservationsByMeeting(meetingId: string): Promise<number> {
+    const result = await db.query<{ count: string }>(
+      'SELECT COUNT(*) AS count FROM presentation_reservations WHERE meeting_id = $1',
+      [meetingId]
+    );
+    return parseInt(result.rows[0].count, 10);
+  }
+
+  async moveReservation(
+    reservationId: string,
+    newMeetingId: string
+  ): Promise<PresentationReservationRow | null> {
+    const result = await db.query<PresentationReservationRow>(
+      `UPDATE presentation_reservations
+       SET meeting_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [newMeetingId, reservationId]
+    );
+    logger.info(`Presentation moved: reservation=${reservationId} newMeeting=${newMeetingId}`);
+    return result.rows[0] || null;
+  }
+
+  // ── File methods (many-to-many) ──
+
+  async createFile(
+    uploadedBy: string,
+    driveFileId: string,
+    driveFileName: string,
+    driveFileUrl: string | null,
+    fileType: string
+  ): Promise<PresentationFileRow> {
+    const result = await db.query<PresentationFileRow>(
+      `INSERT INTO presentation_files (uploaded_by, drive_file_id, drive_file_name, drive_file_url, file_type)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [uploadedBy, driveFileId, driveFileName, driveFileUrl, fileType]
+    );
+    logger.info(`Presentation file created: type=${fileType} name="${driveFileName}"`);
+    return result.rows[0];
+  }
+
+  async deleteFile(fileId: string): Promise<PresentationFileRow | null> {
+    const file = await db.query<PresentationFileRow>(
+      'SELECT * FROM presentation_files WHERE id = $1',
+      [fileId]
+    );
+    if (!file.rows[0]) return null;
+
+    await db.query('DELETE FROM presentation_files WHERE id = $1', [fileId]);
+    logger.info(`Presentation file deleted: id=${fileId}`);
+    return file.rows[0];
+  }
+
+  async findFileById(fileId: string): Promise<PresentationFileRow | null> {
+    const result = await db.query<PresentationFileRow>(
+      'SELECT * FROM presentation_files WHERE id = $1',
+      [fileId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async findFilesByReservation(reservationId: string): Promise<PresentationFileRow[]> {
+    const result = await db.query<PresentationFileRow>(
+      `SELECT f.*
+       FROM presentation_files f
+       JOIN presentation_reservation_files rf ON rf.file_id = f.id
+       WHERE rf.reservation_id = $1
+       ORDER BY f.created_at ASC`,
+      [reservationId]
+    );
+    return result.rows;
+  }
+
+  async findFilesByUser(userId: string): Promise<PresentationFileRow[]> {
+    const result = await db.query<PresentationFileRow>(
+      'SELECT * FROM presentation_files WHERE uploaded_by = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    return result.rows;
+  }
+
+  async linkFileToReservation(reservationId: string, fileId: string): Promise<void> {
+    await db.query(
+      `INSERT INTO presentation_reservation_files (reservation_id, file_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [reservationId, fileId]
+    );
+    logger.info(`File linked: reservation=${reservationId} file=${fileId}`);
+  }
+
+  async unlinkFileFromReservation(reservationId: string, fileId: string): Promise<void> {
+    await db.query(
+      'DELETE FROM presentation_reservation_files WHERE reservation_id = $1 AND file_id = $2',
+      [reservationId, fileId]
+    );
+    logger.info(`File unlinked: reservation=${reservationId} file=${fileId}`);
+  }
+
+  async countFileLinks(fileId: string): Promise<number> {
+    const result = await db.query<{ count: string }>(
+      'SELECT COUNT(*) AS count FROM presentation_reservation_files WHERE file_id = $1',
+      [fileId]
+    );
+    return parseInt(result.rows[0].count, 10);
+  }
+}

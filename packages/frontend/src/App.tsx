@@ -17,6 +17,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import MembersPage from './pages/MembersPage';
 import OfficersPage from './pages/OfficersPage';
+import PresentationsPage from './pages/PresentationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import SocialFeedPage from './pages/SocialFeedPage';
@@ -47,6 +48,7 @@ function App() {
           <Route path="/officers" element={<OfficersPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/files" element={<DriveFilesPage />} />
+          <Route path="/presentations" element={<PresentationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/admin" element={<AdminPage />} />
