@@ -59,12 +59,14 @@ export default function MemberLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <Link to="/" className="text-xl font-bold text-primary-600" aria-label="Bibber Creek Spurs 4-H Home">
-                <span aria-hidden="true">🍀</span> Bibber Creek Spurs 4-H
+              <Link to="/" className="text-lg sm:text-xl font-bold text-primary-600" aria-label="Bibber Creek Spurs 4-H Home">
+                <span aria-hidden="true">🍀</span>
+                <span className="hidden sm:inline"> Bibber Creek Spurs 4-H</span>
+                <span className="sm:hidden"> BCS 4-H</span>
               </Link>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700" aria-label="Current user">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <span className="hidden sm:inline text-sm text-gray-700" aria-label="Current user">
                 {user.firstName} {user.lastName}
               </span>
 
@@ -122,46 +124,49 @@ export default function MemberLayout() {
       </nav>
 
       <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white shadow-sm min-h-[calc(100vh-4rem)]" role="navigation" aria-label="Sidebar navigation">
-          <nav className="px-4 py-6 space-y-1">
+        {/* Sidebar — icons only on mobile, full width on sm+ */}
+        <aside className="w-14 sm:w-64 bg-white shadow-sm min-h-[calc(100vh-4rem)] flex-shrink-0" role="navigation" aria-label="Sidebar navigation">
+          <nav className="px-1.5 sm:px-4 py-4 sm:py-6 space-y-1">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex items-center justify-center sm:justify-start px-2 sm:px-4 py-2.5 sm:py-3 text-sm font-medium rounded-lg transition-colors ${
                   isActive(item.href)
                     ? 'bg-primary-50 text-primary-600'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
                 aria-current={isActive(item.href) ? 'page' : undefined}
+                title={item.name}
               >
-                <span className="mr-3 text-lg" aria-hidden="true">{item.icon}</span>
-                {item.name}
+                <span className="sm:mr-3 text-lg" aria-hidden="true">{item.icon}</span>
+                <span className="hidden sm:inline">{item.name}</span>
               </Link>
             ))}
 
             {/* Admin Section */}
             {user.role === 'ADMIN' && (
               <>
-                <div className="pt-6 pb-2" role="separator">
-                  <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <div className="pt-4 sm:pt-6 pb-2" role="separator">
+                  <p className="hidden sm:block px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Administration
                   </p>
+                  <hr className="sm:hidden border-gray-200 mx-1" />
                 </div>
                 {adminNavigation.map((item) => (
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                    className={`flex items-center justify-center sm:justify-start px-2 sm:px-4 py-2.5 sm:py-3 text-sm font-medium rounded-lg transition-colors ${
                       isActive(item.href)
                         ? 'bg-primary-50 text-primary-600'
                         : 'text-gray-700 hover:bg-gray-50'
                     }`}
                     aria-current={isActive(item.href) ? 'page' : undefined}
+                    title={item.name}
                   >
-                    <span className="mr-3 text-lg" aria-hidden="true">{item.icon}</span>
-                    {item.name}
+                    <span className="sm:mr-3 text-lg" aria-hidden="true">{item.icon}</span>
+                    <span className="hidden sm:inline">{item.name}</span>
                   </Link>
                 ))}
               </>
@@ -170,7 +175,7 @@ export default function MemberLayout() {
         </aside>
 
         {/* Main Content */}
-        <main id="main-content" className="flex-1 p-8 max-w-7xl" role="main">
+        <main id="main-content" className="flex-1 p-4 sm:p-8 max-w-7xl min-w-0" role="main">
           <Outlet />
         </main>
       </div>

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { getEnvVar } from './config/env'; // Must be first — loads dotenv before other modules read process.env
 import express, { Express, Request, Response } from 'express';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
@@ -12,7 +13,6 @@ import morgan from 'morgan';
 import { buildSchema } from 'type-graphql';
 import db from './models/database';
 import { logger } from './utils/logger';
-import { getEnvVar } from './config/env';
 import { AuthResolver } from './graphql/resolvers/Auth.resolver';
 import { TestimonialResolver } from './graphql/resolvers/Testimonial.resolver';
 import { EventResolver } from './graphql/resolvers/Event.resolver';

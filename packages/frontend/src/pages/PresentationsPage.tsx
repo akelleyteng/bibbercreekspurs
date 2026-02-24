@@ -341,9 +341,9 @@ export default function PresentationsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Presentations</h1>
-      <p className="text-gray-600 mb-8">
-        Sign up to present at an upcoming club meeting. Reserve your spot, then upload your presentation, photos, and recordings when ready.
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">Presentations</h1>
+      <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
+        Sign up to present at a club meeting. Reserve your spot, then upload your slides, photos, and recordings when ready.
       </p>
 
       {error && (
@@ -477,44 +477,48 @@ function MeetingCard({
   onDisable: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const dateStr = meeting.eventDate
+  const dateLong = meeting.eventDate
     ? format(parseEventDate(meeting.eventDate), 'EEEE, MMMM d, yyyy')
     : 'Date TBD';
+  const dateShort = meeting.eventDate
+    ? format(parseEventDate(meeting.eventDate), 'EEE, MMM d')
+    : 'TBD';
   const slotsUsed = meeting.totalSlots - meeting.slotsRemaining;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Header */}
       <div
-        className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+        className="px-4 sm:px-6 py-3 sm:py-4 cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-start sm:items-center justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                 {meeting.eventTitle || 'Club Meeting'}
               </h3>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                 meeting.slotsRemaining > 0
                   ? 'bg-green-100 text-green-800'
                   : 'bg-red-100 text-red-800'
               }`}>
                 {meeting.slotsRemaining > 0
-                  ? `${meeting.slotsRemaining} slot${meeting.slotsRemaining !== 1 ? 's' : ''} available`
+                  ? `${meeting.slotsRemaining} slot${meeting.slotsRemaining !== 1 ? 's' : ''} open`
                   : 'Full'}
               </span>
             </div>
-            <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span>{dateStr}</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-500">
+              <span className="hidden sm:inline">{dateLong}</span>
+              <span className="sm:hidden">{dateShort}</span>
               {meeting.eventLocation && <span>&#128205; {meeting.eventLocation}</span>}
-              <span>{slotsUsed} / {meeting.totalSlots} reserved</span>
+              <span>{slotsUsed}/{meeting.totalSlots} reserved</span>
             </div>
             {meeting.notes && (
               <p className="text-sm text-gray-500 mt-1 italic">{meeting.notes}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-1 sm:gap-2 ml-2 flex-shrink-0">
             {isAdmin && (
               <>
                 <button
@@ -536,7 +540,7 @@ function MeetingCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-gray-100 px-6 py-4">
+        <div className="border-t border-gray-100 px-4 sm:px-6 py-3 sm:py-4">
           {meeting.reservations.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-4">
               No presentations reserved yet. Be the first!
@@ -552,14 +556,14 @@ function MeetingCard({
                     key={res.id}
                     className={`p-3 rounded-lg ${isOwn ? 'bg-primary-50 border border-primary-200' : 'bg-gray-50'}`}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-bold">
+                    <div className="flex items-start gap-2 sm:gap-4">
+                      <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full bg-primary-100 text-primary-700 text-xs sm:text-sm font-bold">
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{res.title}</span>
-                          <span className="text-sm text-gray-500">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="font-medium text-gray-900 text-sm sm:text-base">{res.title}</span>
+                          <span className="text-xs sm:text-sm text-gray-500">
                             &mdash; {res.user.firstName} {res.user.lastName}
                           </span>
                         </div>
@@ -571,9 +575,9 @@ function MeetingCard({
                         {res.files.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {res.files.map((f) => (
-                              <div key={f.id} className="flex items-center gap-2 text-sm">
+                              <div key={f.id} className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
                                 <span>{FILE_TYPE_ICONS[f.fileType as FileType] || '\u{1F4CE}'}</span>
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-200 text-gray-600">
+                                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-200 text-gray-600">
                                   {FILE_TYPE_LABELS[f.fileType as FileType] || f.fileType}
                                 </span>
                                 {f.driveFileUrl ? (
@@ -591,7 +595,7 @@ function MeetingCard({
                                 {isOwn && (
                                   <button
                                     onClick={() => onRemoveFile(res.id, f.id)}
-                                    className="text-red-400 hover:text-red-600 text-xs ml-1"
+                                    className="text-red-400 hover:text-red-600 text-xs ml-1 flex-shrink-0"
                                     title="Remove file"
                                   >&times;</button>
                                 )}
@@ -599,11 +603,49 @@ function MeetingCard({
                             ))}
                           </div>
                         )}
+
+                        {/* Owner actions — below content on mobile, inline on desktop */}
+                        {isOwn && (
+                          <div className="mt-2 sm:hidden">
+                            <div className="flex flex-wrap items-center gap-1">
+                              <button
+                                onClick={() => onEdit(res)}
+                                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+                              >Edit</button>
+                              <button
+                                onClick={() => onMove(res)}
+                                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+                              >Move</button>
+                              <button
+                                onClick={() => onDelete(res.id)}
+                                className="px-2 py-1 text-xs bg-white border border-red-300 text-red-600 rounded hover:bg-red-50"
+                              >Delete</button>
+                              {isUploading ? (
+                                <span className="text-xs text-gray-500 ml-1">Uploading...</span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => onUpload(res.id, 'presentation')}
+                                    className="px-2 py-1 text-xs bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100"
+                                  >+ Slides</button>
+                                  <button
+                                    onClick={() => onUpload(res.id, 'image')}
+                                    className="px-2 py-1 text-xs bg-green-50 border border-green-200 text-green-700 rounded hover:bg-green-100"
+                                  >+ Photo</button>
+                                  <button
+                                    onClick={() => onUpload(res.id, 'recording')}
+                                    className="px-2 py-1 text-xs bg-purple-50 border border-purple-200 text-purple-700 rounded hover:bg-purple-100"
+                                  >+ Recording</button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Owner actions */}
+                      {/* Owner actions — right column on desktop only */}
                       {isOwn && (
-                        <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                        <div className="hidden sm:flex flex-shrink-0 flex-col items-end gap-1">
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => onEdit(res)}
@@ -618,7 +660,6 @@ function MeetingCard({
                               className="px-2 py-1 text-xs bg-white border border-red-300 text-red-600 rounded hover:bg-red-50"
                             >Delete</button>
                           </div>
-                          {/* Upload buttons by type */}
                           <div className="flex items-center gap-1 mt-1">
                             {isUploading ? (
                               <span className="text-xs text-gray-500">Uploading...</span>
@@ -653,7 +694,7 @@ function MeetingCard({
 
           {meeting.slotsRemaining > 0 && (
             <div className="mt-4 pt-3 border-t border-gray-100">
-              <button onClick={onReserve} className="btn-primary text-sm">
+              <button onClick={onReserve} className="btn-primary text-sm w-full sm:w-auto">
                 Reserve a Presentation Spot
               </button>
             </div>
