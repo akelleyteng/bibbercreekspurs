@@ -20,9 +20,9 @@ export function formatDescription(text: string): string {
 
   // Auto-linkify bare URLs that aren't already inside href="..." or >...</a>
   // We do this before sanitization so DOMPurify can validate the links
-  html = html.replace(URL_REGEX, (url, _offset, fullStr) => {
+  html = html.replace(URL_REGEX, (url, _group, offset, fullStr) => {
     // Check if this URL is already inside an <a> tag by looking for preceding href="
-    const before = fullStr.substring(0, fullStr.indexOf(url));
+    const before = fullStr.substring(0, offset);
     if (before.match(/href=["'][^"']*$/)) return url;
     // Check if we're inside tag content that already has a closing </a>
     if (before.match(/<a [^>]*>[^<]*$/)) return url;
