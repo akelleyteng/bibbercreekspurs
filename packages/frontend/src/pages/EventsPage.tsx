@@ -2,9 +2,9 @@ import { format } from 'date-fns';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 
-import LinkifyText from '../components/LinkifyText';
 import { useAuth } from '../context/AuthContext';
 import { parseEventDate } from '../utils/dateUtils';
+import { formatDescription } from '../utils/formatDescription';
 
 const EVENTS_PER_PAGE = 10;
 
@@ -123,7 +123,7 @@ export default function EventsPage() {
                 </div>
 
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
-                <p className="text-gray-600 mb-4 line-clamp-2"><LinkifyText text={event.description} /></p>
+                <div className="prose prose-sm max-w-none text-gray-600 mb-4 line-clamp-2" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
 
                 <div className="space-y-2 text-sm text-gray-600">
                   {event.location && (

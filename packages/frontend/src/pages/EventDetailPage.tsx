@@ -2,9 +2,9 @@ import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
-import LinkifyText from '../components/LinkifyText';
 import { useAuth } from '../context/AuthContext';
 import { parseEventDate } from '../utils/dateUtils';
+import { formatDescription } from '../utils/formatDescription';
 
 interface EventDetailData {
   id: string;
@@ -239,7 +239,7 @@ export default function EventDetailPage() {
 
         <div className="mb-8">
           <h2 className="text-xl font-bold text-gray-900 mb-3">Description</h2>
-          <p className="text-gray-700 whitespace-pre-line"><LinkifyText text={event.description} /></p>
+          <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
         </div>
 
         {rsvpError && (

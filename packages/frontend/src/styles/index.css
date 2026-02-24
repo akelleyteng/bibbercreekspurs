@@ -7,6 +7,12 @@
     @apply bg-gray-50 text-gray-900;
   }
 
+  /* Prevent long URLs and unbreakable strings from overflowing containers */
+  .prose, .card, p, li, td, dd {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
   /* Ensure focus is visible for keyboard navigation */
   *:focus-visible {
     @apply outline-2 outline-offset-2 outline-primary-600;

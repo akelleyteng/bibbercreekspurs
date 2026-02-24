@@ -5,6 +5,7 @@ import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import { parseEventDate } from '../utils/dateUtils';
+import { formatDescription } from '../utils/formatDescription';
 import {
   mockHomeContent,
 } from '../data/mockData';
@@ -298,7 +299,7 @@ export default function HomePage() {
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
-                  <p className="text-gray-600 mb-4">{event.description}</p>
+                  <div className="prose prose-sm max-w-none text-gray-600 mb-4 line-clamp-3" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
                   <div className="flex items-center text-sm text-gray-500">
                     <span className="mr-4">📍 {event.location}</span>
                     <span>⏰ {format(parseEventDate(event.startTime), 'h:mm a')}</span>

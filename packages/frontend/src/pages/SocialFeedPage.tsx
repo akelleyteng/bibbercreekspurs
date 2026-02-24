@@ -599,7 +599,7 @@ export default function SocialFeedPage() {
                 return (
                   <div className="mb-4">
                     <div
-                      className="prose prose-sm max-w-none text-gray-800 break-words"
+                      className="prose prose-sm max-w-none text-gray-800"
                       dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(isExpanded ? post.content : displayHtml + (wasTruncated ? '...' : '')) }}
                     />
                     {wasTruncated && (

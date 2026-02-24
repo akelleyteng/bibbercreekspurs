@@ -17,6 +17,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 import { parseEventDate } from '../utils/dateUtils';
+import { formatDescription } from '../utils/formatDescription';
 
 interface CalendarEvent {
   id: string;
@@ -238,7 +239,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
                 <h4 className="font-bold text-lg mb-2">{event.title}</h4>
-                <p className="text-sm text-gray-600 mb-2">{event.description}</p>
+                <div className="prose prose-sm max-w-none text-gray-600 mb-2 line-clamp-3" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
                 {event.location && (
                   <div className="text-sm text-gray-500">
                     &#128205; {event.location}
