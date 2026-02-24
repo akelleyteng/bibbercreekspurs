@@ -249,17 +249,17 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mt-8 max-w-2xl mx-auto">
-            <div className="bg-white rounded-lg p-6 shadow-md text-center">
-              <h3 className="text-xl font-bold text-gray-900 mb-3">
+          <div className="mt-10 max-w-4xl mx-auto">
+            <div className="bg-white rounded-xl p-8 sm:p-10 shadow-lg text-center">
+              <h3 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-4">
                 {hc('join_club', 'title', mockHomeContent.about.title)}
               </h3>
               <div
-                className="prose prose-base text-gray-700 leading-relaxed max-w-none"
+                className="prose prose-lg text-gray-700 leading-relaxed max-w-none mx-auto"
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(hc('join_club', 'content', mockHomeContent.about.content)) }}
               />
-              <div className="mt-4">
-                <Link to="/register" className="btn-primary">
+              <div className="mt-6">
+                <Link to="/register" className="inline-flex items-center justify-center px-6 py-3 text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 shadow transition-colors">
                   Join Our Club
                 </Link>
               </div>
