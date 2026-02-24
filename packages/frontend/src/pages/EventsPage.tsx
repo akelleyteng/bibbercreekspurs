@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import LinkifyText from '../components/LinkifyText';
 import { useAuth } from '../context/AuthContext';
+import { parseEventDate } from '../utils/dateUtils';
 
 const EVENTS_PER_PAGE = 10;
 
@@ -104,7 +105,7 @@ export default function EventsPage() {
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-                      {format(new Date(event.startTime), 'MMM d, yyyy')}
+                      {format(parseEventDate(event.startTime), 'MMM d, yyyy')}
                     </span>
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                       event.visibility === 'PUBLIC'
@@ -142,7 +143,7 @@ export default function EventsPage() {
                   {!event.isAllDay && (
                     <div className="flex items-center">
                       <span className="mr-2">&#9200;</span>
-                      <span>{format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}</span>
+                      <span>{format(parseEventDate(event.startTime), 'h:mm a')} - {format(parseEventDate(event.endTime), 'h:mm a')}</span>
                     </div>
                   )}
                   <div className="flex items-center">

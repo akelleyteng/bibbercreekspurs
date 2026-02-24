@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+import { parseEventDate } from '../utils/dateUtils';
 import {
   mockHomeContent,
 } from '../data/mockData';
@@ -290,7 +291,7 @@ export default function HomePage() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-                      {format(new Date(event.startTime), 'MMM d, yyyy')}
+                      {format(parseEventDate(event.startTime), 'MMM d, yyyy')}
                     </span>
                     <span className="text-sm text-gray-500">
                       {event.registrationCount} registered
@@ -300,7 +301,7 @@ export default function HomePage() {
                   <p className="text-gray-600 mb-4">{event.description}</p>
                   <div className="flex items-center text-sm text-gray-500">
                     <span className="mr-4">📍 {event.location}</span>
-                    <span>⏰ {format(new Date(event.startTime), 'h:mm a')}</span>
+                    <span>⏰ {format(parseEventDate(event.startTime), 'h:mm a')}</span>
                   </div>
                 </Link>
               ))}

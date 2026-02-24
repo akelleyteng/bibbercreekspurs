@@ -9,10 +9,14 @@ import {
   subMonths,
   isSameMonth,
   isSameDay,
+  isBefore,
   isToday,
+  startOfDay,
 } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+
+import { parseEventDate } from '../utils/dateUtils';
 
 interface CalendarEvent {
   id: string;
@@ -27,6 +31,26 @@ interface CalendarEvent {
 }
 
 type ViewType = 'month' | 'week' | 'day';
+
+/**
+ * Check if a calendar day falls within an event's date range.
+ * Handles multi-day events (shows on every day from start through end).
+ * Google Calendar all-day event end dates are exclusive (a 3-day event
+ * Feb 23-25 has end = "2026-02-26"), so we compare day < endDate.
+ */
+function eventOccursOnDay(event: CalendarEvent, day: Date): boolean {
+  const start = startOfDay(parseEventDate(event.startTime));
+  const end = startOfDay(parseEventDate(event.endTime));
+  const target = startOfDay(day);
+
+  // Single-day or timed event: check if same day as start
+  if (isSameDay(start, end)) {
+    return isSameDay(start, target);
+  }
+
+  // Multi-day: target >= start && target < end (end is exclusive for all-day events)
+  return (isSameDay(start, target) || isBefore(start, target)) && isBefore(target, end);
+}
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -88,9 +112,7 @@ export default function CalendarPage() {
       for (let i = 0; i < 7; i++) {
         const formattedDate = format(day, 'd');
         const cloneDay = day;
-        const dayEvents = events.filter((event) =>
-          isSameDay(new Date(event.startTime), cloneDay)
-        );
+        const dayEvents = events.filter((event) => eventOccursOnDay(event, cloneDay));
 
         days.push(
           <div
@@ -118,7 +140,7 @@ export default function CalendarPage() {
                   className={`block text-xs px-2 py-1 rounded truncate ${getEventColor(event)}`}
                   title={event.title}
                 >
-                  {!event.isAllDay && format(new Date(event.startTime), 'h:mm a')}{' '}
+                  {!event.isAllDay && format(parseEventDate(event.startTime), 'h:mm a')}{' '}
                   {event.title}
                 </Link>
               ))}
@@ -143,7 +165,7 @@ export default function CalendarPage() {
 
     for (let i = 0; i < 7; i++) {
       const day = addDays(weekStart, i);
-      const dayEvents = events.filter((event) => isSameDay(new Date(event.startTime), day));
+      const dayEvents = events.filter((event) => eventOccursOnDay(event, day));
 
       days.push(
         <div key={day.toString()} className="border border-gray-200 p-3 min-h-[300px]">
@@ -165,7 +187,7 @@ export default function CalendarPage() {
                 className={`block text-sm px-3 py-2 rounded ${getEventColor(event)}`}
               >
                 {!event.isAllDay && (
-                  <div className="font-semibold">{format(new Date(event.startTime), 'h:mm a')}</div>
+                  <div className="font-semibold">{format(parseEventDate(event.startTime), 'h:mm a')}</div>
                 )}
                 <div className="truncate">{event.title}</div>
               </Link>
@@ -179,7 +201,7 @@ export default function CalendarPage() {
   };
 
   const renderDayView = () => {
-    const dayEvents = events.filter((event) => isSameDay(new Date(event.startTime), currentDate));
+    const dayEvents = events.filter((event) => eventOccursOnDay(event, currentDate));
 
     return (
       <div className="card">
@@ -202,7 +224,7 @@ export default function CalendarPage() {
                   <div className="flex items-center gap-2">
                     {!event.isAllDay && (
                       <span className="text-lg font-bold text-primary-600">
-                        {format(new Date(event.startTime), 'h:mm a')}
+                        {format(parseEventDate(event.startTime), 'h:mm a')}
                       </span>
                     )}
                     {event.isAllDay && (

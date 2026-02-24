@@ -3,6 +3,8 @@ import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+import { parseEventDate } from '../utils/dateUtils';
+
 function stripHtml(html: string): string {
   const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
   return clean.replace(/&nbsp;/g, ' ').trim();
@@ -111,7 +113,7 @@ export default function DashboardPage() {
                 <Link key={event.id} to={`/events/${event.id}`} className="block hover:bg-gray-50 p-2 rounded">
                   <p className="font-semibold">{event.title}</p>
                   <div className="flex items-center gap-3 text-sm text-gray-500">
-                    <span>{format(new Date(event.startTime), 'MMM d, yyyy h:mm a')}</span>
+                    <span>{format(parseEventDate(event.startTime), 'MMM d, yyyy h:mm a')}</span>
                     {event.location && <span>{event.location}</span>}
                   </div>
                 </Link>

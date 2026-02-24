@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 
 import LinkifyText from '../components/LinkifyText';
 import { useAuth } from '../context/AuthContext';
+import { parseEventDate } from '../utils/dateUtils';
 
 interface EventDetailData {
   id: string;
@@ -164,8 +165,8 @@ export default function EventDetailPage() {
     );
   }
 
-  const startTime = new Date(event.startTime);
-  const endTime = new Date(event.endTime);
+  const startTime = parseEventDate(event.startTime);
+  const endTime = parseEventDate(event.endTime);
   const hasExternalRegistration = !!event.externalRegistrationUrl;
   const userStatus = event.userRsvpStatus;
 
