@@ -82,7 +82,7 @@ jobs:
             --timeout 300 \
             --max-instances 10 \
             --min-instances 0 \
-            --startup-probe "tcpSocket.port=8080,periodSeconds=600,timeoutSeconds=600,failureThreshold=1"
+            --startup-probe "tcpSocket.port=8080,periodSeconds=240,timeoutSeconds=240,failureThreshold=3"
 
       - name: Set max request body size (for media uploads)
         run: |

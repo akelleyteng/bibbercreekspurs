@@ -276,7 +276,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --max-instances 10 \
     --min-instances 0 \
     --max-request-body-size 64Mi \
-    --startup-probe "tcpSocket.port=8080,periodSeconds=600,timeoutSeconds=600,failureThreshold=1"
+    --startup-probe "tcpSocket.port=8080,periodSeconds=240,timeoutSeconds=240,failureThreshold=3"
 
 # Step 14: Get the service URL
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format="get(status.url)")
