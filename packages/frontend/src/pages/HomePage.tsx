@@ -437,16 +437,16 @@ export default function HomePage() {
 
       {/* CTA Section */}
       <div className="bg-primary-600">
-        <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:py-12 lg:px-8 lg:flex lg:items-center lg:justify-between">
-          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:py-10 lg:px-8 lg:flex lg:items-center lg:justify-between">
+          <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
             <span className="block">{hc('cta_banner', 'title', 'Ready to get started?')}</span>
-            <span className="block text-primary-200">{hc('cta_banner', 'content', 'Join our 4-H family today.')}</span>
+            <span className="block text-primary-200 text-lg sm:text-xl font-medium">{hc('cta_banner', 'content', 'Join our 4-H family today.')}</span>
           </h2>
-          <div className="mt-8 flex lg:mt-0 lg:flex-shrink-0">
+          <div className="mt-6 flex lg:mt-0 lg:flex-shrink-0">
             <div className="inline-flex rounded-md shadow">
               <Link
                 to="/register"
-                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-gray-50"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-600 bg-white hover:bg-gray-50"
               >
                 {hcMeta('cta_banner', 'buttonText', 'Become a Member')}
               </Link>
