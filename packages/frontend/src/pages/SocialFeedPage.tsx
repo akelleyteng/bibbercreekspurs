@@ -62,6 +62,40 @@ interface Post {
   updatedAt: string;
 }
 
+const POST_TRUNCATE_LENGTH = 400;
+
+const truncateHtml = (html: string, maxTextChars: number): { html: string; wasTruncated: boolean } => {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const fullText = div.textContent || '';
+  if (fullText.length <= maxTextChars) return { html, wasTruncated: false };
+
+  let count = 0;
+  const truncateNode = (node: Node): boolean => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const remaining = maxTextChars - count;
+      if ((node.textContent?.length || 0) > remaining) {
+        node.textContent = node.textContent!.substring(0, remaining);
+        return true;
+      }
+      count += node.textContent?.length || 0;
+      return false;
+    }
+    const children = Array.from(node.childNodes);
+    for (let i = 0; i < children.length; i++) {
+      if (truncateNode(children[i])) {
+        for (let j = children.length - 1; j > i; j--) {
+          node.removeChild(children[j]);
+        }
+        return true;
+      }
+    }
+    return false;
+  };
+  truncateNode(div);
+  return { html: div.innerHTML, wasTruncated: true };
+};
+
 const getReactionEmoji = (type: string) => {
   switch (type) {
     case ReactionType.LIKE: return '👍';
@@ -84,6 +118,7 @@ export default function SocialFeedPage() {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>([]);
+  const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
@@ -213,8 +248,8 @@ export default function SocialFeedPage() {
   const handleCreatePost = async () => {
     const stripped = newPostContent.replace(/<[^>]*>/g, '').trim();
     if (!stripped && pendingMedia.length === 0) return;
-    if (stripped.length > 500) {
-      alert('Post is too long. Please keep it under 500 characters.');
+    if (stripped.length > 5000) {
+      alert('Post is too long. Please keep it under 5,000 characters.');
       return;
     }
 
@@ -256,8 +291,8 @@ export default function SocialFeedPage() {
 
   const handleUpdatePost = async (postId: string) => {
     const stripped = editContent.replace(/<[^>]*>/g, '').trim();
-    if (stripped.length > 500) {
-      alert('Post is too long. Please keep it under 500 characters.');
+    if (stripped.length > 5000) {
+      alert('Post is too long. Please keep it under 5,000 characters.');
       return;
     }
     const res = await fetch(graphqlUrl, {
@@ -383,7 +418,7 @@ export default function SocialFeedPage() {
                 content=""
                 onChange={setNewPostContent}
                 placeholder="Share something with the club..."
-                maxLength={500}
+                maxLength={5000}
                 compact
               />
 
@@ -541,7 +576,7 @@ export default function SocialFeedPage() {
                     content={editContent}
                     onChange={setEditContent}
                     placeholder="Edit your post..."
-                    maxLength={500}
+                    maxLength={5000}
                   />
                   <div className="mt-3 flex gap-2">
                     <button onClick={() => handleUpdatePost(post.id)} className="btn-primary text-sm">
@@ -555,12 +590,37 @@ export default function SocialFeedPage() {
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div
-                  className="prose prose-sm max-w-none text-gray-800 mb-4"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
-                />
-              )}
+              ) : (() => {
+                const isExpanded = expandedPosts.has(post.id);
+                const { html: displayHtml, wasTruncated } = isExpanded
+                  ? { html: post.content, wasTruncated: false }
+                  : truncateHtml(post.content, POST_TRUNCATE_LENGTH);
+                const needsToggle = wasTruncated || expandedPosts.has(post.id);
+                return (
+                  <div className="mb-4">
+                    <div
+                      className="prose prose-sm max-w-none text-gray-800"
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(isExpanded ? post.content : displayHtml + (wasTruncated ? '...' : '')) }}
+                    />
+                    {wasTruncated && (
+                      <button
+                        onClick={() => setExpandedPosts(prev => new Set(prev).add(post.id))}
+                        className="text-primary-600 hover:text-primary-700 text-sm font-medium mt-1"
+                      >
+                        see more
+                      </button>
+                    )}
+                    {isExpanded && post.content.replace(/<[^>]*>/g, '').length > POST_TRUNCATE_LENGTH && (
+                      <button
+                        onClick={() => setExpandedPosts(prev => { const next = new Set(prev); next.delete(post.id); return next; })}
+                        className="text-primary-600 hover:text-primary-700 text-sm font-medium mt-1"
+                      >
+                        show less
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Media Gallery */}
               {post.media && post.media.length > 0 && (

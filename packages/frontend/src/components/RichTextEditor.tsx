@@ -32,9 +32,6 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       const textLen = editor.state.doc.textContent.length;
-      if (maxLength && textLen > maxLength) {
-        return;
-      }
       setCharCount(textLen);
       onChange(html);
     },
@@ -71,7 +68,7 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
 
   return (
     <div className={`border rounded-lg overflow-hidden transition-all ${
-      isFocused ? 'border-primary-500 ring-2 ring-primary-500' : 'border-gray-300'
+      isOverLimit ? 'border-red-500 ring-2 ring-red-500' : isFocused ? 'border-primary-500 ring-2 ring-primary-500' : 'border-gray-300'
     }`}>
       {showToolbar && (
         <div className="flex items-center gap-1 p-2 border-b bg-gray-50 flex-wrap" onMouseDown={(e) => e.preventDefault()}>
@@ -169,8 +166,9 @@ export default function RichTextEditor({ content, onChange, placeholder, editabl
           }`}
         />
       </div>
-      {maxLength && isFocused && (
+      {maxLength && (isFocused || isOverLimit) && (
         <div className={`text-xs px-3 py-1 text-right border-t ${isOverLimit ? 'text-red-500 bg-red-50' : 'text-gray-400'}`}>
+          {isOverLimit && <span className="float-left font-medium">Post exceeds character limit</span>}
           {charCount}/{maxLength}
         </div>
       )}
