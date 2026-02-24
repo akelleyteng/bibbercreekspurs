@@ -226,7 +226,14 @@ export default function AdminPage() {
     }));
   };
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
+  const apiBase = import.meta.env.VITE_GRAPHQL_URL?.replace('/graphql', '') || 'http://localhost:4000';
+  const graphqlUrl = `${apiBase}/graphql`;
+
+  const proxyDriveUrl = (url: string): string => {
+    const lh3Match = url.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+    if (lh3Match) return `${apiBase}/api/drive-image/${lh3Match[1]}`;
+    return url;
+  };
 
   const fetchHomeContent = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -2264,7 +2271,7 @@ export default function AdminPage() {
                 <div key={sponsor.id} className={`card ${!sponsor.isActive ? 'opacity-60' : ''}`}>
                   <div className="flex items-center justify-between mb-4">
                     <img
-                      src={sponsor.logoUrl}
+                      src={proxyDriveUrl(sponsor.logoUrl)}
                       alt={sponsor.name}
                       className="h-12 object-contain"
                       referrerPolicy="no-referrer"

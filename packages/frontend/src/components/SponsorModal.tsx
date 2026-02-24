@@ -37,9 +37,10 @@ const SITE_IMAGES = [
   { path: '/images/4H logo.jpeg', label: '4-H Logo' },
 ];
 
-/** Convert a Google Drive file ID to a directly embeddable image URL */
+/** Convert a Google Drive file ID to a proxied image URL via backend */
 function driveImageUrl(fileId: string): string {
-  return `https://lh3.googleusercontent.com/d/${fileId}`;
+  const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_GRAPHQL_URL?.replace('/graphql', '') || 'http://localhost:4000';
+  return `${apiBase}/api/drive-image/${fileId}`;
 }
 
 /** Extract a Drive file ID from various Google Drive URL formats */
@@ -90,7 +91,7 @@ export default function SponsorModal({ isOpen, onClose, onSave, initialData, mod
       });
       // Detect initial image source from the URL
       const url = initialData?.logoUrl || '';
-      if (url.includes('lh3.googleusercontent.com') || url.includes('drive.google.com')) {
+      if (url.includes('lh3.googleusercontent.com') || url.includes('drive.google.com') || url.includes('/api/drive-image/')) {
         setImageSource('drive');
       } else if (url.startsWith('/images/')) {
         setImageSource('site');

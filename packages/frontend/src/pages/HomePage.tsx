@@ -70,6 +70,16 @@ export default function HomePage() {
     return homeContent[sectionType]?.metadata?.[key] || fallback;
   };
 
+  // Convert lh3.googleusercontent.com URLs to backend proxy (fixes broken Drive images)
+  const proxyDriveUrl = (url: string): string => {
+    const lh3Match = url.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+    if (lh3Match) {
+      const apiBase = import.meta.env.VITE_GRAPHQL_URL?.replace('/graphql', '') || 'http://localhost:4000';
+      return `${apiBase}/api/drive-image/${lh3Match[1]}`;
+    }
+    return url;
+  };
+
   useEffect(() => {
     const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
@@ -413,7 +423,7 @@ export default function HomePage() {
                   className="flex items-center justify-center p-6 bg-white rounded-lg hover:shadow-md transition-shadow"
                 >
                   <img
-                    src={sponsor.logoUrl}
+                    src={proxyDriveUrl(sponsor.logoUrl)}
                     alt={sponsor.name}
                     className="max-h-16 object-contain"
                     referrerPolicy="no-referrer"

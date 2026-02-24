@@ -190,4 +190,29 @@ router.post('/upload/media', async (req: Request, res: Response) => {
   }
 });
 
+// Public proxy for Google Drive images (sponsors, etc.)
+// Streams file content via service account so sharing settings don't matter.
+router.get('/drive-image/:fileId', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId || !/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID' });
+      return;
+    }
+
+    const result = await driveService.getFileStream(fileId);
+    if (!result) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // 24h cache
+    result.stream.pipe(res);
+  } catch (error: any) {
+    logger.error('Drive image proxy failed', { error: error.message, fileId: req.params.fileId });
+    res.status(500).json({ error: 'Failed to fetch image' });
+  }
+});
+
 export default router;

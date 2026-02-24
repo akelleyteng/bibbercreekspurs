@@ -139,6 +139,30 @@ export async function getFileMetadata(fileId: string): Promise<DriveFileInfo | n
 }
 
 /**
+ * Stream a file's content from Google Drive. Returns the stream and mimeType.
+ */
+export async function getFileStream(fileId: string): Promise<{ stream: Readable; mimeType: string } | null> {
+  const drive = getDriveClient();
+  if (!drive) return null;
+
+  try {
+    // First get the mimeType
+    const meta = await drive.files.get({ fileId, fields: 'mimeType' });
+    const mimeType = meta.data.mimeType || 'application/octet-stream';
+
+    const response = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    return { stream: response.data, mimeType };
+  } catch (error) {
+    logger.error('Failed to stream Google Drive file', { error, fileId });
+    return null;
+  }
+}
+
+/**
  * Upload a file to Google Drive. Returns file metadata on success.
  */
 export async function uploadFile(
