@@ -133,6 +133,10 @@ export default function PresentationsPage() {
   const [showAgendaPickerForMeeting, setShowAgendaPickerForMeeting] = useState<PresentationMeeting | null>(null);
   const [showEmailAgendaModal, setShowEmailAgendaModal] = useState<PresentationMeeting | null>(null);
 
+  // Agenda action state
+  const [creatingAgendaForMeeting, setCreatingAgendaForMeeting] = useState<string | null>(null);
+  const [deletingAgendaForMeeting, setDeletingAgendaForMeeting] = useState<string | null>(null);
+
   // Upload state
   const [uploadingReservationId, setUploadingReservationId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -428,6 +432,37 @@ export default function PresentationsPage() {
     alert('Agenda email sent to all club members!');
   };
 
+  const handleCreateAgendaFromTemplate = async (meetingId: string) => {
+    setError(null);
+    setCreatingAgendaForMeeting(meetingId);
+    try {
+      const res = await authFetch(
+        `mutation($meetingId: String!) { createAgendaFromTemplate(meetingId: $meetingId) { id } }`,
+        { meetingId }
+      );
+      if (res.errors) { setError(res.errors[0].message); return; }
+      fetchData();
+    } finally {
+      setCreatingAgendaForMeeting(null);
+    }
+  };
+
+  const handleDeleteAgenda = async (meetingId: string) => {
+    if (!confirm('Delete the agenda? This will permanently remove the file from Google Drive.')) return;
+    setError(null);
+    setDeletingAgendaForMeeting(meetingId);
+    try {
+      const res = await authFetch(
+        `mutation($meetingId: String!) { deleteAgenda(meetingId: $meetingId) { id } }`,
+        { meetingId }
+      );
+      if (res.errors) { setError(res.errors[0].message); return; }
+      fetchData();
+    } finally {
+      setDeletingAgendaForMeeting(null);
+    }
+  };
+
   // ── Render ──
 
   if (loading) {
@@ -492,6 +527,10 @@ export default function PresentationsPage() {
               onLinkAgenda={() => setShowAgendaPickerForMeeting(meeting)}
               onUnlinkAgenda={() => handleUnlinkAgenda(meeting.id)}
               onEmailAgenda={() => setShowEmailAgendaModal(meeting)}
+              onCreateAgendaFromTemplate={() => handleCreateAgendaFromTemplate(meeting.id)}
+              onDeleteAgenda={() => handleDeleteAgenda(meeting.id)}
+              isCreatingAgenda={creatingAgendaForMeeting === meeting.id}
+              isDeletingAgenda={deletingAgendaForMeeting === meeting.id}
             />
           ))}
         </div>
@@ -673,6 +712,10 @@ function MeetingCard({
   onLinkAgenda,
   onUnlinkAgenda,
   onEmailAgenda,
+  onCreateAgendaFromTemplate,
+  onDeleteAgenda,
+  isCreatingAgenda,
+  isDeletingAgenda,
 }: {
   meeting: PresentationMeeting;
   currentUserId?: string;
@@ -689,6 +732,10 @@ function MeetingCard({
   onLinkAgenda: () => void;
   onUnlinkAgenda: () => void;
   onEmailAgenda: () => void;
+  onCreateAgendaFromTemplate: () => void;
+  onDeleteAgenda: () => void;
+  isCreatingAgenda: boolean;
+  isDeletingAgenda: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const dateLong = meeting.eventDate
@@ -759,7 +806,7 @@ function MeetingCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-gray-700">Agenda:</span>
               <a
-                href={meeting.agendaDriveFileUrl || `https://drive.google.com/file/d/${meeting.agendaDriveFileId}/view`}
+                href={meeting.agendaDriveFileUrl || `https://docs.google.com/document/d/${meeting.agendaDriveFileId}/edit`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-primary-600 hover:text-primary-700 underline truncate max-w-[200px] sm:max-w-[300px]"
@@ -769,9 +816,14 @@ function MeetingCard({
               {canManage && (
                 <>
                   <button
+                    onClick={onDeleteAgenda}
+                    disabled={isDeletingAgenda}
+                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 bg-red-50 px-2 py-0.5 rounded disabled:opacity-50"
+                  >{isDeletingAgenda ? 'Deleting...' : 'Delete'}</button>
+                  <button
                     onClick={onUnlinkAgenda}
-                    className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded"
-                  >Remove</button>
+                    className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-gray-50 px-2 py-0.5 rounded"
+                  >Unlink</button>
                   <button
                     onClick={onEmailAgenda}
                     className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded"
@@ -780,12 +832,21 @@ function MeetingCard({
               )}
             </div>
           ) : canManage ? (
-            <button
-              onClick={onLinkAgenda}
-              className="text-sm text-blue-600 hover:text-blue-700 border border-blue-200 bg-blue-50 px-3 py-1 rounded font-medium"
-            >
-              + Link Agenda
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={onCreateAgendaFromTemplate}
+                disabled={isCreatingAgenda}
+                className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded font-medium disabled:opacity-50"
+              >
+                {isCreatingAgenda ? 'Creating...' : 'Create Agenda from Template'}
+              </button>
+              <button
+                onClick={onLinkAgenda}
+                className="text-sm text-blue-600 hover:text-blue-700 border border-blue-200 bg-blue-50 px-3 py-1 rounded font-medium"
+              >
+                + Link Existing
+              </button>
+            </div>
           ) : null}
         </div>
       )}

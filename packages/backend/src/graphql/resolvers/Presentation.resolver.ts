@@ -792,4 +792,141 @@ export class PresentationResolver {
     logger.info(`Agenda email sent to ${sentCount}/${approvedMembers.length} members for meeting ${input.meetingId}`);
     return true;
   }
+
+  @Mutation(() => PresentationMeetingGQL)
+  async createAgendaFromTemplate(
+    @Arg('meetingId') meetingId: string,
+    @Ctx() context: Context
+  ): Promise<PresentationMeetingGQL> {
+    await this.requireManagerAccess(context);
+
+    const meeting = await this.presRepo.findMeetingById(meetingId);
+    if (!meeting) {
+      throw new GraphQLError('Meeting not found', {
+        extensions: { code: 'NOT_FOUND' },
+      });
+    }
+
+    if (meeting.agenda_drive_file_id) {
+      throw new GraphQLError('This meeting already has an agenda linked. Remove it first to create a new one.', {
+        extensions: { code: 'BAD_INPUT' },
+      });
+    }
+
+    const templateId = env.GOOGLE_DRIVE_AGENDA_TEMPLATE_ID;
+    if (!templateId) {
+      throw new GraphQLError('Agenda template not configured', {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+
+    const meetingsFolderId = env.GOOGLE_DRIVE_MEETINGS_FOLDER_ID;
+    if (!meetingsFolderId) {
+      throw new GraphQLError('Meetings folder not configured', {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+
+    // Get calendar event for naming
+    const calEvent = await getCalendarEvent(meeting.google_event_id);
+    const eventTitle = calEvent?.title || 'Club Meeting';
+    const eventDate = calEvent?.startTime
+      ? new Date(calEvent.startTime).toISOString().split('T')[0]
+      : 'Unknown Date';
+    const agendaName = `Agenda - ${eventDate} - ${eventTitle}`;
+
+    const copiedFile = await driveService.copyFile(templateId, agendaName, meetingsFolderId);
+    if (!copiedFile) {
+      throw new GraphQLError('Failed to create agenda from template', {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+
+    const agendaUrl = `https://docs.google.com/document/d/${copiedFile.id}/edit`;
+
+    const updated = await this.presRepo.updateMeeting(meetingId, {
+      agendaDriveFileId: copiedFile.id,
+      agendaDriveFileName: copiedFile.name,
+      agendaDriveFileUrl: agendaUrl,
+    });
+
+    const reservations = await this.presRepo.findReservationsByMeeting(updated!.id);
+
+    const gql = new PresentationMeetingGQL();
+    gql.id = updated!.id;
+    gql.googleEventId = updated!.google_event_id;
+    gql.totalSlots = updated!.total_slots;
+    gql.notes = updated!.notes || undefined;
+    gql.slotsRemaining = Math.max(0, updated!.total_slots - reservations.length);
+    gql.eventTitle = calEvent?.title;
+    gql.eventDate = calEvent?.startTime;
+    gql.eventLocation = calEvent?.location;
+    gql.agendaDriveFileId = updated!.agenda_drive_file_id || undefined;
+    gql.agendaDriveFileName = updated!.agenda_drive_file_name || undefined;
+    gql.agendaDriveFileUrl = updated!.agenda_drive_file_url || undefined;
+    gql.reservations = await Promise.all(reservations.map((r) => this.mapReservation(r)));
+    gql.createdAt = updated!.created_at.toISOString();
+
+    logger.info(`Agenda created from template for meeting ${meetingId}: ${copiedFile.name} (${copiedFile.id})`);
+    return gql;
+  }
+
+  @Mutation(() => PresentationMeetingGQL)
+  async deleteAgenda(
+    @Arg('meetingId') meetingId: string,
+    @Ctx() context: Context
+  ): Promise<PresentationMeetingGQL> {
+    await this.requireManagerAccess(context);
+
+    const meeting = await this.presRepo.findMeetingById(meetingId);
+    if (!meeting) {
+      throw new GraphQLError('Meeting not found', {
+        extensions: { code: 'NOT_FOUND' },
+      });
+    }
+
+    if (!meeting.agenda_drive_file_id) {
+      throw new GraphQLError('No agenda linked to this meeting', {
+        extensions: { code: 'BAD_INPUT' },
+      });
+    }
+
+    // Delete from Google Drive (best-effort)
+    try {
+      const deleted = await driveService.deleteFile(meeting.agenda_drive_file_id);
+      if (!deleted) {
+        logger.warn(`Could not delete agenda Drive file: ${meeting.agenda_drive_file_id}`);
+      }
+    } catch (err: any) {
+      logger.warn('Failed to delete agenda from Drive, unlinking anyway', {
+        driveFileId: meeting.agenda_drive_file_id,
+        error: err?.message,
+      });
+    }
+
+    // Clear agenda fields in DB
+    const updated = await this.presRepo.updateMeeting(meetingId, {
+      agendaDriveFileId: null,
+      agendaDriveFileName: null,
+      agendaDriveFileUrl: null,
+    });
+
+    const reservations = await this.presRepo.findReservationsByMeeting(updated!.id);
+    const calEvent = await getCalendarEvent(updated!.google_event_id);
+
+    const gql = new PresentationMeetingGQL();
+    gql.id = updated!.id;
+    gql.googleEventId = updated!.google_event_id;
+    gql.totalSlots = updated!.total_slots;
+    gql.notes = updated!.notes || undefined;
+    gql.slotsRemaining = Math.max(0, updated!.total_slots - reservations.length);
+    gql.eventTitle = calEvent?.title;
+    gql.eventDate = calEvent?.startTime;
+    gql.eventLocation = calEvent?.location;
+    gql.reservations = await Promise.all(reservations.map((r) => this.mapReservation(r)));
+    gql.createdAt = updated!.created_at.toISOString();
+
+    logger.info(`Agenda deleted for meeting ${meetingId}`);
+    return gql;
+  }
 }

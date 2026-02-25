@@ -201,6 +201,42 @@ export async function uploadFile(
 }
 
 /**
+ * Copy a file in Google Drive (e.g., copy a template document).
+ * Uses the OAuth2 upload client since copying creates a new file.
+ */
+export async function copyFile(
+  sourceFileId: string,
+  newName: string,
+  parentFolderId: string
+): Promise<DriveFileInfo | null> {
+  const drive = getDriveUploadClient();
+  if (!drive) return null;
+
+  try {
+    const response = await drive.files.copy({
+      fileId: sourceFileId,
+      requestBody: {
+        name: newName,
+        parents: [parentFolderId],
+      },
+      fields: FILE_FIELDS,
+    });
+
+    logger.info(`Google Drive file copied: ${response.data.name} (${response.data.id}) from template ${sourceFileId}`);
+    return mapFileResponse(response.data);
+  } catch (error: any) {
+    logger.error('Failed to copy Google Drive file', {
+      sourceFileId,
+      newName,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorResponse: error?.response?.data,
+    });
+    throw error;
+  }
+}
+
+/**
  * Delete a file or folder from Google Drive.
  */
 export async function deleteFile(fileId: string): Promise<boolean> {
