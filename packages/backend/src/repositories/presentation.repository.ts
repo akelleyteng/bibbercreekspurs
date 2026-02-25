@@ -6,6 +6,9 @@ export interface PresentationMeetingRow {
   google_event_id: string;
   total_slots: number;
   notes: string | null;
+  agenda_drive_file_id: string | null;
+  agenda_drive_file_name: string | null;
+  agenda_drive_file_url: string | null;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -63,7 +66,13 @@ export class PresentationRepository {
 
   async updateMeeting(
     id: string,
-    updates: { totalSlots?: number; notes?: string | null }
+    updates: {
+      totalSlots?: number;
+      notes?: string | null;
+      agendaDriveFileId?: string | null;
+      agendaDriveFileName?: string | null;
+      agendaDriveFileUrl?: string | null;
+    }
   ): Promise<PresentationMeetingRow | null> {
     const sets: string[] = [];
     const values: any[] = [];
@@ -77,6 +86,18 @@ export class PresentationRepository {
       sets.push(`notes = $${idx++}`);
       values.push(updates.notes);
     }
+    if (updates.agendaDriveFileId !== undefined) {
+      sets.push(`agenda_drive_file_id = $${idx++}`);
+      values.push(updates.agendaDriveFileId || null);
+    }
+    if (updates.agendaDriveFileName !== undefined) {
+      sets.push(`agenda_drive_file_name = $${idx++}`);
+      values.push(updates.agendaDriveFileName || null);
+    }
+    if (updates.agendaDriveFileUrl !== undefined) {
+      sets.push(`agenda_drive_file_url = $${idx++}`);
+      values.push(updates.agendaDriveFileUrl || null);
+    }
 
     if (sets.length === 0) return this.findMeetingById(id);
 
@@ -88,6 +109,20 @@ export class PresentationRepository {
       values
     );
     return result.rows[0] || null;
+  }
+
+  async isUserOfficerForCurrentTerm(userId: string): Promise<boolean> {
+    const termResult = await db.query<{ term_year: string }>(
+      'SELECT DISTINCT term_year FROM officer_positions ORDER BY term_year DESC LIMIT 1'
+    );
+    if (termResult.rows.length === 0) return false;
+    const currentTerm = termResult.rows[0].term_year;
+
+    const result = await db.query<{ count: string }>(
+      'SELECT COUNT(*) AS count FROM officer_positions WHERE holder_user_id = $1 AND term_year = $2',
+      [userId, currentTerm]
+    );
+    return parseInt(result.rows[0].count, 10) > 0;
   }
 
   async deleteMeeting(id: string): Promise<boolean> {

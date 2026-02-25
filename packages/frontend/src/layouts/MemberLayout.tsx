@@ -41,7 +41,7 @@ export default function MemberLayout() {
     { name: 'Blog', href: '/blog', icon: '📝' },
     { name: 'Members', href: '/members', icon: '👥' },
     { name: 'Officers', href: '/officers', icon: '⭐' },
-    { name: 'Presentations', href: '/presentations', icon: '🎤' },
+    { name: 'Club Meetings', href: '/presentations', icon: '🎤' },
     { name: 'Files', href: '/files', icon: '📁' },
   ];
 

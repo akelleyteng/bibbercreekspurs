@@ -97,6 +97,15 @@ export class PresentationMeetingGQL {
   @Field(() => [PresentationReservationGQL])
   reservations!: PresentationReservationGQL[];
 
+  @Field({ nullable: true })
+  agendaDriveFileId?: string;
+
+  @Field({ nullable: true })
+  agendaDriveFileName?: string;
+
+  @Field({ nullable: true })
+  agendaDriveFileUrl?: string;
+
   @Field()
   createdAt!: string;
 }

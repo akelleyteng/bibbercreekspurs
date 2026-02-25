@@ -12,6 +12,7 @@ import {
   UpdateReservationInput,
   AddPresentationFileInput,
   MovePresentationInput,
+  EmailAgendaInput,
 } from '../inputs/PresentationInput';
 import {
   PresentationRepository,
@@ -29,6 +30,7 @@ import { GraphQLError } from 'graphql';
 import { logger } from '../../utils/logger';
 import { Role } from '@4hclub/shared';
 import { env } from '../../config/env';
+import { emailService } from '../../services/email.service';
 
 @Resolver()
 export class PresentationResolver {
@@ -68,6 +70,33 @@ export class PresentationResolver {
       });
     }
     return userId;
+  }
+
+  private async requireManagerAccess(context: Context): Promise<string> {
+    const { userId } = this.requireAuth(context);
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new GraphQLError('User not found', {
+        extensions: { code: 'NOT_FOUND' },
+      });
+    }
+    if (user.role === Role.ADMIN || user.role === Role.ADULT_LEADER) {
+      return userId;
+    }
+    const isOfficer = await this.presRepo.isUserOfficerForCurrentTerm(userId);
+    if (isOfficer) {
+      return userId;
+    }
+    throw new GraphQLError('Manager access required (admin, adult leader, or officer)', {
+      extensions: { code: 'FORBIDDEN' },
+    });
+  }
+
+  private async isManager(userId: string): Promise<boolean> {
+    const user = await this.userRepo.findById(userId);
+    if (!user) return false;
+    if (user.role === Role.ADMIN || user.role === Role.ADULT_LEADER) return true;
+    return this.presRepo.isUserOfficerForCurrentTerm(userId);
   }
 
   private mapFile(row: PresentationFileRow): PresentationFileGQL {
@@ -131,6 +160,9 @@ export class PresentationResolver {
       gql.eventTitle = calEvent?.title;
       gql.eventDate = calEvent?.startTime;
       gql.eventLocation = calEvent?.location;
+      gql.agendaDriveFileId = meeting.agenda_drive_file_id || undefined;
+      gql.agendaDriveFileName = meeting.agenda_drive_file_name || undefined;
+      gql.agendaDriveFileUrl = meeting.agenda_drive_file_url || undefined;
       gql.reservations = await Promise.all(reservations.map((r) => this.mapReservation(r)));
       gql.createdAt = meeting.created_at.toISOString();
 
@@ -214,7 +246,7 @@ export class PresentationResolver {
     @Arg('input') input: EnablePresentationsInput,
     @Ctx() context: Context
   ): Promise<PresentationMeetingGQL> {
-    const userId = await this.requireAdmin(context);
+    const userId = await this.requireManagerAccess(context);
 
     const calEvent = await getCalendarEvent(input.googleEventId);
     if (!calEvent) {
@@ -257,11 +289,14 @@ export class PresentationResolver {
     @Arg('input') input: UpdatePresentationMeetingInput,
     @Ctx() context: Context
   ): Promise<PresentationMeetingGQL> {
-    await this.requireAdmin(context);
+    await this.requireManagerAccess(context);
 
     const meeting = await this.presRepo.updateMeeting(input.id, {
       totalSlots: input.totalSlots,
       notes: input.notes,
+      agendaDriveFileId: input.agendaDriveFileId,
+      agendaDriveFileName: input.agendaDriveFileName,
+      agendaDriveFileUrl: input.agendaDriveFileUrl,
     });
 
     if (!meeting) {
@@ -282,6 +317,9 @@ export class PresentationResolver {
     gql.eventTitle = calEvent?.title;
     gql.eventDate = calEvent?.startTime;
     gql.eventLocation = calEvent?.location;
+    gql.agendaDriveFileId = meeting.agenda_drive_file_id || undefined;
+    gql.agendaDriveFileName = meeting.agenda_drive_file_name || undefined;
+    gql.agendaDriveFileUrl = meeting.agenda_drive_file_url || undefined;
     gql.reservations = await Promise.all(reservations.map((r) => this.mapReservation(r)));
     gql.createdAt = meeting.created_at.toISOString();
 
@@ -293,7 +331,7 @@ export class PresentationResolver {
     @Arg('meetingId') meetingId: string,
     @Ctx() context: Context
   ): Promise<boolean> {
-    await this.requireAdmin(context);
+    await this.requireManagerAccess(context);
 
     const meeting = await this.presRepo.findMeetingById(meetingId);
     if (!meeting) {
@@ -395,9 +433,12 @@ export class PresentationResolver {
       });
     }
     if (existing.user_id !== userId) {
-      throw new GraphQLError('You can only edit your own presentations', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only edit your own presentations', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     const updated = await this.presRepo.updateReservation(input.id, {
@@ -405,7 +446,7 @@ export class PresentationResolver {
       description: input.description,
     });
 
-    const user = await this.userRepo.findById(userId);
+    const ownerUser = await this.userRepo.findById(existing.user_id);
     const files = await this.presRepo.findFilesByReservation(input.id);
 
     const res = new PresentationReservationGQL();
@@ -418,10 +459,10 @@ export class PresentationResolver {
     res.updatedAt = updated!.updated_at.toISOString();
 
     const u = new PresentationReservationUserGQL();
-    u.id = userId;
-    u.firstName = user?.first_name || '';
-    u.lastName = user?.last_name || '';
-    u.profilePhotoUrl = user?.profile_photo_url || undefined;
+    u.id = existing.user_id;
+    u.firstName = ownerUser?.first_name || '';
+    u.lastName = ownerUser?.last_name || '';
+    u.profilePhotoUrl = ownerUser?.profile_photo_url || undefined;
     res.user = u;
 
     return res;
@@ -441,9 +482,12 @@ export class PresentationResolver {
       });
     }
     if (reservation.user_id !== userId) {
-      throw new GraphQLError('You can only add files to your own presentations', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only add files to your own presentations', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     // Create file record and link to reservation
@@ -475,9 +519,12 @@ export class PresentationResolver {
       });
     }
     if (reservation.user_id !== userId) {
-      throw new GraphQLError('You can only remove files from your own presentations', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only remove files from your own presentations', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     // Unlink from this reservation
@@ -518,9 +565,12 @@ export class PresentationResolver {
       });
     }
     if (reservation.user_id !== userId) {
-      throw new GraphQLError('You can only link files to your own presentations', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only link files to your own presentations', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     const file = await this.presRepo.findFileById(fileId);
@@ -530,9 +580,12 @@ export class PresentationResolver {
       });
     }
     if (file.uploaded_by !== userId) {
-      throw new GraphQLError('You can only link your own files', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only link your own files', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     await this.presRepo.linkFileToReservation(reservationId, fileId);
@@ -553,9 +606,12 @@ export class PresentationResolver {
       });
     }
     if (existing.user_id !== userId) {
-      throw new GraphQLError('You can only delete your own presentations', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only delete your own presentations', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     // Get files linked to this reservation
@@ -598,9 +654,12 @@ export class PresentationResolver {
       });
     }
     if (existing.user_id !== userId) {
-      throw new GraphQLError('You can only move your own presentations', {
-        extensions: { code: 'FORBIDDEN' },
-      });
+      const canManage = await this.isManager(userId);
+      if (!canManage) {
+        throw new GraphQLError('You can only move your own presentations', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
     }
 
     const destMeeting = await this.presRepo.findMeetingById(input.newMeetingId);
@@ -618,7 +677,7 @@ export class PresentationResolver {
     }
 
     const moved = await this.presRepo.moveReservation(input.reservationId, input.newMeetingId);
-    const user = await this.userRepo.findById(userId);
+    const ownerUser = await this.userRepo.findById(existing.user_id);
     const files = await this.presRepo.findFilesByReservation(input.reservationId);
 
     const res = new PresentationReservationGQL();
@@ -631,12 +690,106 @@ export class PresentationResolver {
     res.updatedAt = moved!.updated_at.toISOString();
 
     const u = new PresentationReservationUserGQL();
-    u.id = userId;
-    u.firstName = user?.first_name || '';
-    u.lastName = user?.last_name || '';
-    u.profilePhotoUrl = user?.profile_photo_url || undefined;
+    u.id = existing.user_id;
+    u.firstName = ownerUser?.first_name || '';
+    u.lastName = ownerUser?.last_name || '';
+    u.profilePhotoUrl = ownerUser?.profile_photo_url || undefined;
     res.user = u;
 
     return res;
+  }
+
+  // ── New Queries ──
+
+  @Query(() => String, { nullable: true })
+  async meetingsDriveFolderId(
+    @Ctx() context: Context
+  ): Promise<string | null> {
+    this.requireAuth(context);
+    return env.GOOGLE_DRIVE_MEETINGS_FOLDER_ID || null;
+  }
+
+  @Query(() => Boolean)
+  async isCurrentUserPresentationManager(
+    @Ctx() context: Context
+  ): Promise<boolean> {
+    const { userId } = this.requireAuth(context);
+    return this.isManager(userId);
+  }
+
+  // ── Email Agenda ──
+
+  @Mutation(() => Boolean)
+  async emailAgenda(
+    @Arg('input') input: EmailAgendaInput,
+    @Ctx() context: Context
+  ): Promise<boolean> {
+    const userId = await this.requireManagerAccess(context);
+
+    const meeting = await this.presRepo.findMeetingById(input.meetingId);
+    if (!meeting) {
+      throw new GraphQLError('Meeting not found', {
+        extensions: { code: 'NOT_FOUND' },
+      });
+    }
+
+    if (!meeting.agenda_drive_file_id) {
+      throw new GraphQLError('No agenda linked to this meeting', {
+        extensions: { code: 'BAD_INPUT' },
+      });
+    }
+
+    const calEvent = await getCalendarEvent(meeting.google_event_id);
+    const eventTitle = calEvent?.title || 'Club Meeting';
+    const eventDate = calEvent?.startTime
+      ? new Date(calEvent.startTime).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      : '';
+
+    const agendaUrl = meeting.agenda_drive_file_url || `https://drive.google.com/file/d/${meeting.agenda_drive_file_id}/view`;
+
+    const allUsers = await this.userRepo.findAll();
+    const approvedMembers = allUsers.filter((u) => u.approval_status === 'APPROVED' && u.email);
+
+    const subject = `Meeting Agenda: ${eventTitle}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2>Meeting Agenda</h2>
+        <p><strong>${eventTitle}</strong>${eventDate ? ` — ${eventDate}` : ''}</p>
+        ${input.message ? `<p>${input.message.replace(/\n/g, '<br>')}</p>` : ''}
+        <p>
+          <a href="${agendaUrl}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px;">
+            View Agenda
+          </a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px;">
+          — Bibber Creek Spurs 4-H Club
+        </p>
+      </div>
+    `;
+
+    let sentCount = 0;
+    for (const member of approvedMembers) {
+      try {
+        await emailService.sendEmail({
+          to: member.email,
+          subject,
+          html,
+          userId,
+          eventType: 'AGENDA_EMAIL',
+          relatedResourceId: input.meetingId,
+        });
+        sentCount++;
+      } catch (err: any) {
+        logger.warn(`Failed to send agenda email to ${member.email}`, { error: err?.message });
+      }
+    }
+
+    logger.info(`Agenda email sent to ${sentCount}/${approvedMembers.length} members for meeting ${input.meetingId}`);
+    return true;
   }
 }

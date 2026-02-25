@@ -34,6 +34,21 @@ export class UpdatePresentationMeetingInput {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  agendaDriveFileId?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  agendaDriveFileName?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  agendaDriveFileUrl?: string;
 }
 
 @InputType()
@@ -99,6 +114,17 @@ export class AddPresentationFileInput {
   @IsString()
   @IsIn(['presentation', 'image', 'recording'])
   fileType!: string;
+}
+
+@InputType()
+export class EmailAgendaInput {
+  @Field()
+  @IsString()
+  meetingId!: string;
+
+  @Field()
+  @IsString()
+  message!: string;
 }
 
 @InputType()

@@ -48,7 +48,18 @@ interface PresentationMeeting {
   eventDate?: string;
   eventLocation?: string;
   reservations: Reservation[];
+  agendaDriveFileId?: string;
+  agendaDriveFileName?: string;
+  agendaDriveFileUrl?: string;
   createdAt: string;
+}
+
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  isFolder: boolean;
+  webViewLink?: string;
 }
 
 interface CalendarEvent {
@@ -87,6 +98,7 @@ const MEETINGS_QUERY = `query {
   presentationMeetings {
     id googleEventId totalSlots notes slotsRemaining
     eventTitle eventDate eventLocation createdAt
+    agendaDriveFileId agendaDriveFileName agendaDriveFileUrl
     reservations {
       id meetingId title description
       files { id driveFileId driveFileName driveFileUrl fileType createdAt }
@@ -108,12 +120,18 @@ export default function PresentationsPage() {
   const [imagesFolderId, setImagesFolderId] = useState<string | null>(null);
   const [recordingsFolderId, setRecordingsFolderId] = useState<string | null>(null);
 
+  // Manager access (admin, adult leader, or current-term officer)
+  const [isManager, setIsManager] = useState(false);
+  const [meetingsFolderId, setMeetingsFolderId] = useState<string | null>(null);
+
   // Modal state
   const [showReserveModal, setShowReserveModal] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState<Reservation | null>(null);
   const [showMoveModal, setShowMoveModal] = useState<Reservation | null>(null);
   const [showEnableModal, setShowEnableModal] = useState<CalendarEvent | null>(null);
   const [showEditMeetingModal, setShowEditMeetingModal] = useState<PresentationMeeting | null>(null);
+  const [showAgendaPickerForMeeting, setShowAgendaPickerForMeeting] = useState<PresentationMeeting | null>(null);
+  const [showEmailAgendaModal, setShowEmailAgendaModal] = useState<PresentationMeeting | null>(null);
 
   // Upload state
   const [uploadingReservationId, setUploadingReservationId] = useState<string | null>(null);
@@ -122,6 +140,7 @@ export default function PresentationsPage() {
 
   const isAdmin = user?.role === 'ADMIN';
   const isYouth = user?.role === 'YOUTH_MEMBER';
+  const canManage = isAdmin || isManager;
 
   // Youth members available for the reserve-on-behalf picker
   const [youthMembers, setYouthMembers] = useState<PickerMember[]>([]);
@@ -134,6 +153,8 @@ export default function PresentationsPage() {
         authFetch(`query { presentationsFolderId }`),
         authFetch(`query { presentationsImagesFolderId }`),
         authFetch(`query { presentationsRecordingsFolderId }`),
+        authFetch(`query { isCurrentUserPresentationManager }`),
+        authFetch(`query { meetingsDriveFolderId }`),
       ];
 
       // Fetch youth members for the reserve-on-behalf picker (non-youth only)
@@ -162,10 +183,16 @@ export default function PresentationsPage() {
       if (recFolderRes.data?.presentationsRecordingsFolderId) {
         setRecordingsFolderId(recFolderRes.data.presentationsRecordingsFolderId);
       }
+      if (results[5]?.data?.isCurrentUserPresentationManager != null) {
+        setIsManager(results[5].data.isCurrentUserPresentationManager);
+      }
+      if (results[6]?.data?.meetingsDriveFolderId) {
+        setMeetingsFolderId(results[6].data.meetingsDriveFolderId);
+      }
 
       // Process youth members for picker
-      if (needsMemberPicker && results[5]?.data?.users) {
-        const allUsers = results[5].data.users as Array<{
+      if (needsMemberPicker && results[7]?.data?.users) {
+        const allUsers = results[7].data.users as Array<{
           id: string; firstName: string; lastName: string; role: string;
           linkedChildren?: Array<{ id: string; firstName: string; lastName: string }>;
         }>;
@@ -366,22 +393,57 @@ export default function PresentationsPage() {
     fetchData();
   };
 
+  // ── Agenda actions ──
+
+  const handleLinkAgenda = async (meetingId: string, file: DriveFile) => {
+    setError(null);
+    const res = await authFetch(
+      `mutation($input: UpdatePresentationMeetingInput!) { updatePresentationMeeting(input: $input) { id } }`,
+      { input: { id: meetingId, agendaDriveFileId: file.id, agendaDriveFileName: file.name, agendaDriveFileUrl: file.webViewLink || '' } }
+    );
+    if (res.errors) { setError(res.errors[0].message); return; }
+    setShowAgendaPickerForMeeting(null);
+    fetchData();
+  };
+
+  const handleUnlinkAgenda = async (meetingId: string) => {
+    if (!confirm('Remove the linked agenda from this meeting?')) return;
+    setError(null);
+    const res = await authFetch(
+      `mutation($input: UpdatePresentationMeetingInput!) { updatePresentationMeeting(input: $input) { id } }`,
+      { input: { id: meetingId, agendaDriveFileId: '', agendaDriveFileName: '', agendaDriveFileUrl: '' } }
+    );
+    if (res.errors) { setError(res.errors[0].message); return; }
+    fetchData();
+  };
+
+  const handleEmailAgenda = async (meetingId: string, message: string) => {
+    setError(null);
+    const res = await authFetch(
+      `mutation($input: EmailAgendaInput!) { emailAgenda(input: $input) }`,
+      { input: { meetingId, message } }
+    );
+    if (res.errors) { setError(res.errors[0].message); return; }
+    setShowEmailAgendaModal(null);
+    alert('Agenda email sent to all club members!');
+  };
+
   // ── Render ──
 
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Presentations</h1>
-        <p className="text-gray-500 text-center py-12">Loading presentations...</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Meetings</h1>
+        <p className="text-gray-500 text-center py-12">Loading meetings...</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">Presentations</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">Club Meeting Agenda &amp; Presentation Signups</h1>
       <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
-        Sign up to present at a club meeting. Reserve your spot, then upload your slides, photos, and recordings when ready.
+        View meeting agendas, sign up to present, and upload your slides, photos, and recordings.
       </p>
 
       {error && (
@@ -393,11 +455,12 @@ export default function PresentationsPage() {
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
 
-      {/* Admin: Enable presentations on a meeting */}
-      {isAdmin && enableableEvents.length > 0 && (
+      {/* Manager: Enable presentations on a meeting */}
+      {canManage && enableableEvents.length > 0 && (
         <AdminEnableSection
           enableableEvents={enableableEvents}
           onEnable={(event) => setShowEnableModal(event)}
+          isAdmin={isAdmin}
         />
       )}
 
@@ -405,7 +468,7 @@ export default function PresentationsPage() {
       {meetings.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500 text-lg">No meetings with presentation slots yet.</p>
-          {isAdmin && (
+          {canManage && (
             <p className="text-gray-400 mt-2">Use the buttons above to enable presentations on upcoming meetings.</p>
           )}
         </div>
@@ -416,7 +479,7 @@ export default function PresentationsPage() {
               key={meeting.id}
               meeting={meeting}
               currentUserId={user?.id}
-              isAdmin={isAdmin}
+              canManage={canManage}
               uploadingReservationId={uploadingReservationId}
               onReserve={() => setShowReserveModal(meeting.id)}
               onEdit={(r) => setShowEditModal(r)}
@@ -426,6 +489,9 @@ export default function PresentationsPage() {
               onRemoveFile={handleRemoveFile}
               onEditMeeting={() => setShowEditMeetingModal(meeting)}
               onDisable={() => handleDisablePresentations(meeting.id)}
+              onLinkAgenda={() => setShowAgendaPickerForMeeting(meeting)}
+              onUnlinkAgenda={() => handleUnlinkAgenda(meeting.id)}
+              onEmailAgenda={() => setShowEmailAgendaModal(meeting)}
             />
           ))}
         </div>
@@ -471,6 +537,20 @@ export default function PresentationsPage() {
           onSubmit={(slots, notes) => handleUpdateMeeting(showEditMeetingModal.id, slots, notes)}
         />
       )}
+      {showAgendaPickerForMeeting && meetingsFolderId && (
+        <AgendaPickerModal
+          meetingsFolderId={meetingsFolderId}
+          onClose={() => setShowAgendaPickerForMeeting(null)}
+          onSelect={(file) => handleLinkAgenda(showAgendaPickerForMeeting.id, file)}
+        />
+      )}
+      {showEmailAgendaModal && (
+        <EmailAgendaModal
+          meeting={showEmailAgendaModal}
+          onClose={() => setShowEmailAgendaModal(null)}
+          onSend={(message) => handleEmailAgenda(showEmailAgendaModal.id, message)}
+        />
+      )}
     </div>
   );
 }
@@ -480,9 +560,11 @@ export default function PresentationsPage() {
 function AdminEnableSection({
   enableableEvents,
   onEnable,
+  isAdmin,
 }: {
   enableableEvents: CalendarEvent[];
   onEnable: (event: CalendarEvent) => void;
+  isAdmin: boolean;
 }) {
   const [showOtherDropdown, setShowOtherDropdown] = useState(false);
   const [selectedOtherId, setSelectedOtherId] = useState('');
@@ -498,10 +580,10 @@ function AdminEnableSection({
     <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-5">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-blue-600 text-lg">&#9881;</span>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Admin</span>
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">{isAdmin ? 'Admin' : 'Manager'}</span>
         <h2 className="text-lg font-semibold text-blue-900">Enable Presentations on a Meeting</h2>
       </div>
-      <p className="text-xs text-blue-500 italic mb-3">Only visible to administrators</p>
+      <p className="text-xs text-blue-500 italic mb-3">Only visible to managers</p>
 
       {/* Club Meeting events shown as buttons by default */}
       {clubMeetingEvents.length > 0 && (
@@ -578,7 +660,7 @@ function AdminEnableSection({
 function MeetingCard({
   meeting,
   currentUserId,
-  isAdmin,
+  canManage,
   uploadingReservationId,
   onReserve,
   onEdit,
@@ -588,10 +670,13 @@ function MeetingCard({
   onRemoveFile,
   onEditMeeting,
   onDisable,
+  onLinkAgenda,
+  onUnlinkAgenda,
+  onEmailAgenda,
 }: {
   meeting: PresentationMeeting;
   currentUserId?: string;
-  isAdmin: boolean;
+  canManage: boolean;
   uploadingReservationId: string | null;
   onReserve: () => void;
   onEdit: (r: Reservation) => void;
@@ -601,6 +686,9 @@ function MeetingCard({
   onRemoveFile: (reservationId: string, fileId: string) => void;
   onEditMeeting: () => void;
   onDisable: () => void;
+  onLinkAgenda: () => void;
+  onUnlinkAgenda: () => void;
+  onEmailAgenda: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const dateLong = meeting.eventDate
@@ -645,16 +733,16 @@ function MeetingCard({
             )}
           </div>
           <div className="flex items-center gap-1 sm:gap-2 ml-2 flex-shrink-0">
-            {isAdmin && (
+            {canManage && (
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); onEditMeeting(); }}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
+                  className="p-1 sm:p-1.5 text-blue-500 hover:text-blue-700 border border-blue-200 bg-blue-50 rounded"
                   title="Edit meeting settings"
                 >&#9998;</button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDisable(); }}
-                  className="p-1.5 text-gray-400 hover:text-red-500 rounded"
+                  className="p-1 sm:p-1.5 text-blue-500 hover:text-red-500 border border-blue-200 bg-blue-50 rounded"
                   title="Disable presentations"
                 >&#128465;</button>
               </>
@@ -663,6 +751,44 @@ function MeetingCard({
           </div>
         </div>
       </div>
+
+      {/* Agenda section */}
+      {(meeting.agendaDriveFileId || canManage) && (
+        <div className="border-t border-gray-100 px-4 sm:px-6 py-2 sm:py-3 bg-gray-50">
+          {meeting.agendaDriveFileId ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Agenda:</span>
+              <a
+                href={meeting.agendaDriveFileUrl || `https://drive.google.com/file/d/${meeting.agendaDriveFileId}/view`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary-600 hover:text-primary-700 underline truncate max-w-[200px] sm:max-w-[300px]"
+              >
+                {meeting.agendaDriveFileName || 'View Agenda'}
+              </a>
+              {canManage && (
+                <>
+                  <button
+                    onClick={onUnlinkAgenda}
+                    className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded"
+                  >Remove</button>
+                  <button
+                    onClick={onEmailAgenda}
+                    className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded"
+                  >Email Agenda</button>
+                </>
+              )}
+            </div>
+          ) : canManage ? (
+            <button
+              onClick={onLinkAgenda}
+              className="text-sm text-blue-600 hover:text-blue-700 border border-blue-200 bg-blue-50 px-3 py-1 rounded font-medium"
+            >
+              + Link Agenda
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {/* Expanded content */}
       {expanded && (
@@ -675,6 +801,7 @@ function MeetingCard({
             <div className="space-y-3">
               {meeting.reservations.map((res, idx) => {
                 const isOwn = res.user.id === currentUserId;
+                const canAct = isOwn || canManage;
                 const isUploading = uploadingReservationId === res.id;
 
                 return (
@@ -718,10 +845,10 @@ function MeetingCard({
                                 ) : (
                                   <span className="text-gray-600 truncate">{f.driveFileName}</span>
                                 )}
-                                {isOwn && (
+                                {canAct && (
                                   <button
                                     onClick={() => onRemoveFile(res.id, f.id)}
-                                    className="text-red-400 hover:text-red-600 text-xs ml-1 flex-shrink-0"
+                                    className={`text-xs ml-1 flex-shrink-0 ${isOwn ? 'text-red-400 hover:text-red-600' : 'text-blue-400 hover:text-blue-600'}`}
                                     title="Remove file"
                                   >&times;</button>
                                 )}
@@ -730,21 +857,21 @@ function MeetingCard({
                           </div>
                         )}
 
-                        {/* Owner actions — below content on mobile, inline on desktop */}
-                        {isOwn && (
+                        {/* Actions — below content on mobile, inline on desktop */}
+                        {canAct && (
                           <div className="mt-2 sm:hidden">
                             <div className="flex flex-wrap items-center gap-1">
                               <button
                                 onClick={() => onEdit(res)}
-                                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+                                className={`px-2 py-1 text-xs rounded ${isOwn ? 'bg-white border border-gray-300 hover:bg-gray-50' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                               >Edit</button>
                               <button
                                 onClick={() => onMove(res)}
-                                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+                                className={`px-2 py-1 text-xs rounded ${isOwn ? 'bg-white border border-gray-300 hover:bg-gray-50' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                               >Move</button>
                               <button
                                 onClick={() => onDelete(res.id)}
-                                className="px-2 py-1 text-xs bg-white border border-red-300 text-red-600 rounded hover:bg-red-50"
+                                className={`px-2 py-1 text-xs rounded ${isOwn ? 'bg-white border border-red-300 text-red-600 hover:bg-red-50' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                               >Delete</button>
                               {isUploading ? (
                                 <span className="text-xs text-gray-500 ml-1">Uploading...</span>
@@ -769,21 +896,21 @@ function MeetingCard({
                         )}
                       </div>
 
-                      {/* Owner actions — right column on desktop only */}
-                      {isOwn && (
+                      {/* Actions — right column on desktop only */}
+                      {canAct && (
                         <div className="hidden sm:flex flex-shrink-0 flex-col items-end gap-1">
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => onEdit(res)}
-                              className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+                              className={`px-2 py-1 text-xs rounded ${isOwn ? 'bg-white border border-gray-300 hover:bg-gray-50' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                             >Edit</button>
                             <button
                               onClick={() => onMove(res)}
-                              className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+                              className={`px-2 py-1 text-xs rounded ${isOwn ? 'bg-white border border-gray-300 hover:bg-gray-50' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                             >Move</button>
                             <button
                               onClick={() => onDelete(res.id)}
-                              className="px-2 py-1 text-xs bg-white border border-red-300 text-red-600 rounded hover:bg-red-50"
+                              className={`px-2 py-1 text-xs rounded ${isOwn ? 'bg-white border border-red-300 text-red-600 hover:bg-red-50' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                             >Delete</button>
                           </div>
                           <div className="flex items-center gap-1 mt-1">
@@ -1122,6 +1249,167 @@ function EnableModal({ event, onClose, onSubmit }: { event: CalendarEvent; onClo
           <button type="button" onClick={onClose} className="btn-secondary text-sm">Cancel</button>
           <button type="submit" disabled={submitting} className="btn-primary text-sm disabled:opacity-50">
             {submitting ? 'Enabling...' : 'Enable Presentations'}
+          </button>
+        </div>
+      </form>
+    </ModalWrapper>
+  );
+}
+
+function AgendaPickerModal({
+  meetingsFolderId,
+  onClose,
+  onSelect,
+}: {
+  meetingsFolderId: string;
+  onClose: () => void;
+  onSelect: (file: DriveFile) => void;
+}) {
+  const [files, setFiles] = useState<DriveFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [folderStack, setFolderStack] = useState<Array<{ id: string; name: string }>>([
+    { id: meetingsFolderId, name: 'Meetings' },
+  ]);
+
+  const currentFolderId = folderStack[folderStack.length - 1].id;
+
+  const fetchFiles = useCallback(async (folderId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await authFetch(
+        `query DriveFiles($folderId: String!) {
+          driveFiles(folderId: $folderId) {
+            files { id name mimeType isFolder webViewLink }
+          }
+        }`,
+        { folderId }
+      );
+      if (result.errors) {
+        setError(result.errors[0]?.message || 'Failed to load files');
+        return;
+      }
+      setFiles(result.data?.driveFiles?.files || []);
+    } catch {
+      setError('Failed to load files');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFiles(currentFolderId);
+  }, [currentFolderId, fetchFiles]);
+
+  const navigateInto = (folder: DriveFile) => {
+    setFolderStack((prev) => [...prev, { id: folder.id, name: folder.name }]);
+  };
+
+  const navigateBack = (index: number) => {
+    setFolderStack((prev) => prev.slice(0, index + 1));
+  };
+
+  return (
+    <ModalWrapper title="Link Agenda File" onClose={onClose}>
+      {/* Breadcrumbs */}
+      <div className="flex flex-wrap items-center gap-1 text-sm text-gray-500 mb-3">
+        {folderStack.map((f, i) => (
+          <span key={f.id} className="flex items-center gap-1">
+            {i > 0 && <span>/</span>}
+            <button
+              onClick={() => navigateBack(i)}
+              className={`hover:text-primary-600 ${i === folderStack.length - 1 ? 'font-medium text-gray-700' : ''}`}
+            >
+              {f.name}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-center text-gray-500 py-6">Loading files...</p>
+      ) : error ? (
+        <p className="text-center text-red-500 py-6">{error}</p>
+      ) : files.length === 0 ? (
+        <p className="text-center text-gray-400 py-6">No files in this folder</p>
+      ) : (
+        <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+          {files.map((file) => (
+            <button
+              key={file.id}
+              onClick={() => file.isFolder ? navigateInto(file) : onSelect(file)}
+              className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm"
+            >
+              <span>{file.isFolder ? '\u{1F4C1}' : '\u{1F4C4}'}</span>
+              <span className="truncate flex-1">{file.name}</span>
+              {file.isFolder && <span className="text-gray-400 text-xs">&rarr;</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-end mt-4">
+        <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
+      </div>
+    </ModalWrapper>
+  );
+}
+
+function EmailAgendaModal({
+  meeting,
+  onClose,
+  onSend,
+}: {
+  meeting: PresentationMeeting;
+  onClose: () => void;
+  onSend: (message: string) => void;
+}) {
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSending(true);
+    await onSend(message.trim());
+    setSending(false);
+  };
+
+  return (
+    <ModalWrapper title="Email Agenda to Members" onClose={onClose}>
+      <div className="mb-4 text-sm text-gray-600">
+        <p><strong>{meeting.eventTitle || 'Club Meeting'}</strong></p>
+        {meeting.eventDate && (
+          <p>{format(parseEventDate(meeting.eventDate), 'EEEE, MMMM d, yyyy')}</p>
+        )}
+        {meeting.agendaDriveFileName && (
+          <p className="mt-1">Agenda: <span className="text-primary-600">{meeting.agendaDriveFileName}</span></p>
+        )}
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Custom Message (optional)
+          </label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            className="input w-full"
+            rows={4}
+            placeholder="Add a note to include in the email..."
+          />
+        </div>
+        <p className="text-xs text-gray-500">
+          This will send an email to all approved club members with a link to the agenda.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="btn-secondary text-sm">Cancel</button>
+          <button
+            type="submit"
+            disabled={sending}
+            className="btn-primary text-sm disabled:opacity-50"
+          >
+            {sending ? 'Sending...' : 'Send to All Members'}
           </button>
         </div>
       </form>
