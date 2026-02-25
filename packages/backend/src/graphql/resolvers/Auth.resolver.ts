@@ -1,6 +1,7 @@
 import { Resolver, Mutation, Query, Arg, Ctx } from 'type-graphql';
 import { UserRepository } from '../../repositories/user.repository';
 import { YouthMemberRepository } from '../../repositories/youth-member.repository';
+import crypto from 'crypto';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -9,6 +10,7 @@ import {
   verifyAccessToken,
   verifyRefreshToken,
 } from '../../services/auth.service';
+import db from '../../models/database';
 import { emailService } from '../../services/email.service';
 import { User, AuthPayload, RefreshTokenPayload, RegisterPayload } from '../types/User.type';
 import { RegisterInput } from '../inputs/RegisterInput';
@@ -335,6 +337,109 @@ export class AuthResolver {
     logger.info('User logged out');
 
     return true;
+  }
+
+  @Mutation(() => Boolean)
+  async forgotPassword(
+    @Arg('email') email: string,
+  ): Promise<boolean> {
+    try {
+      const user = await this.userRepository.findByEmail(email.toLowerCase());
+
+      // Always return true to avoid leaking whether an email exists
+      if (!user || user.approval_status !== 'APPROVED') {
+        return true;
+      }
+
+      // Invalidate any existing unused tokens for this user
+      await db.query(
+        `UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+        [user.id]
+      );
+
+      // Generate a secure random token
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await db.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+        [user.id, tokenHash, expiresAt]
+      );
+
+      // Send email (fire-and-forget)
+      emailService.sendPasswordResetEmail(
+        user.email,
+        user.first_name,
+        rawToken,
+        user.id
+      );
+
+      logger.info(`Password reset requested for: ${user.email}`);
+      return true;
+    } catch (error: any) {
+      logger.error('Forgot password error:', error);
+      // Still return true to avoid leaking info
+      return true;
+    }
+  }
+
+  @Mutation(() => Boolean)
+  async resetPassword(
+    @Arg('token') token: string,
+    @Arg('newPassword') newPassword: string,
+  ): Promise<boolean> {
+    try {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+      const result = await db.query(
+        `SELECT prt.id, prt.user_id, prt.expires_at, prt.used_at
+         FROM password_reset_tokens prt
+         WHERE prt.token_hash = $1`,
+        [tokenHash]
+      );
+
+      if (result.rows.length === 0) {
+        throw new GraphQLError('Invalid or expired reset link. Please request a new one.', {
+          extensions: { code: 'INVALID_TOKEN' },
+        });
+      }
+
+      const resetToken = result.rows[0];
+
+      if (resetToken.used_at) {
+        throw new GraphQLError('This reset link has already been used. Please request a new one.', {
+          extensions: { code: 'TOKEN_USED' },
+        });
+      }
+
+      if (new Date(resetToken.expires_at) < new Date()) {
+        throw new GraphQLError('This reset link has expired. Please request a new one.', {
+          extensions: { code: 'TOKEN_EXPIRED' },
+        });
+      }
+
+      // Mark token as used
+      await db.query(
+        `UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1`,
+        [resetToken.id]
+      );
+
+      // Update password
+      const passwordHash = await hashPassword(newPassword);
+      await this.userRepository.updatePassword(resetToken.user_id, passwordHash);
+
+      logger.info(`Password reset completed for user ID: ${resetToken.user_id}`);
+      return true;
+    } catch (error: any) {
+      if (error instanceof GraphQLError) {
+        throw error;
+      }
+      logger.error('Reset password error:', error);
+      throw new GraphQLError('Failed to reset password', {
+        extensions: { code: 'RESET_FAILED' },
+      });
+    }
   }
 
   @Mutation(() => Boolean)

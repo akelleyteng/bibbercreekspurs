@@ -11,6 +11,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import DriveFilesPage from './pages/DriveFilesPage';
 import EventDetailPage from './pages/EventDetailPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import EventsPage from './pages/EventsPage';
 import HelpPage from './pages/HelpPage';
 import HomePage from './pages/HomePage';
@@ -20,6 +21,7 @@ import OfficersPage from './pages/OfficersPage';
 import PresentationsPage from './pages/PresentationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import SocialFeedPage from './pages/SocialFeedPage';
 
 function App() {
@@ -30,6 +32,8 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
 
       {/* Adaptive routes: sidebar when logged in, public chrome when not */}

@@ -60,19 +60,21 @@ export default function MembersPage() {
       .finally(() => setLoading(false));
   }, [isAuthenticated]);
 
-  const filteredMembers = members.filter((user) => {
-    const matchesSearch =
-      user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredMembers = members
+    .filter((user) => {
+      const matchesSearch =
+        user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesRole =
-      roleFilter === 'ALL' ||
-      (roleFilter === 'YOUTH' && user.role === 'YOUTH_MEMBER') ||
-      (roleFilter === 'ADULT' && ['PARENT', 'ADULT_LEADER', 'ADMIN'].includes(user.role));
+      const matchesRole =
+        roleFilter === 'ALL' ||
+        (roleFilter === 'YOUTH' && user.role === 'YOUTH_MEMBER') ||
+        (roleFilter === 'ADULT' && ['PARENT', 'ADULT_LEADER', 'ADMIN'].includes(user.role));
 
-    return matchesSearch && matchesRole;
-  });
+      return matchesSearch && matchesRole;
+    })
+    .sort((a, b) => a.firstName.localeCompare(b.firstName));
 
   if (!isAuthenticated) {
     return (
@@ -112,13 +114,24 @@ export default function MembersPage() {
             </button>
           ))}
         </div>
-        <input
-          type="text"
-          placeholder="Search members..."
-          className="input max-w-md"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+        <div className="relative max-w-md w-full">
+          <input
+            type="text"
+            placeholder="Search members..."
+            className="input w-full pr-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+              aria-label="Clear search"
+            >
+              &times;
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

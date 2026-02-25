@@ -177,6 +177,32 @@ class EmailService {
       relatedResourceId: userId,
     });
   }
+  async sendPasswordResetEmail(
+    memberEmail: string,
+    memberName: string,
+    resetToken: string,
+    userId: string
+  ): Promise<void> {
+    const frontendUrl = process.env.FRONTEND_URL || 'https://bibbercreekspurs4h.org';
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    await this.sendEmail({
+      to: memberEmail,
+      subject: 'Password Reset - Bibber Creek Spurs 4-H',
+      html: `
+        <h2>Password Reset Request</h2>
+        <p>Hi ${memberName},</p>
+        <p>We received a request to reset your password. Click the link below to set a new password:</p>
+        <p><a href="${resetLink}" style="display:inline-block;padding:12px 24px;background-color:#4f772d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Reset Your Password</a></p>
+        <p>Or copy and paste this URL into your browser:</p>
+        <p>${resetLink}</p>
+        <p>This link will expire in 1 hour. If you did not request a password reset, you can safely ignore this email.</p>
+      `,
+      userId,
+      eventType: 'PASSWORD_RESET',
+      relatedResourceId: userId,
+    });
+  }
 }
 
 export const emailService = new EmailService();

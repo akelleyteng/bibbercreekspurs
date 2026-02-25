@@ -102,11 +102,6 @@ export default function PublicLayout() {
                     info@bibbercreekspurs4h.org
                   </a>
                 </p>
-                <p>
-                  <a href="tel:+15551234567" className="hover:text-white focus:text-white">
-                    (555) 123-4567
-                  </a>
-                </p>
               </address>
             </div>
           </div>
