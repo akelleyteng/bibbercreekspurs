@@ -7,6 +7,7 @@ import RichTextEditor from '../components/RichTextEditor';
 import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
+import { authFetch } from '../utils/authFetch';
 
 interface OfficerRole {
   id: string;
@@ -227,7 +228,6 @@ export default function AdminPage() {
   };
 
   const apiBase = import.meta.env.VITE_GRAPHQL_URL?.replace('/graphql', '') || 'http://localhost:4000';
-  const graphqlUrl = `${apiBase}/graphql`;
 
   const proxyDriveUrl = (url: string): string => {
     const lh3Match = url.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
@@ -236,19 +236,10 @@ export default function AdminPage() {
   };
 
   const fetchHomeContent = useCallback(async () => {
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          query: `query { adminHomePageContent { id sectionType title content imageUrl metadata orderIndex isActive } }`,
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch<any>(
+        `query { adminHomePageContent { id sectionType title content imageUrl metadata orderIndex isActive } }`,
+      );
       if (result.data?.adminHomePageContent) {
         const contentMap: Record<string, HomeContentSection> = {};
         for (const section of result.data.adminHomePageContent) {
@@ -264,32 +255,24 @@ export default function AdminPage() {
       }
     } catch { /* ignore */ }
     setHomeContentLoaded(true);
-  }, [graphqlUrl]);
+  }, []);
 
   const saveHomeSectionRaw = async (sectionType: string) => {
     const section = getSection(sectionType);
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation UpsertHomeContent($input: UpsertHomeContentInput!) {
-          upsertHomeContent(input: $input) { id sectionType title content imageUrl metadata }
-        }`,
-        variables: {
-          input: {
-            sectionType: section.sectionType,
-            title: section.title || null,
-            content: section.content || '',
-            imageUrl: section.imageUrl || null,
-            metadata: section.metadata,
-          },
+    await authFetch(
+      `mutation UpsertHomeContent($input: UpsertHomeContentInput!) {
+        upsertHomeContent(input: $input) { id sectionType title content imageUrl metadata }
+      }`,
+      {
+        input: {
+          sectionType: section.sectionType,
+          title: section.title || null,
+          content: section.content || '',
+          imageUrl: section.imageUrl || null,
+          metadata: section.metadata,
         },
-      }),
-    });
+      },
+    );
   };
 
   const saveHomeSection = async (sectionType: string) => {
@@ -304,109 +287,55 @@ export default function AdminPage() {
   };
 
   const fetchSponsors = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { sponsors(activeOnly: false) { id name logoUrl websiteUrl description orderIndex isActive } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { sponsors(activeOnly: false) { id name logoUrl websiteUrl description orderIndex isActive } }`,
+    );
     if (result.data?.sponsors) {
       setSponsors(result.data.sponsors);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchTestimonials = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { testimonials(activeOnly: false) { id authorName authorRole content imageUrl isActive } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { testimonials(activeOnly: false) { id authorName authorRole content imageUrl isActive } }`,
+    );
     if (result.data?.testimonials) {
       setTestimonials(result.data.testimonials);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchBlogPosts = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { blogPosts(publicOnly: false) { id title slug content excerpt visibility featuredImageUrl publishedAt author { id firstName lastName } } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { blogPosts(publicOnly: false) { id title slug content excerpt visibility featuredImageUrl publishedAt author { id firstName lastName } } }`,
+    );
     if (result.data?.blogPosts) {
       setBlogPosts(result.data.blogPosts);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchOfficers = useCallback(async (year: string) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position termYear holderUserId holderYouthMemberId holder { firstName lastName holderType profilePhotoUrl } label description } }`,
-        variables: { termYear: year },
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query($termYear: String!) { officerPositions(termYear: $termYear) { id position termYear holderUserId holderYouthMemberId holder { firstName lastName holderType profilePhotoUrl } label description } }`,
+      { termYear: year },
+    );
     if (result.data?.officerPositions) {
       setOfficers(result.data.officerPositions);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchOfficerRoles = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { officerRoles { id name label description sortOrder } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { officerRoles { id name label description sortOrder } }`,
+    );
     if (result.data?.officerRoles) {
       setOfficerRoles(result.data.officerRoles);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchHolderOptions = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { users { id firstName lastName } allYouthMembers { id firstName lastName } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { users { id firstName lastName } allYouthMembers { id firstName lastName } }`,
+    );
     if (result.data) {
       const options: HolderOption[] = [];
       if (result.data.users) {
@@ -422,74 +351,40 @@ export default function AdminPage() {
       options.sort((a, b) => a.name.localeCompare(b.name));
       setHolderOptions(options);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchMembers = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl lastLogin lastLoginDevice postCount commentCount blogPostCount youthMembers { id firstName lastName birthdate project horseNames userId } linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl lastLogin lastLoginDevice postCount commentCount blogPostCount youthMembers { id firstName lastName birthdate project horseNames userId } linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
+    );
     if (result.data?.users) {
       setAdminMembers(result.data.users);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const fetchPendingMembers = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { pendingUsers { id firstName lastName email role phone horseName horseExperience birthday createdAt youthMembers { id firstName lastName birthdate horseNames horseExperience } } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `query { pendingUsers { id firstName lastName email role phone horseName horseExperience birthday createdAt youthMembers { id firstName lastName birthdate horseNames horseExperience } } }`,
+    );
     if (result.data?.pendingUsers) {
       setPendingMembers(result.data.pendingUsers);
     }
-  }, [graphqlUrl]);
+  }, []);
 
   const handleApproveUser = async (id: string) => {
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation AdminApproveUser($id: String!) { adminApproveUser(id: $id) { id } }`,
-        variables: { id },
-      }),
-    });
+    await authFetch(
+      `mutation AdminApproveUser($id: String!) { adminApproveUser(id: $id) { id } }`,
+      { id },
+    );
     fetchPendingMembers();
     fetchMembers();
   };
 
   const handleDeclineUser = async (id: string, reason: string) => {
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation AdminDeclineUser($id: String!, $reason: String) { adminDeclineUser(id: $id, reason: $reason) { id } }`,
-        variables: { id, reason: reason || null },
-      }),
-    });
+    await authFetch(
+      `mutation AdminDeclineUser($id: String!, $reason: String) { adminDeclineUser(id: $id, reason: $reason) { id } }`,
+      { id, reason: reason || null },
+    );
     setDecliningMemberId(null);
     setDeclineReason('');
     fetchPendingMembers();
@@ -514,49 +409,35 @@ export default function AdminPage() {
   };
 
   const handleSaveSponsor = async (data: SponsorFormData) => {
-    const token = localStorage.getItem('token');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     if (editingSponsorId) {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation UpdateSponsor($id: String!, $input: UpdateSponsorInput!) {
-            updateSponsor(id: $id, input: $input) { id }
-          }`,
-          variables: {
-            id: editingSponsorId,
-            input: {
-              name: data.name,
-              logoUrl: data.logoUrl,
-              websiteUrl: data.websiteUrl || null,
-              description: data.description || null,
-            },
+      await authFetch(
+        `mutation UpdateSponsor($id: String!, $input: UpdateSponsorInput!) {
+          updateSponsor(id: $id, input: $input) { id }
+        }`,
+        {
+          id: editingSponsorId,
+          input: {
+            name: data.name,
+            logoUrl: data.logoUrl,
+            websiteUrl: data.websiteUrl || null,
+            description: data.description || null,
           },
-        }),
-      });
+        },
+      );
     } else {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation CreateSponsor($input: CreateSponsorInput!) {
-            createSponsor(input: $input) { id }
-          }`,
-          variables: {
-            input: {
-              name: data.name,
-              logoUrl: data.logoUrl,
-              websiteUrl: data.websiteUrl || null,
-              description: data.description || null,
-            },
+      await authFetch(
+        `mutation CreateSponsor($input: CreateSponsorInput!) {
+          createSponsor(input: $input) { id }
+        }`,
+        {
+          input: {
+            name: data.name,
+            logoUrl: data.logoUrl,
+            websiteUrl: data.websiteUrl || null,
+            description: data.description || null,
           },
-        }),
-      });
+        },
+      );
     }
 
     setEditingSponsorId(null);
@@ -566,20 +447,12 @@ export default function AdminPage() {
   const handleDeleteSponsor = async (sponsorId: string) => {
     if (!confirm('Are you sure you want to delete this sponsor?')) return;
 
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation DeleteSponsor($id: String!) {
-          deleteSponsor(id: $id)
-        }`,
-        variables: { id: sponsorId },
-      }),
-    });
+    await authFetch(
+      `mutation DeleteSponsor($id: String!) {
+        deleteSponsor(id: $id)
+      }`,
+      { id: sponsorId },
+    );
 
     fetchSponsors();
   };
@@ -591,49 +464,35 @@ export default function AdminPage() {
   };
 
   const handleSaveTestimonial = async (data: any) => {
-    const token = localStorage.getItem('token');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     if (editingTestimonialId) {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation UpdateTestimonial($id: String!, $input: UpdateTestimonialInput!) {
-            updateTestimonial(id: $id, input: $input) { id }
-          }`,
-          variables: {
-            id: editingTestimonialId,
-            input: {
-              authorName: data.authorName,
-              authorRole: data.authorRole || null,
-              content: data.content,
-              imageUrl: data.imageUrl || null,
-            },
+      await authFetch(
+        `mutation UpdateTestimonial($id: String!, $input: UpdateTestimonialInput!) {
+          updateTestimonial(id: $id, input: $input) { id }
+        }`,
+        {
+          id: editingTestimonialId,
+          input: {
+            authorName: data.authorName,
+            authorRole: data.authorRole || null,
+            content: data.content,
+            imageUrl: data.imageUrl || null,
           },
-        }),
-      });
+        },
+      );
     } else {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation CreateTestimonial($input: CreateTestimonialInput!) {
-            createTestimonial(input: $input) { id }
-          }`,
-          variables: {
-            input: {
-              authorName: data.authorName,
-              authorRole: data.authorRole || null,
-              content: data.content,
-              imageUrl: data.imageUrl || null,
-            },
+      await authFetch(
+        `mutation CreateTestimonial($input: CreateTestimonialInput!) {
+          createTestimonial(input: $input) { id }
+        }`,
+        {
+          input: {
+            authorName: data.authorName,
+            authorRole: data.authorRole || null,
+            content: data.content,
+            imageUrl: data.imageUrl || null,
           },
-        }),
-      });
+        },
+      );
     }
 
     setEditingTestimonialId(null);
@@ -643,64 +502,40 @@ export default function AdminPage() {
   const handleDeleteTestimonial = async (testimonialId: string) => {
     if (!confirm('Are you sure you want to delete this testimonial?')) return;
 
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation DeleteTestimonial($id: String!) {
-          deleteTestimonial(id: $id)
-        }`,
-        variables: { id: testimonialId },
-      }),
-    });
+    await authFetch(
+      `mutation DeleteTestimonial($id: String!) {
+        deleteTestimonial(id: $id)
+      }`,
+      { id: testimonialId },
+    );
 
     fetchTestimonials();
   };
 
   // Officer handlers
   const handleSetOfficer = async (position: string, holderId: string, holderType: 'user' | 'youth') => {
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    await authFetch(
+      `mutation SetOfficer($position: String!, $termYear: String!, $holderUserId: String, $holderYouthMemberId: String) {
+        setOfficer(position: $position, termYear: $termYear, holderUserId: $holderUserId, holderYouthMemberId: $holderYouthMemberId) { id }
+      }`,
+      {
+        position,
+        termYear,
+        holderUserId: holderType === 'user' ? holderId : null,
+        holderYouthMemberId: holderType === 'youth' ? holderId : null,
       },
-      body: JSON.stringify({
-        query: `mutation SetOfficer($position: String!, $termYear: String!, $holderUserId: String, $holderYouthMemberId: String) {
-          setOfficer(position: $position, termYear: $termYear, holderUserId: $holderUserId, holderYouthMemberId: $holderYouthMemberId) { id }
-        }`,
-        variables: {
-          position,
-          termYear,
-          holderUserId: holderType === 'user' ? holderId : null,
-          holderYouthMemberId: holderType === 'youth' ? holderId : null,
-        },
-      }),
-    });
+    );
     fetchOfficers(termYear);
   };
 
   const handleRemoveOfficer = async (position: string) => {
     if (!confirm('Remove this officer assignment?')) return;
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation RemoveOfficer($position: String!, $termYear: String!) {
-          removeOfficer(position: $position, termYear: $termYear)
-        }`,
-        variables: { position, termYear },
-      }),
-    });
+    await authFetch(
+      `mutation RemoveOfficer($position: String!, $termYear: String!) {
+        removeOfficer(position: $position, termYear: $termYear)
+      }`,
+      { position, termYear },
+    );
     fetchOfficers(termYear);
   };
 
@@ -708,27 +543,18 @@ export default function AdminPage() {
   const handleCreateRole = async () => {
     if (!newRoleForm.name || !newRoleForm.label) return;
     setOfficerError(null);
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const result = await authFetch(
+        `mutation CreateOfficerRole($name: String!, $label: String!, $description: String!, $sortOrder: Int!) {
+          createOfficerRole(name: $name, label: $label, description: $description, sortOrder: $sortOrder) { id }
+        }`,
+        {
+          name: newRoleForm.name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+          label: newRoleForm.label,
+          description: newRoleForm.description,
+          sortOrder: officerRoles.length + 1,
         },
-        body: JSON.stringify({
-          query: `mutation CreateOfficerRole($name: String!, $label: String!, $description: String!, $sortOrder: Int!) {
-            createOfficerRole(name: $name, label: $label, description: $description, sortOrder: $sortOrder) { id }
-          }`,
-          variables: {
-            name: newRoleForm.name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-            label: newRoleForm.label,
-            description: newRoleForm.description,
-            sortOrder: officerRoles.length + 1,
-          },
-        }),
-      });
-      const result = await res.json();
+      );
       if (result.errors?.length) {
         setOfficerError(result.errors[0].message);
         return;
@@ -743,26 +569,17 @@ export default function AdminPage() {
 
   const handleUpdateRole = async (roleId: string) => {
     setOfficerError(null);
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const result = await authFetch(
+        `mutation UpdateOfficerRole($id: String!, $label: String, $description: String) {
+          updateOfficerRole(id: $id, label: $label, description: $description) { id }
+        }`,
+        {
+          id: roleId,
+          label: editRoleForm.label,
+          description: editRoleForm.description,
         },
-        body: JSON.stringify({
-          query: `mutation UpdateOfficerRole($id: String!, $label: String, $description: String) {
-            updateOfficerRole(id: $id, label: $label, description: $description) { id }
-          }`,
-          variables: {
-            id: roleId,
-            label: editRoleForm.label,
-            description: editRoleForm.description,
-          },
-        }),
-      });
-      const result = await res.json();
+      );
       if (result.errors?.length) {
         setOfficerError(result.errors[0].message);
         return;
@@ -781,20 +598,11 @@ export default function AdminPage() {
       : `Delete this officer role? This cannot be undone.`;
     if (!confirm(msg)) return;
     setOfficerError(null);
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          query: `mutation DeleteOfficerRole($id: String!) { deleteOfficerRole(id: $id) }`,
-          variables: { id: roleId },
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(
+        `mutation DeleteOfficerRole($id: String!) { deleteOfficerRole(id: $id) }`,
+        { id: roleId },
+      );
       if (result.errors?.length) {
         setOfficerError(result.errors[0].message);
         return;
@@ -826,31 +634,22 @@ export default function AdminPage() {
 
   const handleSaveMember = async () => {
     if (!editingMemberId || !memberForm) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    const result = await authFetch(
+      `mutation AdminUpdateUser($id: String!, $firstName: String, $lastName: String, $email: String, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
+        adminUpdateUser(id: $id, firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
+      }`,
+      {
+        id: editingMemberId,
+        firstName: memberForm.firstName,
+        lastName: memberForm.lastName,
+        email: memberForm.email,
+        role: memberForm.role,
+        phone: memberForm.phone || '',
+        address: memberForm.address || '',
+        emergencyContact: memberForm.emergencyContact || '',
+        emergencyPhone: memberForm.emergencyPhone || '',
       },
-      body: JSON.stringify({
-        query: `mutation AdminUpdateUser($id: String!, $firstName: String, $lastName: String, $email: String, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
-          adminUpdateUser(id: $id, firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
-        }`,
-        variables: {
-          id: editingMemberId,
-          firstName: memberForm.firstName,
-          lastName: memberForm.lastName,
-          email: memberForm.email,
-          role: memberForm.role,
-          phone: memberForm.phone || '',
-          address: memberForm.address || '',
-          emergencyContact: memberForm.emergencyContact || '',
-          emergencyPhone: memberForm.emergencyPhone || '',
-        },
-      }),
-    });
-    const result = await res.json();
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -863,18 +662,10 @@ export default function AdminPage() {
 
   const handleDeleteMember = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)) return;
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation AdminDeleteUser($id: String!) { adminDeleteUser(id: $id) }`,
-        variables: { id },
-      }),
-    });
+    await authFetch(
+      `mutation AdminDeleteUser($id: String!) { adminDeleteUser(id: $id) }`,
+      { id },
+    );
     fetchMembers();
     fetchHolderOptions();
   };
@@ -884,30 +675,21 @@ export default function AdminPage() {
       alert('First name, last name, and email are required.');
       return;
     }
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    const result = await authFetch(
+      `mutation AdminCreateUser($firstName: String!, $lastName: String!, $email: String!, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
+        adminCreateUser(firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
+      }`,
+      {
+        firstName: newMemberForm.firstName,
+        lastName: newMemberForm.lastName,
+        email: newMemberForm.email,
+        role: newMemberForm.role || 'PARENT',
+        phone: newMemberForm.phone || null,
+        address: newMemberForm.address || null,
+        emergencyContact: newMemberForm.emergencyContact || null,
+        emergencyPhone: newMemberForm.emergencyPhone || null,
       },
-      body: JSON.stringify({
-        query: `mutation AdminCreateUser($firstName: String!, $lastName: String!, $email: String!, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
-          adminCreateUser(firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
-        }`,
-        variables: {
-          firstName: newMemberForm.firstName,
-          lastName: newMemberForm.lastName,
-          email: newMemberForm.email,
-          role: newMemberForm.role || 'PARENT',
-          phone: newMemberForm.phone || null,
-          address: newMemberForm.address || null,
-          emergencyContact: newMemberForm.emergencyContact || null,
-          emergencyPhone: newMemberForm.emergencyPhone || null,
-        },
-      }),
-    });
-    const result = await res.json();
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -919,57 +701,40 @@ export default function AdminPage() {
   };
 
   const handleSaveYouth = async (parentUserId: string) => {
-    const token = localStorage.getItem('token');
     const isNew = addingYouthForMemberId === parentUserId;
 
     if (isNew) {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const result = await authFetch(
+        `mutation AdminCreateYouthMember($parentUserId: String!, $firstName: String!, $lastName: String!, $birthdate: String, $project: String, $horseNames: String) {
+          adminCreateYouthMember(parentUserId: $parentUserId, firstName: $firstName, lastName: $lastName, birthdate: $birthdate, project: $project, horseNames: $horseNames) { id }
+        }`,
+        {
+          parentUserId,
+          firstName: youthForm.firstName || '',
+          lastName: youthForm.lastName || '',
+          birthdate: youthForm.birthdate || null,
+          project: youthForm.project || null,
+          horseNames: youthForm.horseNames || null,
         },
-        body: JSON.stringify({
-          query: `mutation AdminCreateYouthMember($parentUserId: String!, $firstName: String!, $lastName: String!, $birthdate: String, $project: String, $horseNames: String) {
-            adminCreateYouthMember(parentUserId: $parentUserId, firstName: $firstName, lastName: $lastName, birthdate: $birthdate, project: $project, horseNames: $horseNames) { id }
-          }`,
-          variables: {
-            parentUserId,
-            firstName: youthForm.firstName || '',
-            lastName: youthForm.lastName || '',
-            birthdate: youthForm.birthdate || null,
-            project: youthForm.project || null,
-            horseNames: youthForm.horseNames || null,
-          },
-        }),
-      });
-      const result = await res.json();
+      );
       if (result.errors) {
         alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
         return;
       }
     } else if (editingYouthId) {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const result = await authFetch(
+        `mutation AdminUpdateYouthMember($id: String!, $firstName: String, $lastName: String, $birthdate: String, $project: String, $horseNames: String) {
+          adminUpdateYouthMember(id: $id, firstName: $firstName, lastName: $lastName, birthdate: $birthdate, project: $project, horseNames: $horseNames) { id }
+        }`,
+        {
+          id: editingYouthId,
+          firstName: youthForm.firstName,
+          lastName: youthForm.lastName,
+          birthdate: youthForm.birthdate || null,
+          project: youthForm.project || null,
+          horseNames: youthForm.horseNames || null,
         },
-        body: JSON.stringify({
-          query: `mutation AdminUpdateYouthMember($id: String!, $firstName: String, $lastName: String, $birthdate: String, $project: String, $horseNames: String) {
-            adminUpdateYouthMember(id: $id, firstName: $firstName, lastName: $lastName, birthdate: $birthdate, project: $project, horseNames: $horseNames) { id }
-          }`,
-          variables: {
-            id: editingYouthId,
-            firstName: youthForm.firstName,
-            lastName: youthForm.lastName,
-            birthdate: youthForm.birthdate || null,
-            project: youthForm.project || null,
-            horseNames: youthForm.horseNames || null,
-          },
-        }),
-      });
-      const result = await res.json();
+      );
       if (result.errors) {
         alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
         return;
@@ -984,18 +749,10 @@ export default function AdminPage() {
 
   const handleDeleteYouth = async (id: string, name: string) => {
     if (!confirm(`Remove youth member ${name}?`)) return;
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation AdminDeleteYouthMember($id: String!) { adminDeleteYouthMember(id: $id) }`,
-        variables: { id },
-      }),
-    });
+    await authFetch(
+      `mutation AdminDeleteYouthMember($id: String!) { adminDeleteYouthMember(id: $id) }`,
+      { id },
+    );
     fetchMembers();
     fetchHolderOptions();
   };
@@ -1009,25 +766,16 @@ export default function AdminPage() {
       alert('Password must be at least 8 characters.');
       return;
     }
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    const result = await authFetch(
+      `mutation AdminResetPassword($id: String!, $newPassword: String!, $forceResetOnLogin: Boolean!) {
+        adminResetPassword(id: $id, newPassword: $newPassword, forceResetOnLogin: $forceResetOnLogin)
+      }`,
+      {
+        id: userId,
+        newPassword: resetPasswordForm.password,
+        forceResetOnLogin: resetPasswordForm.forceReset,
       },
-      body: JSON.stringify({
-        query: `mutation AdminResetPassword($id: String!, $newPassword: String!, $forceResetOnLogin: Boolean!) {
-          adminResetPassword(id: $id, newPassword: $newPassword, forceResetOnLogin: $forceResetOnLogin)
-        }`,
-        variables: {
-          id: userId,
-          newPassword: resetPasswordForm.password,
-          forceResetOnLogin: resetPasswordForm.forceReset,
-        },
-      }),
-    });
-    const result = await res.json();
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -1039,21 +787,12 @@ export default function AdminPage() {
   // Family link handlers
   const handleAddFamilyLink = async (parentUserId: string, childUserId: string) => {
     if (!childUserId) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation AddFamilyLink($parentUserId: String!, $childUserId: String!) {
-          addFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId) { id }
-        }`,
-        variables: { parentUserId, childUserId },
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `mutation AddFamilyLink($parentUserId: String!, $childUserId: String!) {
+        addFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId) { id }
+      }`,
+      { parentUserId, childUserId },
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -1064,40 +803,23 @@ export default function AdminPage() {
 
   const handleRemoveFamilyLink = async (parentUserId: string, childUserId: string) => {
     if (!confirm('Remove this family link?')) return;
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation RemoveFamilyLink($parentUserId: String!, $childUserId: String!) {
-          removeFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId)
-        }`,
-        variables: { parentUserId, childUserId },
-      }),
-    });
+    await authFetch(
+      `mutation RemoveFamilyLink($parentUserId: String!, $childUserId: String!) {
+        removeFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId)
+      }`,
+      { parentUserId, childUserId },
+    );
     fetchMembers();
   };
 
   const handleLinkYouthToUser = async (youthMemberId: string, userId: string) => {
     if (!userId) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation LinkYouthMemberToUser($youthMemberId: String!, $userId: String!) {
-          linkYouthMemberToUser(youthMemberId: $youthMemberId, userId: $userId)
-        }`,
-        variables: { youthMemberId, userId },
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `mutation LinkYouthMemberToUser($youthMemberId: String!, $userId: String!) {
+        linkYouthMemberToUser(youthMemberId: $youthMemberId, userId: $userId)
+      }`,
+      { youthMemberId, userId },
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -1108,20 +830,12 @@ export default function AdminPage() {
 
   const handleUnlinkYouthFromUser = async (youthMemberId: string) => {
     if (!confirm('Unlink this youth member from their user account?')) return;
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation UnlinkYouthMemberFromUser($youthMemberId: String!) {
-          unlinkYouthMemberFromUser(youthMemberId: $youthMemberId)
-        }`,
-        variables: { youthMemberId },
-      }),
-    });
+    await authFetch(
+      `mutation UnlinkYouthMemberFromUser($youthMemberId: String!) {
+        unlinkYouthMemberFromUser(youthMemberId: $youthMemberId)
+      }`,
+      { youthMemberId },
+    );
     fetchMembers();
   };
 
@@ -1132,53 +846,39 @@ export default function AdminPage() {
   };
 
   const handleSaveBlogPost = async (data: any) => {
-    const token = localStorage.getItem('token');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     if (editingBlogPostId) {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation UpdateBlogPost($id: String!, $input: UpdateBlogPostInput!) {
-            updateBlogPost(id: $id, input: $input) { id }
-          }`,
-          variables: {
-            id: editingBlogPostId,
-            input: {
-              title: data.title,
-              content: data.content,
-              excerpt: data.excerpt || null,
-              visibility: data.visibility,
-              featuredImageUrl: data.featuredImageUrl || null,
-              publishedAt: data.publishedAt || null,
-            },
+      await authFetch(
+        `mutation UpdateBlogPost($id: String!, $input: UpdateBlogPostInput!) {
+          updateBlogPost(id: $id, input: $input) { id }
+        }`,
+        {
+          id: editingBlogPostId,
+          input: {
+            title: data.title,
+            content: data.content,
+            excerpt: data.excerpt || null,
+            visibility: data.visibility,
+            featuredImageUrl: data.featuredImageUrl || null,
+            publishedAt: data.publishedAt || null,
           },
-        }),
-      });
+        },
+      );
     } else {
-      await fetch(graphqlUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query: `mutation CreateBlogPost($input: CreateBlogPostInput!) {
-            createBlogPost(input: $input) { id }
-          }`,
-          variables: {
-            input: {
-              title: data.title,
-              content: data.content,
-              excerpt: data.excerpt || null,
-              visibility: data.visibility,
-              featuredImageUrl: data.featuredImageUrl || null,
-              publishedAt: data.publishedAt || null,
-            },
+      await authFetch(
+        `mutation CreateBlogPost($input: CreateBlogPostInput!) {
+          createBlogPost(input: $input) { id }
+        }`,
+        {
+          input: {
+            title: data.title,
+            content: data.content,
+            excerpt: data.excerpt || null,
+            visibility: data.visibility,
+            featuredImageUrl: data.featuredImageUrl || null,
+            publishedAt: data.publishedAt || null,
           },
-        }),
-      });
+        },
+      );
     }
 
     setEditingBlogPostId(null);
@@ -1188,20 +888,12 @@ export default function AdminPage() {
   const handleDeleteBlogPost = async (postId: string) => {
     if (!confirm('Are you sure you want to delete this blog post?')) return;
 
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation DeleteBlogPost($id: String!) {
-          deleteBlogPost(id: $id)
-        }`,
-        variables: { id: postId },
-      }),
-    });
+    await authFetch(
+      `mutation DeleteBlogPost($id: String!) {
+        deleteBlogPost(id: $id)
+      }`,
+      { id: postId },
+    );
 
     fetchBlogPosts();
   };

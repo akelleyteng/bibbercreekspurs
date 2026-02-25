@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { authFetch } from '../utils/authFetch';
 
 export interface SponsorFormData {
   name: string;
@@ -70,15 +71,6 @@ export default function SponsorModal({ isOpen, onClose, onSave, initialData, mod
   const [driveError, setDriveError] = useState<string | null>(null);
   const [membersRootId, setMembersRootId] = useState<string>('');
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-
-  const getHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  }, []);
 
   // Reset form when initialData changes (opening modal for a different sponsor)
   useEffect(() => {
@@ -106,14 +98,7 @@ export default function SponsorModal({ isOpen, onClose, onSave, initialData, mod
   // Fetch root Drive folders on first open of the Drive tab
   const fetchDriveFolders = useCallback(async () => {
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `query { driveFolders { id name accessLevel } }`,
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(`query { driveFolders { id name accessLevel } }`);
       const folders = result.data?.driveFolders || [];
       const membersFolder = folders.find((f: any) => f.accessLevel === 'members');
       if (membersFolder) {
@@ -124,26 +109,21 @@ export default function SponsorModal({ isOpen, onClose, onSave, initialData, mod
       setDriveError('Failed to load Drive folders');
     }
     return null;
-  }, [graphqlUrl, getHeaders]);
+  }, []);
 
   const fetchDriveFiles = useCallback(async (folderId: string) => {
     setDriveLoading(true);
     setDriveError(null);
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `query DriveFiles($folderId: String!) {
-            driveFiles(folderId: $folderId) {
-              files { id name mimeType isFolder thumbnailLink }
-              currentFolderName
-            }
-          }`,
-          variables: { folderId },
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(
+        `query DriveFiles($folderId: String!) {
+          driveFiles(folderId: $folderId) {
+            files { id name mimeType isFolder thumbnailLink }
+            currentFolderName
+          }
+        }`,
+        { folderId },
+      );
       if (result.errors?.length) {
         setDriveError(result.errors[0].message);
         setDriveFiles([]);
@@ -163,7 +143,7 @@ export default function SponsorModal({ isOpen, onClose, onSave, initialData, mod
     } finally {
       setDriveLoading(false);
     }
-  }, [graphqlUrl, getHeaders]);
+  }, []);
 
   // When switching to Drive tab, load the root members folder
   useEffect(() => {

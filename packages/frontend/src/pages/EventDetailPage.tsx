@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 import { formatDescription } from '../utils/formatDescription';
 
@@ -48,23 +49,9 @@ export default function EventDetailPage() {
   const [rsvpError, setRsvpError] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState(1);
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-
   const fetchEvent = async () => {
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          query: EVENT_QUERY,
-          variables: { id },
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(EVENT_QUERY, { id });
       if (result.data?.event) {
         setEvent(result.data.event);
       }
@@ -75,39 +62,28 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     fetchEvent().finally(() => setLoading(false));
-  }, [id, graphqlUrl]);
+  }, [id]);
 
   const handleRsvp = async (status: string, guests: number = 0) => {
-    const token = localStorage.getItem('token');
-    if (!token || !event) return;
+    if (!localStorage.getItem('token') || !event) return;
 
     setRsvpLoading(true);
     setRsvpError(null);
     setShowRsvpPicker(false);
 
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          query: `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
-          variables: {
-            input: { eventId: event.id, status, guestCount: guests },
-          },
-        }),
-      });
+      const result = await authFetch(
+        `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
+        { input: { eventId: event.id, status, guestCount: guests } },
+      );
 
-      const result = await res.json();
       if (result.errors?.length) {
         setRsvpError(result.errors[0].message);
         return;
       }
 
       await fetchEvent();
-    } catch (err) {
+    } catch {
       setRsvpError('Network error — please try again.');
     } finally {
       setRsvpLoading(false);
@@ -115,33 +91,24 @@ export default function EventDetailPage() {
   };
 
   const handleCancelRsvp = async () => {
-    const token = localStorage.getItem('token');
-    if (!token || !event) return;
+    if (!localStorage.getItem('token') || !event) return;
 
     setRsvpLoading(true);
     setRsvpError(null);
 
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          query: `mutation CancelRsvp($eventId: String!) { cancelRsvp(eventId: $eventId) }`,
-          variables: { eventId: event.id },
-        }),
-      });
+      const result = await authFetch(
+        `mutation CancelRsvp($eventId: String!) { cancelRsvp(eventId: $eventId) }`,
+        { eventId: event.id },
+      );
 
-      const result = await res.json();
       if (result.errors?.length) {
         setRsvpError(result.errors[0].message);
         return;
       }
 
       await fetchEvent();
-    } catch (err) {
+    } catch {
       setRsvpError('Network error — please try again.');
     } finally {
       setRsvpLoading(false);

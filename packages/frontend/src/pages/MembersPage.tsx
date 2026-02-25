@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 
 const ROLE_LABELS: Record<string, string> = {
   PARENT: 'Parent',
@@ -42,7 +43,6 @@ export default function MembersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL');
 
   useEffect(() => {
-    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
     const token = localStorage.getItem('token');
 
     if (!token) {
@@ -50,17 +50,7 @@ export default function MembersPage() {
       return;
     }
 
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        query: `query { users { id firstName lastName email role phone profilePhotoUrl horseName project birthday tshirtSize youthMembers { id firstName lastName birthdate } createdAt } }`,
-      }),
-    })
-      .then((res) => res.json())
+    authFetch(`query { users { id firstName lastName email role phone profilePhotoUrl horseName project birthday tshirtSize youthMembers { id firstName lastName birthdate } createdAt } }`)
       .then((result) => {
         if (result.data?.users) {
           setMembers(result.data.users);

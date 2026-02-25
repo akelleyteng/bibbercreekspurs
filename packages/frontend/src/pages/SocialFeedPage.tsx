@@ -6,6 +6,7 @@ import { useLocation } from 'react-router-dom';
 
 import RichTextEditor from '../components/RichTextEditor';
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 
 interface PostAuthor {
   id: string;
@@ -121,36 +122,22 @@ export default function SocialFeedPage() {
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-  const apiBaseUrl = graphqlUrl.replace('/graphql', '');
-
-  const getHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  }, []);
+  const apiBaseUrl = (import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql').replace('/graphql', '');
 
   const fetchPosts = useCallback(async () => {
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `query {
-            posts {
-              id content visibility isHidden hiddenAt canEdit createdAt updatedAt
-              author { id firstName lastName profilePhotoUrl }
-              media { id mediaType publicUrl originalFilename mimeType fileSize sortOrder }
-              comments { id postId content createdAt author { id firstName lastName profilePhotoUrl } }
-              reactions { reactionType count }
-              userReaction
-            }
-          }`,
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(
+        `query {
+          posts {
+            id content visibility isHidden hiddenAt canEdit createdAt updatedAt
+            author { id firstName lastName profilePhotoUrl }
+            media { id mediaType publicUrl originalFilename mimeType fileSize sortOrder }
+            comments { id postId content createdAt author { id firstName lastName profilePhotoUrl } }
+            reactions { reactionType count }
+            userReaction
+          }
+        }`,
+      );
       if (result.data?.posts) {
         setPosts(result.data.posts);
       }
@@ -159,7 +146,7 @@ export default function SocialFeedPage() {
     } finally {
       setLoading(false);
     }
-  }, [graphqlUrl, getHeaders]);
+  }, []);
 
   useEffect(() => {
     fetchPosts();
@@ -261,23 +248,18 @@ export default function SocialFeedPage() {
     const validMedia = pendingMedia.filter(m => !m.error && !m.id.startsWith('temp-'));
     const mediaIds = validMedia.map(m => m.id);
 
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation CreatePost($input: CreatePostInput!) {
-          createPost(input: $input) { id }
-        }`,
-        variables: {
-          input: {
-            content: newPostContent || '',
-            visibility: 'MEMBER_ONLY',
-            ...(mediaIds.length > 0 ? { mediaIds } : {}),
-          },
+    const result = await authFetch(
+      `mutation CreatePost($input: CreatePostInput!) {
+        createPost(input: $input) { id }
+      }`,
+      {
+        input: {
+          content: newPostContent || '',
+          visibility: 'MEMBER_ONLY',
+          ...(mediaIds.length > 0 ? { mediaIds } : {}),
         },
-      }),
-    });
-    const result = await res.json();
+      },
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -295,17 +277,12 @@ export default function SocialFeedPage() {
       alert('Post is too long. Please keep it under 5,000 characters.');
       return;
     }
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation UpdatePost($id: String!, $input: UpdatePostInput!) {
-          updatePost(id: $id, input: $input) { id }
-        }`,
-        variables: { id: postId, input: { content: editContent } },
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `mutation UpdatePost($id: String!, $input: UpdatePostInput!) {
+        updatePost(id: $id, input: $input) { id }
+      }`,
+      { id: postId, input: { content: editContent } },
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;
@@ -318,52 +295,36 @@ export default function SocialFeedPage() {
   const handleDeletePost = async (postId: string) => {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation DeletePost($id: String!) { deletePost(id: $id) }`,
-        variables: { id: postId },
-      }),
-    });
+    await authFetch(
+      `mutation DeletePost($id: String!) { deletePost(id: $id) }`,
+      { id: postId },
+    );
     fetchPosts();
   };
 
   const handleHidePost = async (postId: string) => {
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation HidePost($id: String!) { hidePost(id: $id) { id } }`,
-        variables: { id: postId },
-      }),
-    });
+    await authFetch(
+      `mutation HidePost($id: String!) { hidePost(id: $id) { id } }`,
+      { id: postId },
+    );
     fetchPosts();
   };
 
   const handleUnhidePost = async (postId: string) => {
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation UnhidePost($id: String!) { unhidePost(id: $id) { id } }`,
-        variables: { id: postId },
-      }),
-    });
+    await authFetch(
+      `mutation UnhidePost($id: String!) { unhidePost(id: $id) { id } }`,
+      { id: postId },
+    );
     fetchPosts();
   };
 
   const handleToggleReaction = async (postId: string, reactionType: string) => {
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation ToggleReaction($postId: String!, $reactionType: String!) {
-          toggleReaction(postId: $postId, reactionType: $reactionType)
-        }`,
-        variables: { postId, reactionType },
-      }),
-    });
+    await authFetch(
+      `mutation ToggleReaction($postId: String!, $reactionType: String!) {
+        toggleReaction(postId: $postId, reactionType: $reactionType)
+      }`,
+      { postId, reactionType },
+    );
     fetchPosts();
   };
 
@@ -371,17 +332,12 @@ export default function SocialFeedPage() {
     const content = commentInputs[postId]?.trim();
     if (!content) return;
 
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        query: `mutation AddComment($postId: String!, $content: String!) {
-          addComment(postId: $postId, content: $content) { id }
-        }`,
-        variables: { postId, content },
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `mutation AddComment($postId: String!, $content: String!) {
+        addComment(postId: $postId, content: $content) { id }
+      }`,
+      { postId, content },
+    );
     if (result.errors) {
       alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
       return;

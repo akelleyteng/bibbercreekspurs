@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { authFetch } from '../utils/authFetch';
+
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -28,34 +30,18 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
+      if (!localStorage.getItem('token')) {
         setError('Not authenticated. Please log in again.');
         navigate('/login');
         return;
       }
 
-      const response = await fetch(import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          query: `
-            mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
-              changePassword(currentPassword: $currentPassword, newPassword: $newPassword)
-            }
-          `,
-          variables: {
-            currentPassword,
-            newPassword,
-          },
-        }),
-      });
-
-      const result = await response.json();
+      const result = await authFetch(
+        `mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+          changePassword(currentPassword: $currentPassword, newPassword: $newPassword)
+        }`,
+        { currentPassword, newPassword },
+      );
 
       if (result.errors) {
         const errorMessage = result.errors[0]?.message || 'Failed to change password';

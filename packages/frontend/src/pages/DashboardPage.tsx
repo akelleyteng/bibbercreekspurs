@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 
 function stripHtml(html: string): string {
@@ -25,20 +26,6 @@ interface DashboardPost {
     firstName: string;
     lastName: string;
   };
-}
-
-const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-
-function authFetch(query: string) {
-  const token = localStorage.getItem('token');
-  return fetch(graphqlUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ query }),
-  }).then((res) => res.json());
 }
 
 export default function DashboardPage() {

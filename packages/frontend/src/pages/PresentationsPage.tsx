@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 
-const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-const apiBaseUrl = graphqlUrl.replace('/graphql', '');
+const apiBaseUrl = (import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql').replace('/graphql', '');
 
 // ── Types ──
 
@@ -75,17 +75,6 @@ const FILE_TYPE_ICONS: Record<FileType, string> = {
 
 // ── GraphQL helpers ──
 
-function gqlFetch(query: string, variables?: Record<string, unknown>) {
-  const token = localStorage.getItem('token');
-  return fetch(graphqlUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ query, variables }),
-  }).then((r) => r.json());
-}
 
 const MEETINGS_QUERY = `query {
   presentationMeetings {
@@ -129,11 +118,11 @@ export default function PresentationsPage() {
   const fetchData = useCallback(async () => {
     try {
       const [meetingsRes, eventsRes, folderRes, imgFolderRes, recFolderRes] = await Promise.all([
-        gqlFetch(MEETINGS_QUERY),
-        gqlFetch(`query { events { id title startTime endTime location isAllDay } }`),
-        gqlFetch(`query { presentationsFolderId }`),
-        gqlFetch(`query { presentationsImagesFolderId }`),
-        gqlFetch(`query { presentationsRecordingsFolderId }`),
+        authFetch(MEETINGS_QUERY),
+        authFetch(`query { events { id title startTime endTime location isAllDay } }`),
+        authFetch(`query { presentationsFolderId }`),
+        authFetch(`query { presentationsImagesFolderId }`),
+        authFetch(`query { presentationsRecordingsFolderId }`),
       ]);
 
       if (meetingsRes.data?.presentationMeetings) {
@@ -170,7 +159,7 @@ export default function PresentationsPage() {
 
   const handleReserve = async (meetingId: string, title: string, description: string) => {
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($input: ReservePresentationInput!) { reservePresentation(input: $input) { id } }`,
       { input: { meetingId, title, description: description || undefined } }
     );
@@ -181,7 +170,7 @@ export default function PresentationsPage() {
 
   const handleUpdateReservation = async (id: string, title: string, description: string) => {
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($input: UpdateReservationInput!) { updatePresentationReservation(input: $input) { id } }`,
       { input: { id, title, description: description || undefined } }
     );
@@ -193,7 +182,7 @@ export default function PresentationsPage() {
   const handleDelete = async (reservationId: string) => {
     if (!confirm('Delete this presentation reservation? Any uploaded files will also be removed.')) return;
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($id: String!) { deletePresentation(reservationId: $id) }`,
       { id: reservationId }
     );
@@ -203,7 +192,7 @@ export default function PresentationsPage() {
 
   const handleMove = async (reservationId: string, newMeetingId: string) => {
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($input: MovePresentationInput!) { movePresentation(input: $input) { id } }`,
       { input: { reservationId, newMeetingId } }
     );
@@ -259,7 +248,7 @@ export default function PresentationsPage() {
 
       const uploadedFile = await uploadRes.json();
 
-      const linkRes = await gqlFetch(
+      const linkRes = await authFetch(
         `mutation($input: AddPresentationFileInput!) { addPresentationFile(input: $input) { id } }`,
         {
           input: {
@@ -285,7 +274,7 @@ export default function PresentationsPage() {
   const handleRemoveFile = async (reservationId: string, fileId: string) => {
     if (!confirm('Remove this file from the presentation?')) return;
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($rid: String!, $fid: String!) { removePresentationFile(reservationId: $rid, fileId: $fid) }`,
       { rid: reservationId, fid: fileId }
     );
@@ -297,7 +286,7 @@ export default function PresentationsPage() {
 
   const handleEnablePresentations = async (googleEventId: string, totalSlots: number, notes: string) => {
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($input: EnablePresentationsInput!) { enablePresentations(input: $input) { id } }`,
       { input: { googleEventId, totalSlots, notes: notes || undefined } }
     );
@@ -308,7 +297,7 @@ export default function PresentationsPage() {
 
   const handleUpdateMeeting = async (id: string, totalSlots: number, notes: string) => {
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($input: UpdatePresentationMeetingInput!) { updatePresentationMeeting(input: $input) { id } }`,
       { input: { id, totalSlots, notes: notes || undefined } }
     );
@@ -320,7 +309,7 @@ export default function PresentationsPage() {
   const handleDisablePresentations = async (meetingId: string) => {
     if (!confirm('Disable presentations for this meeting? All reservations will be deleted.')) return;
     setError(null);
-    const res = await gqlFetch(
+    const res = await authFetch(
       `mutation($id: String!) { disablePresentations(meetingId: $id) }`,
       { id: meetingId }
     );

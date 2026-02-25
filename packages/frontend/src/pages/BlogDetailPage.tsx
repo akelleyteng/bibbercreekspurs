@@ -3,6 +3,8 @@ import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
+import { authFetch } from '../utils/authFetch';
+
 interface BlogPostDetail {
   id: string;
   title: string;
@@ -27,19 +29,7 @@ export default function BlogDetailPage() {
 
   useEffect(() => {
     if (!slug) return;
-    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-    const token = localStorage.getItem('token');
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { blogPost(slug: "${slug}") { id title slug content excerpt featuredImageUrl visibility publishedAt author { id firstName lastName profileImageUrl } } }`,
-      }),
-    })
-      .then((res) => res.json())
+    authFetch(`query { blogPost(slug: "${slug}") { id title slug content excerpt featuredImageUrl visibility publishedAt author { id firstName lastName profileImageUrl } } }`)
       .then((result) => {
         if (result.data?.blogPost) {
           setPost(result.data.blogPost);

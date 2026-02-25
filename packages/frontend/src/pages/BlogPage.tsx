@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 
 interface BlogPostData {
   id: string;
@@ -27,20 +28,8 @@ export default function BlogPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-    const token = localStorage.getItem('token');
-    const isLoggedIn = !!token;
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { blogPosts(publicOnly: ${!isLoggedIn}) { id title slug excerpt featuredImageUrl visibility publishedAt author { id firstName lastName profileImageUrl } } }`,
-      }),
-    })
-      .then((res) => res.json())
+    const isLoggedIn = !!localStorage.getItem('token');
+    authFetch(`query { blogPosts(publicOnly: ${!isLoggedIn}) { id title slug excerpt featuredImageUrl visibility publishedAt author { id firstName lastName profileImageUrl } } }`)
       .then((result) => {
         if (result.data?.blogPosts) {
           setPosts(result.data.blogPosts);

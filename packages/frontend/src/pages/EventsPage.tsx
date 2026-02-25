@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 import { formatDescription } from '../utils/formatDescription';
 
@@ -29,20 +30,8 @@ export default function EventsPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-    const token = localStorage.getItem('token');
-    const isLoggedIn = !!token;
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility externalRegistrationUrl isAllDay registrationCount } }`,
-      }),
-    })
-      .then((res) => res.json())
+    const isLoggedIn = !!localStorage.getItem('token');
+    authFetch(`query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility externalRegistrationUrl isAllDay registrationCount } }`)
       .then((result) => {
         if (result.data?.events) {
           setEvents(result.data.events);

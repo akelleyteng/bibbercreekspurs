@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 
 const ROLE_LABELS: Record<string, string> = {
   PARENT: 'Parent',
@@ -84,22 +85,9 @@ export default function ProfilePage() {
   const [linkChildUserId, setLinkChildUserId] = useState('');
   const { user: authUser } = useAuth();
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-
   const fetchProfileData = useCallback(async () => {
     if (!authUser) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { me { id email firstName lastName role phone address horseName project birthday tshirtSize } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(`query { me { id email firstName lastName role phone address horseName project birthday tshirtSize } }`);
     if (result.data?.me) {
       const me = result.data.me;
       setFormData({
@@ -116,22 +104,11 @@ export default function ProfilePage() {
       });
       setProfileLoaded(true);
     }
-  }, [graphqlUrl, authUser]);
+  }, [authUser]);
 
   const fetchFamilyData = useCallback(async () => {
     if (!authUser) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { users { id firstName lastName email role profilePhotoUrl linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(`query { users { id firstName lastName email role profilePhotoUrl linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`);
     if (result.data?.users) {
       const me = result.data.users.find((u: any) => u.id === authUser.id);
       if (me) {
@@ -142,7 +119,7 @@ export default function ProfilePage() {
       }
       setAllUsers(result.data.users.map((u: any) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName, role: u.role })));
     }
-  }, [graphqlUrl, authUser]);
+  }, [authUser]);
 
   useEffect(() => {
     fetchProfileData();
@@ -151,21 +128,12 @@ export default function ProfilePage() {
 
   const handleAddFamilyLink = async (childUserId: string) => {
     if (!childUserId || !authUser) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation AddFamilyLink($parentUserId: String!, $childUserId: String!) {
-          addFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId) { id }
-        }`,
-        variables: { parentUserId: authUser.id, childUserId },
-      }),
-    });
-    const result = await res.json();
+    const result = await authFetch(
+      `mutation AddFamilyLink($parentUserId: String!, $childUserId: String!) {
+        addFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId) { id }
+      }`,
+      { parentUserId: authUser.id, childUserId },
+    );
     if (result.errors) {
       setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to link account' });
       setTimeout(() => setMessage(null), 3000);
@@ -179,20 +147,12 @@ export default function ProfilePage() {
 
   const handleRemoveFamilyLink = async (childUserId: string) => {
     if (!authUser || !confirm('Remove this family link?')) return;
-    const token = localStorage.getItem('token');
-    await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `mutation RemoveFamilyLink($parentUserId: String!, $childUserId: String!) {
-          removeFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId)
-        }`,
-        variables: { parentUserId: authUser.id, childUserId },
-      }),
-    });
+    await authFetch(
+      `mutation RemoveFamilyLink($parentUserId: String!, $childUserId: String!) {
+        removeFamilyLink(parentUserId: $parentUserId, childUserId: $childUserId)
+      }`,
+      { parentUserId: authUser.id, childUserId },
+    );
     setMessage({ type: 'success', text: 'Family link removed.' });
     setTimeout(() => setMessage(null), 3000);
     fetchFamilyData();
@@ -214,30 +174,21 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
 
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const result = await authFetch(
+        `mutation UpdateMyProfile($horseName: String, $project: String, $birthday: String, $tshirtSize: String) {
+          updateMyProfile(horseName: $horseName, project: $project, birthday: $birthday, tshirtSize: $tshirtSize) {
+            id horseName project birthday tshirtSize
+          }
+        }`,
+        {
+          horseName: formData.horseName || null,
+          project: formData.project || null,
+          birthday: formData.birthday || null,
+          tshirtSize: formData.tshirtSize || null,
         },
-        body: JSON.stringify({
-          query: `mutation UpdateMyProfile($horseName: String, $project: String, $birthday: String, $tshirtSize: String) {
-            updateMyProfile(horseName: $horseName, project: $project, birthday: $birthday, tshirtSize: $tshirtSize) {
-              id horseName project birthday tshirtSize
-            }
-          }`,
-          variables: {
-            horseName: formData.horseName || null,
-            project: formData.project || null,
-            birthday: formData.birthday || null,
-            tshirtSize: formData.tshirtSize || null,
-          },
-        }),
-      });
-      const result = await res.json();
+      );
       if (result.errors) {
         setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to update profile' });
       } else {
@@ -263,25 +214,16 @@ export default function ProfilePage() {
       return;
     }
 
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const result = await authFetch(
+        `mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+          changePassword(currentPassword: $currentPassword, newPassword: $newPassword)
+        }`,
+        {
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
         },
-        body: JSON.stringify({
-          query: `mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
-            changePassword(currentPassword: $currentPassword, newPassword: $newPassword)
-          }`,
-          variables: {
-            currentPassword: passwordData.currentPassword,
-            newPassword: passwordData.newPassword,
-          },
-        }),
-      });
-      const result = await res.json();
+      );
       if (result.errors) {
         setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to change password' });
       } else {

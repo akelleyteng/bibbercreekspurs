@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 
 interface DriveFile {
   id: string;
@@ -26,8 +27,7 @@ interface BreadcrumbItem {
   name: string;
 }
 
-const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-const apiBaseUrl = graphqlUrl.replace('/graphql', '');
+const apiBaseUrl = (import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql').replace('/graphql', '');
 
 function getFileIcon(mimeType: string): string {
   if (mimeType === 'application/vnd.google-apps.folder') return '📁';
@@ -75,26 +75,12 @@ export default function DriveFilesPage() {
   const [newFolderName, setNewFolderName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  }, []);
 
   const fetchFolders = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `query { driveFolders { id name accessLevel } }`,
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(`query { driveFolders { id name accessLevel } }`);
       if (result.errors) {
         setError(result.errors[0]?.message || 'Failed to load folders');
         return;
@@ -105,7 +91,7 @@ export default function DriveFilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   const fetchFiles = useCallback(async (folderId: string, pageToken?: string | null) => {
     if (pageToken) {
@@ -117,22 +103,17 @@ export default function DriveFilesPage() {
     setError(null);
 
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `query DriveFiles($folderId: String!, $pageToken: String) {
-            driveFiles(folderId: $folderId, pageToken: $pageToken) {
-              files { id name mimeType isFolder size webViewLink webContentLink iconLink thumbnailLink createdTime modifiedTime }
-              nextPageToken
-              currentFolderId
-              currentFolderName
-            }
-          }`,
-          variables: { folderId, pageToken },
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(
+        `query DriveFiles($folderId: String!, $pageToken: String) {
+          driveFiles(folderId: $folderId, pageToken: $pageToken) {
+            files { id name mimeType isFolder size webViewLink webContentLink iconLink thumbnailLink createdTime modifiedTime }
+            nextPageToken
+            currentFolderId
+            currentFolderName
+          }
+        }`,
+        { folderId, pageToken },
+      );
       if (result.errors) {
         setError(result.errors[0]?.message || 'Failed to load files');
         return;
@@ -152,7 +133,7 @@ export default function DriveFilesPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   useEffect(() => {
     fetchFolders();
@@ -219,15 +200,10 @@ export default function DriveFilesPage() {
     if (!confirm(`Delete "${fileName}"? This cannot be undone.`)) return;
 
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `mutation DeleteDriveFile($fileId: String!) { deleteDriveFile(fileId: $fileId) }`,
-          variables: { fileId },
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(
+        `mutation DeleteDriveFile($fileId: String!) { deleteDriveFile(fileId: $fileId) }`,
+        { fileId },
+      );
       if (result.errors) {
         setError(result.errors[0]?.message || 'Failed to delete');
         return;
@@ -242,17 +218,12 @@ export default function DriveFilesPage() {
     if (!newFolderName.trim() || !currentFolderId) return;
 
     try {
-      const res = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          query: `mutation CreateDriveFolder($folderName: String!, $parentFolderId: String!) {
-            createDriveFolder(folderName: $folderName, parentFolderId: $parentFolderId) { id name }
-          }`,
-          variables: { folderName: newFolderName.trim(), parentFolderId: currentFolderId },
-        }),
-      });
-      const result = await res.json();
+      const result = await authFetch(
+        `mutation CreateDriveFolder($folderName: String!, $parentFolderId: String!) {
+          createDriveFolder(folderName: $folderName, parentFolderId: $parentFolderId) { id name }
+        }`,
+        { folderName: newFolderName.trim(), parentFolderId: currentFolderId },
+      );
       if (result.errors) {
         setError(result.errors[0]?.message || 'Failed to create folder');
         return;

@@ -16,6 +16,7 @@ import {
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 import { formatDescription } from '../utils/formatDescription';
 
@@ -59,19 +60,7 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
-    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
-    const token = localStorage.getItem('token');
-    fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: `query { events { id title startTime endTime location description visibility externalRegistrationUrl isAllDay } }`,
-      }),
-    })
-      .then((res) => res.json())
+    authFetch(`query { events { id title startTime endTime location description visibility externalRegistrationUrl isAllDay } }`)
       .then((result) => {
         if (result.data?.events) {
           setEvents(result.data.events);

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { SESSION_EXPIRED_EVENT } from '../utils/authFetch';
 
 interface User {
   id: string;
@@ -153,6 +154,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
   }, [fetchCurrentUser, tryRefreshToken]);
+
+  // React to session expiry triggered by authFetch when refresh fails
+  useEffect(() => {
+    function handleSessionExpired() {
+      setUser(null);
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, []);
 
   // Silently refresh the access token before it expires
   const refreshSession = useCallback(async () => {
