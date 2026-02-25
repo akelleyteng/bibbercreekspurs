@@ -51,6 +51,11 @@ export class ReservePresentationInput {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  userId?: string;
 }
 
 @InputType()

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
+import { Combobox } from '@headlessui/react';
 
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
@@ -59,6 +60,12 @@ interface CalendarEvent {
   isAllDay: boolean;
 }
 
+interface PickerMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 type FileType = 'presentation' | 'image' | 'recording';
 
 const FILE_TYPE_LABELS: Record<FileType, string> = {
@@ -114,16 +121,31 @@ export default function PresentationsPage() {
   const uploadTargetRef = useRef<{ reservationId: string; fileType: FileType } | null>(null);
 
   const isAdmin = user?.role === 'ADMIN';
+  const isYouth = user?.role === 'YOUTH_MEMBER';
+
+  // Youth members available for the reserve-on-behalf picker
+  const [youthMembers, setYouthMembers] = useState<PickerMember[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
-      const [meetingsRes, eventsRes, folderRes, imgFolderRes, recFolderRes] = await Promise.all([
+      const fetches: Promise<any>[] = [
         authFetch(MEETINGS_QUERY),
         authFetch(`query { events { id title startTime endTime location isAllDay } }`),
         authFetch(`query { presentationsFolderId }`),
         authFetch(`query { presentationsImagesFolderId }`),
         authFetch(`query { presentationsRecordingsFolderId }`),
-      ]);
+      ];
+
+      // Fetch youth members for the reserve-on-behalf picker (non-youth only)
+      const needsMemberPicker = user && user.role !== 'YOUTH_MEMBER';
+      if (needsMemberPicker) {
+        fetches.push(
+          authFetch(`query { users { id firstName lastName role linkedChildren { id firstName lastName } } }`)
+        );
+      }
+
+      const results = await Promise.all(fetches);
+      const [meetingsRes, eventsRes, folderRes, imgFolderRes, recFolderRes] = results;
 
       if (meetingsRes.data?.presentationMeetings) {
         setMeetings(meetingsRes.data.presentationMeetings);
@@ -140,12 +162,35 @@ export default function PresentationsPage() {
       if (recFolderRes.data?.presentationsRecordingsFolderId) {
         setRecordingsFolderId(recFolderRes.data.presentationsRecordingsFolderId);
       }
+
+      // Process youth members for picker
+      if (needsMemberPicker && results[5]?.data?.users) {
+        const allUsers = results[5].data.users as Array<{
+          id: string; firstName: string; lastName: string; role: string;
+          linkedChildren?: Array<{ id: string; firstName: string; lastName: string }>;
+        }>;
+
+        if (user.role === 'ADMIN') {
+          // Admin: show all youth members
+          setYouthMembers(
+            allUsers
+              .filter((u) => u.role === 'YOUTH_MEMBER')
+              .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }))
+          );
+        } else {
+          // Parent / Adult Leader: show linked children
+          const me = allUsers.find((u) => u.id === user.id);
+          setYouthMembers(
+            (me?.linkedChildren || []).map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName }))
+          );
+        }
+      }
     } catch {
       setError('Failed to load presentations data');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchData();
@@ -157,11 +202,15 @@ export default function PresentationsPage() {
 
   // ── Actions ──
 
-  const handleReserve = async (meetingId: string, title: string, description: string) => {
+  const handleReserve = async (meetingId: string, title: string, description: string, userId?: string) => {
     setError(null);
+    const input: Record<string, any> = { meetingId, title, description: description || undefined };
+    if (userId && userId !== user?.id) {
+      input.userId = userId;
+    }
     const res = await authFetch(
       `mutation($input: ReservePresentationInput!) { reservePresentation(input: $input) { id } }`,
-      { input: { meetingId, title, description: description || undefined } }
+      { input }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
     setShowReserveModal(null);
@@ -386,7 +435,11 @@ export default function PresentationsPage() {
       {showReserveModal && (
         <ReserveModal
           onClose={() => setShowReserveModal(null)}
-          onSubmit={(title, desc) => handleReserve(showReserveModal, title, desc)}
+          onSubmit={(title, desc, userId) => handleReserve(showReserveModal, title, desc, userId)}
+          isYouth={isYouth}
+          isAdmin={isAdmin}
+          youthMembers={youthMembers}
+          currentUser={user ? { id: user.id, firstName: user.firstName, lastName: user.lastName } : undefined}
         />
       )}
       {showEditModal && (
@@ -442,8 +495,13 @@ function AdminEnableSection({
   );
 
   return (
-    <div className="mb-8">
-      <h2 className="text-lg font-semibold text-gray-900 mb-3">Enable Presentations on a Meeting</h2>
+    <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-blue-600 text-lg">&#9881;</span>
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Admin</span>
+        <h2 className="text-lg font-semibold text-blue-900">Enable Presentations on a Meeting</h2>
+      </div>
+      <p className="text-xs text-blue-500 italic mb-3">Only visible to administrators</p>
 
       {/* Club Meeting events shown as buttons by default */}
       {clubMeetingEvents.length > 0 && (
@@ -452,20 +510,20 @@ function AdminEnableSection({
             <button
               key={event.id}
               onClick={() => onEnable(event)}
-              className="inline-flex items-center px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center px-3 py-2 text-sm bg-white border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
             >
-              <span className="mr-2 text-primary-600 font-medium">
+              <span className="mr-2 text-blue-700 font-medium">
                 {format(parseEventDate(event.startTime), 'MMM d')}
               </span>
               <span className="text-gray-700 truncate max-w-[200px]">{event.title}</span>
-              <span className="ml-2 text-primary-500">+</span>
+              <span className="ml-2 text-blue-500">+</span>
             </button>
           ))}
         </div>
       )}
 
       {clubMeetingEvents.length === 0 && (
-        <p className="text-sm text-gray-500 mb-3">No upcoming Club Meeting events found on the calendar.</p>
+        <p className="text-sm text-blue-400 mb-3">No upcoming Club Meeting events found on the calendar.</p>
       )}
 
       {/* Other meetings via dropdown */}
@@ -474,7 +532,7 @@ function AdminEnableSection({
           {!showOtherDropdown ? (
             <button
               onClick={() => { setShowOtherDropdown(true); setSelectedOtherId(otherEvents[0].id); }}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
               + Add from another event...
             </button>
@@ -789,22 +847,126 @@ function ModalWrapper({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-function ReserveModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (title: string, desc: string) => void }) {
+function ReserveModal({
+  onClose,
+  onSubmit,
+  isYouth,
+  isAdmin,
+  youthMembers,
+  currentUser,
+}: {
+  onClose: () => void;
+  onSubmit: (title: string, desc: string, userId?: string) => void;
+  isYouth: boolean;
+  isAdmin: boolean;
+  youthMembers: PickerMember[];
+  currentUser?: PickerMember;
+}) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Member picker state
+  const showPicker = !isYouth && (youthMembers.length > 0 || isAdmin);
+  const defaultMember = youthMembers.length > 0 ? youthMembers[0] : currentUser || null;
+  const [selectedMember, setSelectedMember] = useState<PickerMember | null>(defaultMember);
+  const [comboQuery, setComboQuery] = useState('');
+
+  const filteredMembers = useMemo(() => {
+    const allOptions = currentUser
+      ? [currentUser, ...youthMembers.filter((m) => m.id !== currentUser.id)]
+      : youthMembers;
+    if (!comboQuery) return allOptions;
+    const q = comboQuery.toLowerCase();
+    return allOptions.filter(
+      (m) => m.firstName.toLowerCase().includes(q) || m.lastName.toLowerCase().includes(q)
+    );
+  }, [comboQuery, youthMembers, currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     setSubmitting(true);
-    await onSubmit(title.trim(), description.trim());
+    await onSubmit(title.trim(), description.trim(), selectedMember?.id);
     setSubmitting(false);
   };
 
   return (
     <ModalWrapper title="Reserve a Presentation Spot" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Member picker for non-youth users */}
+        {showPicker && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Presenting Member <span className="text-red-500">*</span>
+            </label>
+            {isAdmin ? (
+              /* Admin: searchable combobox */
+              <Combobox value={selectedMember} onChange={setSelectedMember}>
+                <div className="relative">
+                  <Combobox.Input
+                    className="input w-full"
+                    displayValue={(m: PickerMember | null) =>
+                      m ? `${m.firstName} ${m.lastName}` : ''
+                    }
+                    onChange={(e) => setComboQuery(e.target.value)}
+                    placeholder="Search youth members..."
+                  />
+                  <Combobox.Options className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md bg-white shadow-lg border border-gray-200 py-1 text-sm">
+                    {filteredMembers.length === 0 ? (
+                      <div className="px-3 py-2 text-gray-500">No members found</div>
+                    ) : (
+                      filteredMembers.map((m) => (
+                        <Combobox.Option
+                          key={m.id}
+                          value={m}
+                          className={({ active }) =>
+                            `cursor-pointer px-3 py-2 ${active ? 'bg-primary-50 text-primary-900' : 'text-gray-900'}`
+                          }
+                        >
+                          {({ selected }) => (
+                            <span className={selected ? 'font-semibold' : ''}>
+                              {m.firstName} {m.lastName}
+                              {m.id === currentUser?.id && (
+                                <span className="ml-1 text-xs text-gray-400">(you)</span>
+                              )}
+                            </span>
+                          )}
+                        </Combobox.Option>
+                      ))
+                    )}
+                  </Combobox.Options>
+                </div>
+              </Combobox>
+            ) : (
+              /* Parent / Adult Leader: simple select */
+              <select
+                className="input w-full"
+                value={selectedMember?.id || ''}
+                onChange={(e) => {
+                  const all = currentUser
+                    ? [currentUser, ...youthMembers.filter((m) => m.id !== currentUser.id)]
+                    : youthMembers;
+                  setSelectedMember(all.find((m) => m.id === e.target.value) || null);
+                }}
+              >
+                {currentUser && (
+                  <option value={currentUser.id}>
+                    {currentUser.firstName} {currentUser.lastName} (you)
+                  </option>
+                )}
+                {youthMembers
+                  .filter((m) => m.id !== currentUser?.id)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.firstName} {m.lastName}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Presentation Title <span className="text-red-500">*</span>
@@ -817,7 +979,7 @@ function ReserveModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
             className="input w-full"
             placeholder="e.g., Horse Grooming Basics"
             required
-            autoFocus
+            autoFocus={isYouth}
           />
         </div>
         <div>
@@ -832,7 +994,11 @@ function ReserveModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
         </div>
         <div className="flex justify-end gap-3">
           <button type="button" onClick={onClose} className="btn-secondary text-sm">Cancel</button>
-          <button type="submit" disabled={!title.trim() || submitting} className="btn-primary text-sm disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={!title.trim() || submitting || (showPicker && !selectedMember)}
+            className="btn-primary text-sm disabled:opacity-50"
+          >
             {submitting ? 'Reserving...' : 'Reserve Spot'}
           </button>
         </div>

@@ -20,6 +20,7 @@ import {
   ReservationWithMeeting,
 } from '../../repositories/presentation.repository';
 import { UserRepository } from '../../repositories/user.repository';
+import { FamilyLinkRepository } from '../../repositories/family-link.repository';
 import { verifyAccessToken } from '../../services/auth.service';
 import { listCalendarEvents, getCalendarEvent } from '../../services/google-calendar.service';
 import * as driveService from '../../services/google-drive.service';
@@ -33,10 +34,12 @@ import { env } from '../../config/env';
 export class PresentationResolver {
   private presRepo: PresentationRepository;
   private userRepo: UserRepository;
+  private familyLinkRepo: FamilyLinkRepository;
 
   constructor() {
     this.presRepo = new PresentationRepository();
     this.userRepo = new UserRepository();
+    this.familyLinkRepo = new FamilyLinkRepository();
   }
 
   private requireAuth(context: Context): { userId: string; email: string } {
@@ -309,7 +312,32 @@ export class PresentationResolver {
     @Arg('input') input: ReservePresentationInput,
     @Ctx() context: Context
   ): Promise<PresentationReservationGQL> {
-    const { userId } = this.requireAuth(context);
+    const { userId: authUserId } = this.requireAuth(context);
+    const targetUserId = input.userId || authUserId;
+
+    // Permission check when reserving on behalf of someone else
+    if (targetUserId !== authUserId) {
+      const authUser = await this.userRepo.findById(authUserId);
+      if (!authUser) {
+        throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+      }
+
+      if (authUser.role === Role.ADMIN) {
+        // Admins can reserve for anyone
+      } else if (authUser.role === Role.PARENT || authUser.role === Role.ADULT_LEADER) {
+        const linkedChildren = await this.familyLinkRepo.findByParentId(authUserId);
+        const isLinked = linkedChildren.some((c) => c.id === targetUserId);
+        if (!isLinked) {
+          throw new GraphQLError('You can only reserve for your linked youth members', {
+            extensions: { code: 'FORBIDDEN' },
+          });
+        }
+      } else {
+        throw new GraphQLError('You cannot reserve on behalf of another member', {
+          extensions: { code: 'FORBIDDEN' },
+        });
+      }
+    }
 
     const meeting = await this.presRepo.findMeetingById(input.meetingId);
     if (!meeting) {
@@ -327,12 +355,12 @@ export class PresentationResolver {
 
     const reservation = await this.presRepo.createReservation(
       input.meetingId,
-      userId,
+      targetUserId,
       input.title,
       input.description || null
     );
 
-    const user = await this.userRepo.findById(userId);
+    const targetUser = await this.userRepo.findById(targetUserId);
 
     const res = new PresentationReservationGQL();
     res.id = reservation.id;
@@ -344,10 +372,10 @@ export class PresentationResolver {
     res.updatedAt = reservation.updated_at.toISOString();
 
     const u = new PresentationReservationUserGQL();
-    u.id = userId;
-    u.firstName = user?.first_name || '';
-    u.lastName = user?.last_name || '';
-    u.profilePhotoUrl = user?.profile_photo_url || undefined;
+    u.id = targetUserId;
+    u.firstName = targetUser?.first_name || '';
+    u.lastName = targetUser?.last_name || '';
+    u.profilePhotoUrl = targetUser?.profile_photo_url || undefined;
     res.user = u;
 
     return res;
