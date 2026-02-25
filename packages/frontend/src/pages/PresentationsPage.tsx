@@ -995,7 +995,8 @@ function ReserveModal({
 
   // Member picker state
   const showPicker = !isYouth && (youthMembers.length > 0 || isAdmin);
-  const defaultMember = youthMembers.length > 0 ? youthMembers[0] : currentUser || null;
+  // Default: parent with exactly 1 child → auto-select; admin or multiple children → empty
+  const defaultMember = !isAdmin && youthMembers.length === 1 ? youthMembers[0] : null;
   const [selectedMember, setSelectedMember] = useState<PickerMember | null>(defaultMember);
   const [comboQuery, setComboQuery] = useState('');
 
@@ -1025,20 +1026,23 @@ function ReserveModal({
         {showPicker && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Presenting Member <span className="text-red-500">*</span>
+              Who is presenting? <span className="text-red-500">*</span>
             </label>
             {isAdmin ? (
-              /* Admin: searchable combobox */
-              <Combobox value={selectedMember} onChange={setSelectedMember}>
+              /* Admin: searchable combobox — starts empty, dropdown on focus */
+              <Combobox value={selectedMember} onChange={setSelectedMember} nullable>
                 <div className="relative">
                   <Combobox.Input
-                    className="input w-full"
+                    className="input w-full pr-8"
                     displayValue={(m: PickerMember | null) =>
                       m ? `${m.firstName} ${m.lastName}` : ''
                     }
                     onChange={(e) => setComboQuery(e.target.value)}
-                    placeholder="Search youth members..."
+                    placeholder="Type to search or click to browse members..."
                   />
+                  <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+                    <span className="text-gray-400 text-xs">&#9660;</span>
+                  </Combobox.Button>
                   <Combobox.Options className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md bg-white shadow-lg border border-gray-200 py-1 text-sm">
                     {filteredMembers.length === 0 ? (
                       <div className="px-3 py-2 text-gray-500">No members found</div>
