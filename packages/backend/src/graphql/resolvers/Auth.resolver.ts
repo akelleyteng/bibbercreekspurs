@@ -224,7 +224,7 @@ export class AuthResolver {
       return {
         user: mapDbUserToGql(user as any),
         accessToken,
-        refreshToken: rememberMe ? refreshToken : undefined,
+        refreshToken,
       };
     } catch (error: any) {
       if (error instanceof GraphQLError) {

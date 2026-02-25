@@ -34,6 +34,16 @@ async function executeGraphQL<T>(
     },
     body: JSON.stringify({ query, variables }),
   });
+
+  // Treat HTTP 401/403 as auth errors so the retry logic can kick in
+  if (res.status === 401 || res.status === 403) {
+    return { errors: [{ message: 'Unauthorized', extensions: { code: 'UNAUTHENTICATED' } }] };
+  }
+
+  if (!res.ok) {
+    return { errors: [{ message: `Server error (${res.status})` }] };
+  }
+
   return res.json();
 }
 
