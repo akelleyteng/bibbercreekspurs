@@ -357,24 +357,10 @@ export default function PresentationsPage() {
 
       {/* Admin: Enable presentations on a meeting */}
       {isAdmin && enableableEvents.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Enable Presentations on a Meeting</h2>
-          <div className="flex flex-wrap gap-2">
-            {enableableEvents.slice(0, 10).map((event) => (
-              <button
-                key={event.id}
-                onClick={() => setShowEnableModal(event)}
-                className="inline-flex items-center px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <span className="mr-2 text-primary-600 font-medium">
-                  {format(parseEventDate(event.startTime), 'MMM d')}
-                </span>
-                <span className="text-gray-700 truncate max-w-[200px]">{event.title}</span>
-                <span className="ml-2 text-primary-500">+</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <AdminEnableSection
+          enableableEvents={enableableEvents}
+          onEnable={(event) => setShowEnableModal(event)}
+        />
       )}
 
       {/* Meetings with presentation slots */}
@@ -442,6 +428,99 @@ export default function PresentationsPage() {
           onClose={() => setShowEditMeetingModal(null)}
           onSubmit={(slots, notes) => handleUpdateMeeting(showEditMeetingModal.id, slots, notes)}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Admin Enable Section ──
+
+function AdminEnableSection({
+  enableableEvents,
+  onEnable,
+}: {
+  enableableEvents: CalendarEvent[];
+  onEnable: (event: CalendarEvent) => void;
+}) {
+  const [showOtherDropdown, setShowOtherDropdown] = useState(false);
+  const [selectedOtherId, setSelectedOtherId] = useState('');
+
+  const clubMeetingEvents = enableableEvents.filter(
+    (e) => e.title.toLowerCase().includes('club meeting')
+  );
+  const otherEvents = enableableEvents.filter(
+    (e) => !e.title.toLowerCase().includes('club meeting')
+  );
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-lg font-semibold text-gray-900 mb-3">Enable Presentations on a Meeting</h2>
+
+      {/* Club Meeting events shown as buttons by default */}
+      {clubMeetingEvents.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {clubMeetingEvents.map((event) => (
+            <button
+              key={event.id}
+              onClick={() => onEnable(event)}
+              className="inline-flex items-center px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <span className="mr-2 text-primary-600 font-medium">
+                {format(parseEventDate(event.startTime), 'MMM d')}
+              </span>
+              <span className="text-gray-700 truncate max-w-[200px]">{event.title}</span>
+              <span className="ml-2 text-primary-500">+</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {clubMeetingEvents.length === 0 && (
+        <p className="text-sm text-gray-500 mb-3">No upcoming Club Meeting events found on the calendar.</p>
+      )}
+
+      {/* Other meetings via dropdown */}
+      {otherEvents.length > 0 && (
+        <div>
+          {!showOtherDropdown ? (
+            <button
+              onClick={() => { setShowOtherDropdown(true); setSelectedOtherId(otherEvents[0].id); }}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              + Add from another event...
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedOtherId}
+                onChange={(e) => setSelectedOtherId(e.target.value)}
+                className="input text-sm flex-1 min-w-0 max-w-md"
+              >
+                {otherEvents.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {format(parseEventDate(event.startTime), 'MMM d')} — {event.title}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  const event = otherEvents.find((e) => e.id === selectedOtherId);
+                  if (event) onEnable(event);
+                }}
+                disabled={!selectedOtherId}
+                className="btn-primary text-sm disabled:opacity-50"
+              >
+                Enable
+              </button>
+              <button
+                onClick={() => setShowOtherDropdown(false)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
