@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Combobox } from '@headlessui/react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
@@ -112,6 +113,7 @@ const MEETINGS_QUERY = `query {
 
 export default function PresentationsPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [meetings, setMeetings] = useState<PresentationMeeting[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,6 +228,16 @@ export default function PresentationsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Deep-link: scroll to a specific meeting when ?meeting=<id> is present
+  useEffect(() => {
+    const meetingId = searchParams.get('meeting');
+    if (!meetingId || loading || meetings.length === 0) return;
+    const el = document.getElementById(`meeting-${meetingId}`);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    }
+  }, [searchParams, loading, meetings]);
 
   const enableableEvents = calendarEvents.filter(
     (e) => !meetings.some((m) => m.googleEventId === e.id)
@@ -747,7 +759,7 @@ function MeetingCard({
   const slotsUsed = meeting.totalSlots - meeting.slotsRemaining;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div id={`meeting-${meeting.id}`} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Header */}
       <div
         className="px-4 sm:px-6 py-3 sm:py-4 cursor-pointer hover:bg-gray-50 transition-colors"

@@ -122,6 +122,7 @@ export class EventResolver {
     try {
       const meeting = await this.presRepo.findMeetingByEventId(calEvent.id);
       if (meeting) {
+        gql.meetingId = meeting.id;
         gql.agendaUrl = meeting.agenda_drive_file_url || undefined;
 
         const reservations = await this.presRepo.findReservationsByMeeting(meeting.id);

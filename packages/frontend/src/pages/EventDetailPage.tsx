@@ -27,6 +27,7 @@ interface EventDetailData {
   registrationCount: number;
   userRsvpStatus?: string;
   agendaUrl?: string;
+  meetingId?: string;
   presenters?: EventPresenter[];
 }
 
@@ -34,21 +35,17 @@ const EVENT_QUERY = `query GetEvent($id: String!) {
   event(id: $id) {
     id title description startTime endTime location visibility
     externalRegistrationUrl isAllDay registrationCount userRsvpStatus
-    agendaUrl
+    agendaUrl meetingId
     presenters { firstName lastName title profilePhotoUrl }
   }
 }`;
 
 const RSVP_OPTIONS = [
-  { value: 'ATTENDING', label: 'Will attend', icon: '\u2705' },
-  { value: 'MAYBE', label: 'Maybe', icon: '\uD83E\uDD14' },
-  { value: 'NOT_ATTENDING', label: "Won't attend", icon: '\u274C' },
-  { value: 'ATTENDING_PLUS', label: 'Attending + bringing others', icon: '\uD83D\uDC65' },
+  { value: 'ATTENDING', label: 'Attending', shortLabel: 'Attending', icon: '\u2705' },
+  { value: 'MAYBE', label: 'Maybe', shortLabel: 'Maybe', icon: '\uD83E\uDD14' },
+  { value: 'NOT_ATTENDING', label: "Won't attend", shortLabel: "Can't go", icon: '\u274C' },
+  { value: 'ATTENDING_PLUS', label: 'Attending + guests', shortLabel: '+ Guests', icon: '\uD83D\uDC65' },
 ];
-
-function rsvpLabel(status: string): string {
-  return RSVP_OPTIONS.find((o) => o.value === status)?.label || status;
-}
 
 export default function EventDetailPage() {
   const { id } = useParams();
@@ -56,9 +53,9 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<EventDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rsvpLoading, setRsvpLoading] = useState(false);
-  const [showRsvpPicker, setShowRsvpPicker] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState(1);
+  const [showGuestInput, setShowGuestInput] = useState(false);
 
   const fetchEvent = async () => {
     try {
@@ -80,7 +77,6 @@ export default function EventDetailPage() {
 
     setRsvpLoading(true);
     setRsvpError(null);
-    setShowRsvpPicker(false);
 
     try {
       const result = await authFetch(
@@ -93,6 +89,7 @@ export default function EventDetailPage() {
         return;
       }
 
+      setShowGuestInput(false);
       await fetchEvent();
     } catch {
       setRsvpError('Network error — please try again.');
@@ -118,6 +115,7 @@ export default function EventDetailPage() {
         return;
       }
 
+      setShowGuestInput(false);
       await fetchEvent();
     } catch {
       setRsvpError('Network error — please try again.');
@@ -243,7 +241,16 @@ export default function EventDetailPage() {
         {/* Presenters */}
         {event.presenters && event.presenters.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-3">Presentations</h2>
+            {event.meetingId ? (
+              <Link
+                to={`/presentations?meeting=${event.meetingId}`}
+                className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-3 inline-flex items-center gap-1"
+              >
+                Presentations &rarr;
+              </Link>
+            ) : (
+              <h2 className="text-xl font-bold text-gray-900 mb-3">Presentations</h2>
+            )}
             <div className="space-y-3">
               {event.presenters.map((presenter, idx) => (
                 <div key={idx} className="flex items-center p-3 bg-gray-50 rounded-lg">
@@ -285,28 +292,81 @@ export default function EventDetailPage() {
         {/* RSVP note for external registration events */}
         {hasExternalRegistration && isAuthenticated && (
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
-            <p className="text-sm text-yellow-800 mb-3">
+            <p className="text-sm text-yellow-800">
               <strong>Note:</strong> RSVP does not register you for this event.
               You must register via the link above.
             </p>
           </div>
         )}
 
-        {/* RSVP Section */}
+        {/* Inline RSVP Options */}
         {isAuthenticated && (
-          <div>
-            {userStatus ? (
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm text-gray-600">
-                  Your RSVP: <strong>{rsvpLabel(userStatus)}</strong>
-                </span>
+          <div className="border-t border-gray-200 pt-5 mt-6">
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+              {RSVP_OPTIONS.map((option) => {
+                const isSelected = userStatus === option.value;
+                if (option.value === 'ATTENDING_PLUS') {
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => setShowGuestInput(!showGuestInput)}
+                      disabled={rsvpLoading}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-colors disabled:opacity-50 ${
+                        isSelected
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-primary-300 hover:bg-primary-50'
+                      }`}
+                    >
+                      <span>{option.icon}</span>
+                      <span className="hidden sm:inline">{option.label}</span>
+                      <span className="sm:hidden">{option.shortLabel}</span>
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleRsvp(option.value)}
+                    disabled={rsvpLoading}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-colors disabled:opacity-50 ${
+                      isSelected
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-primary-300 hover:bg-primary-50'
+                    }`}
+                  >
+                    <span>{option.icon}</span>
+                    <span className="hidden sm:inline">{option.label}</span>
+                    <span className="sm:hidden">{option.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Guest count input for ATTENDING_PLUS */}
+            {showGuestInput && (
+              <div className="flex items-center gap-2 mt-3 ml-1">
+                <label className="text-sm text-gray-600">How many guests?</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={guestCount}
+                  onChange={(e) => setGuestCount(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="input w-20 text-sm"
+                />
                 <button
-                  onClick={() => setShowRsvpPicker(true)}
+                  onClick={() => handleRsvp('ATTENDING_PLUS', guestCount)}
                   disabled={rsvpLoading}
-                  className="btn-secondary text-sm"
+                  className="btn-primary text-sm"
                 >
-                  Change
+                  {rsvpLoading ? 'Saving...' : 'Confirm'}
                 </button>
+              </div>
+            )}
+
+            {/* Remove RSVP link */}
+            {userStatus && (
+              <div className="mt-3">
                 <button
                   onClick={handleCancelRsvp}
                   disabled={rsvpLoading}
@@ -315,14 +375,6 @@ export default function EventDetailPage() {
                   {rsvpLoading ? 'Processing...' : 'Remove RSVP'}
                 </button>
               </div>
-            ) : (
-              <button
-                onClick={() => setShowRsvpPicker(true)}
-                disabled={rsvpLoading}
-                className="btn-primary"
-              >
-                RSVP to Event
-              </button>
             )}
           </div>
         )}
@@ -333,60 +385,6 @@ export default function EventDetailPage() {
           </Link>
         )}
       </div>
-
-      {/* RSVP Status Picker Dialog */}
-      {showRsvpPicker && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">RSVP to this event</h3>
-            <div className="space-y-2 mb-4">
-              {RSVP_OPTIONS.map((option) => (
-                <div key={option.value}>
-                  <button
-                    onClick={() => {
-                      if (option.value === 'ATTENDING_PLUS') return;
-                      handleRsvp(option.value);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                      option.value === 'ATTENDING_PLUS'
-                        ? 'border-gray-200 bg-gray-50'
-                        : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'
-                    } ${userStatus === option.value ? 'border-primary-500 bg-primary-50' : ''}`}
-                  >
-                    <span className="mr-2">{option.icon}</span>
-                    {option.label}
-                  </button>
-                  {option.value === 'ATTENDING_PLUS' && (
-                    <div className="flex items-center gap-2 mt-2 ml-8">
-                      <label className="text-sm text-gray-600">How many guests?</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={guestCount}
-                        onChange={(e) => setGuestCount(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="input w-20 text-sm"
-                      />
-                      <button
-                        onClick={() => handleRsvp('ATTENDING_PLUS', guestCount)}
-                        className="btn-primary text-sm"
-                      >
-                        Confirm
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowRsvpPicker(false)}
-              className="text-sm text-gray-500 hover:text-gray-700 w-full text-center"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

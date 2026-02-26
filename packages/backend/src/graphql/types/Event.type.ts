@@ -53,6 +53,9 @@ export class EventGQL {
   @Field({ nullable: true })
   agendaUrl?: string;
 
+  @Field({ nullable: true })
+  meetingId?: string;
+
   @Field(() => [EventPresenterGQL], { nullable: true })
   presenters?: EventPresenterGQL[];
 }

@@ -20,18 +20,27 @@ interface EventData {
   externalRegistrationUrl?: string;
   isAllDay: boolean;
   registrationCount: number;
+  userRsvpStatus?: string;
 }
+
+const RSVP_LABELS: Record<string, string> = {
+  ATTENDING: '\u2705 Attending',
+  MAYBE: '\uD83E\uDD14 Maybe',
+  NOT_ATTENDING: '\u274C Not attending',
+  ATTENDING_PLUS: '\uD83D\uDC65 Attending +',
+};
 
 export default function EventsPage() {
   const { isAuthenticated } = useAuth();
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(EVENTS_PER_PAGE);
+  const [rsvpLoadingIds, setRsvpLoadingIds] = useState<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const isLoggedIn = !!localStorage.getItem('token');
-    authFetch(`query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility externalRegistrationUrl isAllDay registrationCount } }`)
+    authFetch(`query { events(publicOnly: ${!isLoggedIn}) { id title description startTime endTime location visibility externalRegistrationUrl isAllDay registrationCount userRsvpStatus } }`)
       .then((result) => {
         if (result.data?.events) {
           setEvents(result.data.events);
@@ -65,6 +74,37 @@ export default function EventsPage() {
     return () => observer.disconnect();
   }, [hasMore, loadMore]);
 
+  const handleQuickRsvp = async (e: React.MouseEvent, eventId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!localStorage.getItem('token')) return;
+
+    setRsvpLoadingIds((prev) => new Set(prev).add(eventId));
+    try {
+      const result = await authFetch(
+        `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
+        { input: { eventId, status: 'ATTENDING', guestCount: 0 } },
+      );
+      if (!result.errors?.length) {
+        setEvents((prev) =>
+          prev.map((ev) =>
+            ev.id === eventId
+              ? { ...ev, userRsvpStatus: 'ATTENDING', registrationCount: ev.registrationCount + 1 }
+              : ev
+          )
+        );
+      }
+    } catch {
+      // silently fail — user can retry or use detail page
+    } finally {
+      setRsvpLoadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
+    }
+  };
+
   const visibleEvents = events.slice(0, visibleCount);
 
   if (loading) {
@@ -89,7 +129,7 @@ export default function EventsPage() {
               <Link
                 key={event.id}
                 to={`/events/${event.id}`}
-                className="card hover:shadow-lg transition-shadow"
+                className="card hover:shadow-lg transition-shadow flex flex-col"
               >
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
@@ -140,6 +180,25 @@ export default function EventsPage() {
                     <span>{event.registrationCount} attending</span>
                   </div>
                 </div>
+
+                {/* RSVP button */}
+                {isAuthenticated && (
+                  <div className="mt-auto pt-4 flex justify-center md:justify-end">
+                    {event.userRsvpStatus ? (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                        {RSVP_LABELS[event.userRsvpStatus] || event.userRsvpStatus}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => handleQuickRsvp(e, event.id)}
+                        disabled={rsvpLoadingIds.has(event.id)}
+                        className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
+                      >
+                        {rsvpLoadingIds.has(event.id) ? 'Saving...' : 'RSVP'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </Link>
             ))}
           </div>
