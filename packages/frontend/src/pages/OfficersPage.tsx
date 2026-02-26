@@ -64,7 +64,7 @@ export default function OfficersPage() {
   if (loading) {
     return (
       <div className="max-w-6xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Officers</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Officers</h1>
         <p className="text-gray-500 text-center py-12">Loading officers...</p>
       </div>
     );
@@ -83,7 +83,7 @@ export default function OfficersPage() {
   if (assignedOfficers.length === 0) {
     return (
       <div className="max-w-6xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Officers</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Officers</h1>
         <p className="text-gray-500 text-center py-12">Officer positions have not been assigned yet.</p>
       </div>
     );
@@ -93,17 +93,17 @@ export default function OfficersPage() {
     <div className="max-w-6xl">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Officers</h1>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {assignedOfficers.map((officer) => (
           <div key={officer.id} className="card hover:shadow-lg transition-shadow">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               <img
                 src={officer.holder!.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(officer.holder!.firstName + ' ' + officer.holder!.lastName)}&background=4f772d&color=fff&size=80`}
                 alt={`${officer.holder!.firstName} ${officer.holder!.lastName}`}
-                className="w-20 h-20 rounded-full object-cover flex-shrink-0"
+                className="w-14 h-14 sm:w-20 sm:h-20 rounded-full object-cover flex-shrink-0"
               />
               <div className="flex-1 min-w-0">
-                <h3 className="text-xl font-bold text-gray-900 mb-1">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
                   {officer.holder!.firstName} {officer.holder!.lastName}
                 </h3>
                 <p className="text-primary-600 font-medium mb-2">

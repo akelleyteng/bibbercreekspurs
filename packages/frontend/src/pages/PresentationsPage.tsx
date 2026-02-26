@@ -486,7 +486,7 @@ export default function PresentationsPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Meetings</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Meetings</h1>
         <p className="text-gray-500 text-center py-12">Loading meetings...</p>
       </div>
     );

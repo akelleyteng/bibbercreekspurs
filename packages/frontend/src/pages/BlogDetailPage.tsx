@@ -67,7 +67,7 @@ export default function BlogDetailPage() {
 
       <article>
         {post.featuredImageUrl && (
-          <div className="relative h-96 bg-gray-200 rounded-lg overflow-hidden mb-8">
+          <div className="relative h-48 sm:h-96 bg-gray-200 rounded-lg overflow-hidden mb-4 sm:mb-8">
             <img
               src={post.featuredImageUrl}
               alt={post.title}
@@ -76,9 +76,9 @@ export default function BlogDetailPage() {
           </div>
         )}
 
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">{post.title}</h1>
+        <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">{post.title}</h1>
 
-        <div className="flex items-center mb-8 pb-8 border-b">
+        <div className="flex items-center mb-4 sm:mb-8 pb-4 sm:pb-8 border-b">
           {post.author.profileImageUrl && (
             <img
               src={post.author.profileImageUrl}

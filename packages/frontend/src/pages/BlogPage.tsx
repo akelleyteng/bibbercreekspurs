@@ -42,7 +42,7 @@ export default function BlogPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Blog</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Blog</h1>
         <p className="text-gray-500 text-center py-12">Loading posts...</p>
       </div>
     );
@@ -50,14 +50,14 @@ export default function BlogPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Club Blog</h1>
+      <div className="flex justify-between items-center mb-4 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Club Blog</h1>
       </div>
 
       {posts.length === 0 ? (
         <p className="text-gray-500 text-center py-12">No blog posts yet. Check back soon!</p>
       ) : (
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
             <Link key={post.id} to={`/blog/${post.slug}`} className="group">
               {post.featuredImageUrl && (
@@ -78,7 +78,7 @@ export default function BlogPage() {
                   </>
                 )}
               </div>
-              <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors mb-2">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors mb-2">
                 {post.title}
               </h3>
               {post.excerpt && <p className="text-gray-600">{DOMPurify.sanitize(post.excerpt, { ALLOWED_TAGS: [] }).replace(/&nbsp;/g, ' ')}</p>}

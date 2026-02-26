@@ -72,9 +72,9 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-8">
         <Link to="/events" className="card hover:shadow-md transition-shadow">
           <h3 className="text-lg font-semibold mb-2">Upcoming Events</h3>
           <p className="text-3xl font-bold text-primary-600">{upcomingEvents.length}</p>
@@ -89,7 +89,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
         <div className="card">
           <h2 className="text-xl font-bold mb-4">Upcoming Events</h2>
           <div className="space-y-4">

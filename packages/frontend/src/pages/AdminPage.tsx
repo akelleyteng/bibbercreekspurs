@@ -973,25 +973,40 @@ export default function AdminPage() {
         </div>
       )}
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Panel</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Admin Panel</h1>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-8">
-        <nav className="-mb-px flex space-x-8">
-          {['members', 'officers', 'communications', 'blog', 'home', 'sponsors', 'testimonials'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${
-                activeTab === tab
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </nav>
+      {/* Tabs - dropdown on mobile, horizontal tabs on desktop */}
+      <div className="mb-4 sm:mb-8">
+        {/* Mobile dropdown */}
+        <div className="sm:hidden">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as any)}
+            className="input w-full capitalize"
+          >
+            {['members', 'officers', 'communications', 'blog', 'home', 'sponsors', 'testimonials'].map((tab) => (
+              <option key={tab} value={tab} className="capitalize">{tab}</option>
+            ))}
+          </select>
+        </div>
+        {/* Desktop tabs */}
+        <div className="hidden sm:block border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            {['members', 'officers', 'communications', 'blog', 'home', 'sponsors', 'testimonials'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${
+                  activeTab === tab
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
 
       {/* Home Content */}
@@ -1266,14 +1281,14 @@ export default function AdminPage() {
         <div>
           {/* Pending Approval Section */}
           {pendingMembers.length > 0 && (
-            <div className="mb-8">
+            <div className="mb-4 sm:mb-8">
               <h3 className="text-lg font-semibold mb-4 text-amber-700">
                 Pending Approval ({pendingMembers.length})
               </h3>
               <div className="space-y-3">
                 {pendingMembers.map(member => (
                   <div key={member.id} className="card border-2 border-amber-200 bg-amber-50">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div>
                         <h4 className="font-semibold text-gray-900">
                           {member.firstName} {member.lastName}
@@ -1284,13 +1299,13 @@ export default function AdminPage() {
                           Registered {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : ''}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {decliningMemberId === member.id ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <input
                               type="text"
                               placeholder="Reason (optional)"
-                              className="input text-sm w-48"
+                              className="input text-sm w-full sm:w-48"
                               value={declineReason}
                               onChange={e => setDeclineReason(e.target.value)}
                             />
@@ -1389,13 +1404,13 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 className="text-lg font-semibold">Manage Members</h3>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <input
                 type="text"
                 placeholder="Search by name, email, or horse name..."
-                className="input w-64"
+                className="input w-full sm:w-64"
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
               />
@@ -1504,7 +1519,7 @@ export default function AdminPage() {
                   <div key={member.id} className="card">
                     {!isEditing ? (
                       <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
+                        <div className="flex items-start gap-3 sm:gap-4 min-w-0">
                           <img
                             src={
                               member.avatarChoice === 'profile' && member.profilePhotoUrl ? member.profilePhotoUrl
@@ -1512,7 +1527,7 @@ export default function AdminPage() {
                               : member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff&size=48`
                             }
                             alt=""
-                            className="w-12 h-12 rounded-full flex-shrink-0 object-cover"
+                            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex-shrink-0 object-cover"
                           />
                           <div>
                             <h4 className="font-semibold text-gray-900">{member.firstName} {member.lastName}</h4>
@@ -1567,7 +1582,7 @@ export default function AdminPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-1 ml-2 flex-shrink-0">
+                        <div className="flex gap-1 ml-1 sm:ml-2 flex-shrink-0">
                           <button onClick={() => handleEditMember(member)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600" title="Edit">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                           </button>
@@ -1954,16 +1969,16 @@ export default function AdminPage() {
                 <div className="space-y-3">
                   {disabledMembers.map((member) => (
                     <div key={member.id} className="card border-2 border-gray-200 bg-gray-50 opacity-75">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-wrap">
                           <img
                             src={member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=9ca3af&color=fff&size=40`}
                             alt=""
-                            className="w-10 h-10 rounded-full grayscale"
+                            className="w-10 h-10 rounded-full grayscale flex-shrink-0"
                           />
-                          <div>
+                          <div className="min-w-0">
                             <h4 className="font-medium text-gray-700">{member.firstName} {member.lastName}</h4>
-                            <p className="text-sm text-gray-500">{member.email}</p>
+                            <p className="text-sm text-gray-500 truncate">{member.email}</p>
                           </div>
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">
                             {member.role === 'ADULT_LEADER' ? 'Adult Leader' : member.role === 'YOUTH_MEMBER' ? 'Youth Member' : member.role === 'PARENT' ? 'Parent' : member.role}
@@ -1996,9 +2011,9 @@ export default function AdminPage() {
       {/* Blog */}
       {activeTab === 'blog' && (
         <div>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
             <h3 className="text-lg font-semibold">Manage Blog Posts</h3>
-            <button onClick={() => setIsBlogModalOpen(true)} className="btn-primary">
+            <button onClick={() => setIsBlogModalOpen(true)} className="btn-primary text-sm sm:text-base">
               + New Post
             </button>
           </div>
@@ -2008,18 +2023,18 @@ export default function AdminPage() {
             <div className="space-y-4">
               {blogPosts.map((post) => (
                 <div key={post.id} className="card">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-semibold text-lg">{post.title}</h4>
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h4 className="font-semibold text-base sm:text-lg">{post.title}</h4>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           post.publishedAt
                             ? 'bg-green-100 text-green-800'
                             : 'bg-yellow-100 text-yellow-800'
                         }`}>
                           {post.publishedAt ? 'Published' : 'Draft'}
                         </span>
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           post.visibility === 'PUBLIC'
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-purple-100 text-purple-800'
@@ -2040,7 +2055,7 @@ export default function AdminPage() {
                         <span className="ml-4">Slug: /{post.slug}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col space-y-2 ml-4">
+                    <div className="flex sm:flex-col gap-2 sm:ml-4 flex-shrink-0">
                       <button
                         onClick={() => handleEditBlogPost(post.id)}
                         className="btn-secondary text-sm whitespace-nowrap"
@@ -2126,26 +2141,26 @@ export default function AdminPage() {
       {/* Sponsors */}
       {activeTab === 'sponsors' && (
         <div>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
             <h3 className="text-lg font-semibold">Manage Sponsors</h3>
-            <button onClick={() => setIsSponsorModalOpen(true)} className="btn-primary">
+            <button onClick={() => setIsSponsorModalOpen(true)} className="btn-primary text-sm sm:text-base">
               + Add Sponsor
             </button>
           </div>
           {sponsors.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No sponsors yet. Add one above.</p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
               {sponsors.map((sponsor) => (
                 <div key={sponsor.id} className={`card ${!sponsor.isActive ? 'opacity-60' : ''}`}>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between gap-3 mb-4">
                     <img
                       src={proxyDriveUrl(sponsor.logoUrl)}
                       alt={sponsor.name}
-                      className="h-12 object-contain"
+                      className="h-10 sm:h-12 object-contain"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {!sponsor.isActive && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                           Hidden
@@ -2184,9 +2199,9 @@ export default function AdminPage() {
         <div>
           {/* Add Role Section */}
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
               <h3 className="text-lg font-semibold">Officer Roles</h3>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium text-gray-700">Term Year:</label>
                   <select
@@ -2309,8 +2324,8 @@ export default function AdminPage() {
                       </div>
                     </div>
                   ) : null}
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
                       <h4 className="font-semibold">{roleLabel}</h4>
                       <p className="text-sm text-gray-500">{roleDescription}</p>
                       {assigned?.holder ? (
@@ -2331,9 +2346,9 @@ export default function AdminPage() {
                         <p className="mt-2 text-sm text-gray-400 italic">Vacant</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex flex-wrap items-center gap-2 sm:ml-4">
                       <select
-                        className="input w-auto text-sm"
+                        className="input w-full sm:w-auto text-sm"
                         value=""
                         onChange={(e) => {
                           const [type, id] = e.target.value.split(':');
@@ -2393,9 +2408,9 @@ export default function AdminPage() {
       {/* Testimonials */}
       {activeTab === 'testimonials' && (
         <div>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
             <h3 className="text-lg font-semibold">Manage Testimonials</h3>
-            <button onClick={() => setIsTestimonialModalOpen(true)} className="btn-primary">
+            <button onClick={() => setIsTestimonialModalOpen(true)} className="btn-primary text-sm sm:text-base">
               + Add Testimonial
             </button>
           </div>
@@ -2405,13 +2420,13 @@ export default function AdminPage() {
             <div className="space-y-4">
               {testimonials.map((testimonial) => (
                 <div key={testimonial.id} className={`card ${!testimonial.isActive ? 'opacity-60' : ''}`}>
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex items-start">
                       {testimonial.imageUrl && (
                         <img
                           src={testimonial.imageUrl}
                           alt={testimonial.authorName}
-                          className="w-12 h-12 rounded-full mr-4"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full mr-3 sm:mr-4 flex-shrink-0"
                         />
                       )}
                       <div>
@@ -2429,7 +2444,7 @@ export default function AdminPage() {
                         <p className="text-gray-700 mt-2 italic">"{testimonial.content}"</p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex gap-2 flex-shrink-0">
                       <button
                         onClick={() => handleEditTestimonial(testimonial.id)}
                         className="btn-secondary text-sm"

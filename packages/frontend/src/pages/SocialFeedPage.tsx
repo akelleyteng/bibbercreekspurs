@@ -349,7 +349,7 @@ export default function SocialFeedPage() {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Social Feed</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Social Feed</h1>
         <p className="text-gray-500 text-center py-8">Loading...</p>
       </div>
     );
@@ -361,9 +361,9 @@ export default function SocialFeedPage() {
 
       {/* Create Post */}
       {user && (
-        <div className="card mb-6">
-          <div className="flex items-start space-x-4">
-            <div className="flex-shrink-0">
+        <div className="card mb-4 sm:mb-6">
+          <div className="flex items-start space-x-3 sm:space-x-4">
+            <div className="flex-shrink-0 hidden sm:block">
               <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
                 {user.firstName[0]}{user.lastName[0]}
               </div>
@@ -443,7 +443,7 @@ export default function SocialFeedPage() {
       {posts.length === 0 ? (
         <p className="text-gray-500 text-center py-8">No posts yet. Be the first to share something!</p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {posts.map((post) => (
             <div
               key={post.id}
@@ -460,16 +460,16 @@ export default function SocialFeedPage() {
               )}
 
               {/* Post Header */}
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center">
                   {post.author.profilePhotoUrl ? (
                     <img
                       src={post.author.profilePhotoUrl}
                       alt={post.author.firstName}
-                      className="w-12 h-12 rounded-full mr-3"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full mr-2 sm:mr-3"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold mr-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold mr-2 sm:mr-3 text-sm sm:text-base">
                       {post.author.firstName[0]}{post.author.lastName[0]}
                     </div>
                   )}
@@ -614,7 +614,7 @@ export default function SocialFeedPage() {
               )}
 
               {/* Reactions */}
-              <div className="flex items-center space-x-4 mb-4 pb-4 border-b">
+              <div className="flex items-center space-x-2 sm:space-x-4 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b">
                 {Object.values(ReactionType).map((type) => {
                   const reaction = post.reactions.find((r) => r.reactionType === type);
                   const isUserReaction = post.userReaction === type;
@@ -622,7 +622,7 @@ export default function SocialFeedPage() {
                     <button
                       key={type}
                       onClick={() => handleToggleReaction(post.id, type)}
-                      className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
+                      className={`flex items-center space-x-1 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm transition-colors ${
                         isUserReaction
                           ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300'
                           : reaction && reaction.count > 0
@@ -670,8 +670,8 @@ export default function SocialFeedPage() {
 
                 {/* Add Comment */}
                 {user && (
-                  <div className="flex items-start space-x-3 mt-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  <div className="flex items-start space-x-2 sm:space-x-3 mt-3">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary-600 text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
                       {user.firstName[0]}{user.lastName[0]}
                     </div>
                     <div className="flex-1 flex space-x-2">

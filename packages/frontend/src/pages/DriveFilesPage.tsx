@@ -240,7 +240,7 @@ export default function DriveFilesPage() {
   if (!currentFolderId) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Shared Files</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Shared Files</h1>
 
         {error && (
           <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">{error}</div>
@@ -257,7 +257,7 @@ export default function DriveFilesPage() {
             <p className="text-gray-400 text-sm mt-2">Contact an administrator to set up Google Drive integration.</p>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {folders.map((folder) => (
               <button
                 key={folder.id}
@@ -265,7 +265,7 @@ export default function DriveFilesPage() {
                 className="card text-left hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="flex items-center">
-                  <span className="text-4xl mr-4">
+                  <span className="text-3xl sm:text-4xl mr-3 sm:mr-4">
                     {folder.accessLevel === 'leadership' ? '🔒' : '📁'}
                   </span>
                   <div>
@@ -288,7 +288,7 @@ export default function DriveFilesPage() {
   // Folder view: show files
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Shared Files</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Shared Files</h1>
 
       {/* Breadcrumbs */}
       <nav className="mb-6" aria-label="Breadcrumb">
@@ -317,7 +317,7 @@ export default function DriveFilesPage() {
 
       {/* Toolbar: upload for all members, folder management for admins */}
       {user && (
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
           <input
             ref={fileInputRef}
             type="file"
@@ -407,13 +407,13 @@ export default function DriveFilesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 ml-2 sm:ml-4">
                   {!file.isFolder && file.webViewLink && (
                     <a
                       href={file.webViewLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-secondary text-sm"
+                      className="btn-secondary text-xs sm:text-sm"
                     >
                       Open
                     </a>
@@ -423,7 +423,7 @@ export default function DriveFilesPage() {
                       href={file.webContentLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-secondary text-sm"
+                      className="btn-secondary text-xs sm:text-sm hidden sm:inline-flex"
                     >
                       Download
                     </a>
