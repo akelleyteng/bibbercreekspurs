@@ -1,5 +1,6 @@
 import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
-import { EventGQL } from '../types/Event.type';
+import { EventGQL, EventPresenterGQL } from '../types/Event.type';
+import { PresentationRepository } from '../../repositories/presentation.repository';
 import { RsvpInput } from '../inputs/EventInput';
 import { verifyAccessToken } from '../../services/auth.service';
 import { EventRsvpRepository } from '../../repositories/event-rsvp.repository';
@@ -19,10 +20,12 @@ import { UserRepository } from '../../repositories/user.repository';
 export class EventResolver {
   private rsvpRepo: EventRsvpRepository;
   private userRepo: UserRepository;
+  private presRepo: PresentationRepository;
 
   constructor() {
     this.rsvpRepo = new EventRsvpRepository();
     this.userRepo = new UserRepository();
+    this.presRepo = new PresentationRepository();
   }
 
   /**
@@ -113,7 +116,31 @@ export class EventResolver {
       return null;
     }
 
-    return this.mapToGQL(calEvent, auth?.userId);
+    const gql = await this.mapToGQL(calEvent, auth?.userId);
+
+    // Enrich with presentation meeting data (agenda + presenters)
+    try {
+      const meeting = await this.presRepo.findMeetingByEventId(calEvent.id);
+      if (meeting) {
+        gql.agendaUrl = meeting.agenda_drive_file_url || undefined;
+
+        const reservations = await this.presRepo.findReservationsByMeeting(meeting.id);
+        if (reservations.length > 0) {
+          gql.presenters = reservations.map((r) => {
+            const p = new EventPresenterGQL();
+            p.firstName = r.first_name;
+            p.lastName = r.last_name;
+            p.title = r.title;
+            p.profilePhotoUrl = r.profile_photo_url || undefined;
+            return p;
+          });
+        }
+      }
+    } catch (err: any) {
+      logger.warn('Failed to enrich event with presentation data', { eventId: calEvent.id, error: err?.message });
+    }
+
+    return gql;
   }
 
   @Mutation(() => Boolean)

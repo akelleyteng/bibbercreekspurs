@@ -23,7 +23,8 @@ import {
 import { UserRepository } from '../../repositories/user.repository';
 import { FamilyLinkRepository } from '../../repositories/family-link.repository';
 import { verifyAccessToken } from '../../services/auth.service';
-import { listCalendarEvents, getCalendarEvent } from '../../services/google-calendar.service';
+import { listCalendarEvents, getCalendarEvent, addAttendeeToEvent } from '../../services/google-calendar.service';
+import { EventRsvpRepository } from '../../repositories/event-rsvp.repository';
 import * as driveService from '../../services/google-drive.service';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
@@ -37,11 +38,13 @@ export class PresentationResolver {
   private presRepo: PresentationRepository;
   private userRepo: UserRepository;
   private familyLinkRepo: FamilyLinkRepository;
+  private rsvpRepo: EventRsvpRepository;
 
   constructor() {
     this.presRepo = new PresentationRepository();
     this.userRepo = new UserRepository();
     this.familyLinkRepo = new FamilyLinkRepository();
+    this.rsvpRepo = new EventRsvpRepository();
   }
 
   private requireAuth(context: Context): { userId: string; email: string } {
@@ -399,6 +402,30 @@ export class PresentationResolver {
     );
 
     const targetUser = await this.userRepo.findById(targetUserId);
+
+    // Auto-RSVP the presenter as ATTENDING (skip if already attending to preserve guest count)
+    try {
+      const existingRsvp = await this.rsvpRepo.findByEventAndUser(meeting.google_event_id, targetUserId);
+      if (!existingRsvp || (existingRsvp.status !== 'ATTENDING' && existingRsvp.status !== 'ATTENDING_PLUS')) {
+        await this.rsvpRepo.upsert(meeting.google_event_id, targetUserId, 'ATTENDING', 0);
+        logger.info(`Auto-RSVP'd user ${targetUserId} as ATTENDING for event ${meeting.google_event_id}`);
+      }
+    } catch (rsvpError: any) {
+      logger.warn('Auto-RSVP failed (reservation still created)', {
+        eventId: meeting.google_event_id, userId: targetUserId, error: rsvpError?.message,
+      });
+    }
+
+    // Sync to Google Calendar (fire-and-forget)
+    try {
+      if (targetUser?.email) {
+        addAttendeeToEvent(meeting.google_event_id, targetUser.email);
+      }
+    } catch (calError: any) {
+      logger.warn('Calendar attendee sync failed for auto-RSVP', {
+        eventId: meeting.google_event_id, userId: targetUserId, error: calError?.message,
+      });
+    }
 
     const res = new PresentationReservationGQL();
     res.id = reservation.id;

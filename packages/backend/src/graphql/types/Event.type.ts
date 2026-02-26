@@ -1,5 +1,20 @@
 import { ObjectType, Field, ID, Int } from 'type-graphql';
 
+@ObjectType('EventPresenter')
+export class EventPresenterGQL {
+  @Field()
+  firstName!: string;
+
+  @Field()
+  lastName!: string;
+
+  @Field()
+  title!: string;
+
+  @Field({ nullable: true })
+  profilePhotoUrl?: string;
+}
+
 @ObjectType('Event')
 export class EventGQL {
   @Field(() => ID)
@@ -34,4 +49,10 @@ export class EventGQL {
 
   @Field({ nullable: true })
   userRsvpStatus?: string;
+
+  @Field({ nullable: true })
+  agendaUrl?: string;
+
+  @Field(() => [EventPresenterGQL], { nullable: true })
+  presenters?: EventPresenterGQL[];
 }

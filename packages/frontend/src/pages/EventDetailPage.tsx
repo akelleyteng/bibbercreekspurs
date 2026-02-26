@@ -7,6 +7,13 @@ import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 import { formatDescription } from '../utils/formatDescription';
 
+interface EventPresenter {
+  firstName: string;
+  lastName: string;
+  title: string;
+  profilePhotoUrl?: string;
+}
+
 interface EventDetailData {
   id: string;
   title: string;
@@ -19,12 +26,16 @@ interface EventDetailData {
   isAllDay: boolean;
   registrationCount: number;
   userRsvpStatus?: string;
+  agendaUrl?: string;
+  presenters?: EventPresenter[];
 }
 
 const EVENT_QUERY = `query GetEvent($id: String!) {
   event(id: $id) {
     id title description startTime endTime location visibility
     externalRegistrationUrl isAllDay registrationCount userRsvpStatus
+    agendaUrl
+    presenters { firstName lastName title profilePhotoUrl }
   }
 }`;
 
@@ -208,6 +219,48 @@ export default function EventDetailPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-3">Description</h2>
           <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
         </div>
+
+        {/* Agenda Link */}
+        {event.agendaUrl && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">&#128196;</span>
+              <div>
+                <p className="font-semibold text-gray-900">Meeting Agenda</p>
+                <a
+                  href={event.agendaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:text-primary-700 underline"
+                >
+                  View Agenda
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Presenters */}
+        {event.presenters && event.presenters.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-3">Presentations</h2>
+            <div className="space-y-3">
+              {event.presenters.map((presenter, idx) => (
+                <div key={idx} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <img
+                    src={presenter.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(presenter.firstName + ' ' + presenter.lastName)}&background=4f772d&color=fff&size=40`}
+                    alt={`${presenter.firstName} ${presenter.lastName}`}
+                    className="w-10 h-10 rounded-full object-cover mr-3"
+                  />
+                  <div>
+                    <p className="font-semibold text-gray-900">{presenter.firstName} {presenter.lastName}</p>
+                    <p className="text-sm text-gray-600">{presenter.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {rsvpError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
