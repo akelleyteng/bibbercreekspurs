@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
+import MemberProfileFields, { MemberProfileData } from '../components/MemberProfileFields';
 
 const ROLE_LABELS: Record<string, string> = {
   PARENT: 'Parent',
@@ -9,18 +10,12 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
 };
 
-const TSHIRT_OPTIONS = [
-  '',
-  'Youth S',
-  'Youth M',
-  'Youth L',
-  'Adult XS',
-  'Adult S',
-  'Adult M',
-  'Adult L',
-  'Adult XL',
-  'Adult XXL',
-];
+const HORSE_EXP_LABELS: Record<string, string> = {
+  none: 'No Experience',
+  some: 'Some Experience',
+  regular: 'Regular Rider',
+  advanced: 'Advanced',
+};
 
 interface LinkedFamilyMember {
   id: string;
@@ -43,17 +38,11 @@ interface UserOption {
   role: string;
 }
 
-interface ProfileData {
+interface ProfileData extends MemberProfileData {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
-  address: string;
   role: string;
-  horseName: string;
-  project: string;
-  birthday: string;
-  tshirtSize: string;
 }
 
 export default function ProfilePage() {
@@ -64,13 +53,19 @@ export default function ProfilePage() {
     firstName: '',
     lastName: '',
     email: '',
+    role: '',
     phone: '',
     address: '',
-    role: '',
+    emergencyContact: '',
+    emergencyPhone: '',
     horseName: '',
+    horseExperience: '',
     project: '',
     birthday: '',
     tshirtSize: '',
+    profilePhotoUrl: '',
+    horsePhotoUrl: '',
+    avatarChoice: 'initials',
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -85,22 +80,35 @@ export default function ProfilePage() {
   const [linkChildUserId, setLinkChildUserId] = useState('');
   const { user: authUser } = useAuth();
 
+  const showMessage = (text: string, type: 'success' | 'error') => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const fetchProfileData = useCallback(async () => {
     if (!authUser) return;
-    const result = await authFetch(`query { me { id email firstName lastName role phone address horseName project birthday tshirtSize } }`);
+    const result = await authFetch(
+      `query { me { id email firstName lastName role phone address emergencyContact emergencyPhone horseName horseExperience project birthday tshirtSize profilePhotoUrl horsePhotoUrl avatarChoice } }`
+    );
     if (result.data?.me) {
       const me = result.data.me;
       setFormData({
         firstName: me.firstName || '',
         lastName: me.lastName || '',
         email: me.email || '',
+        role: me.role || '',
         phone: me.phone || '',
         address: me.address || '',
-        role: me.role || '',
+        emergencyContact: me.emergencyContact || '',
+        emergencyPhone: me.emergencyPhone || '',
         horseName: me.horseName || '',
+        horseExperience: me.horseExperience || '',
         project: me.project || '',
         birthday: me.birthday ? me.birthday.split('T')[0] : '',
         tshirtSize: me.tshirtSize || '',
+        profilePhotoUrl: me.profilePhotoUrl || '',
+        horsePhotoUrl: me.horsePhotoUrl || '',
+        avatarChoice: me.avatarChoice || 'initials',
       });
       setProfileLoaded(true);
     }
@@ -135,13 +143,11 @@ export default function ProfilePage() {
       { parentUserId: authUser.id, childUserId },
     );
     if (result.errors) {
-      setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to link account' });
-      setTimeout(() => setMessage(null), 3000);
+      showMessage(result.errors[0]?.message || 'Failed to link account', 'error');
       return;
     }
     setLinkChildUserId('');
-    setMessage({ type: 'success', text: 'Youth account linked successfully!' });
-    setTimeout(() => setMessage(null), 3000);
+    showMessage('Youth account linked successfully!', 'success');
     fetchFamilyData();
   };
 
@@ -153,16 +159,8 @@ export default function ProfilePage() {
       }`,
       { parentUserId: authUser.id, childUserId },
     );
-    setMessage({ type: 'success', text: 'Family link removed.' });
-    setTimeout(() => setMessage(null), 3000);
+    showMessage('Family link removed.', 'success');
     fetchFamilyData();
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,40 +175,45 @@ export default function ProfilePage() {
 
     try {
       const result = await authFetch(
-        `mutation UpdateMyProfile($horseName: String, $project: String, $birthday: String, $tshirtSize: String) {
-          updateMyProfile(horseName: $horseName, project: $project, birthday: $birthday, tshirtSize: $tshirtSize) {
-            id horseName project birthday tshirtSize
+        `mutation UpdateMyProfile($phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String, $horseName: String, $horseExperience: String, $project: String, $birthday: String, $tshirtSize: String, $avatarChoice: String) {
+          updateMyProfile(phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone, horseName: $horseName, horseExperience: $horseExperience, project: $project, birthday: $birthday, tshirtSize: $tshirtSize, avatarChoice: $avatarChoice) {
+            id phone address emergencyContact emergencyPhone horseName horseExperience project birthday tshirtSize avatarChoice
           }
         }`,
         {
+          phone: formData.phone || null,
+          address: formData.address || null,
+          emergencyContact: formData.emergencyContact || null,
+          emergencyPhone: formData.emergencyPhone || null,
           horseName: formData.horseName || null,
+          horseExperience: formData.horseExperience || null,
           project: formData.project || null,
           birthday: formData.birthday || null,
           tshirtSize: formData.tshirtSize || null,
+          avatarChoice: formData.avatarChoice,
         },
       );
       if (result.errors) {
-        setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to update profile' });
+        showMessage(result.errors[0]?.message || 'Failed to update profile', 'error');
       } else {
-        setMessage({ type: 'success', text: 'Profile updated successfully!' });
+        showMessage('Profile updated successfully!', 'success');
         setIsEditing(false);
       }
     } catch {
-      setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
+      showMessage('An error occurred. Please try again.', 'error');
     }
-    setTimeout(() => setMessage(null), 3000);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match!' });
+      showMessage('New passwords do not match!', 'error');
       return;
     }
 
     if (passwordData.newPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Password must be at least 8 characters!' });
+      showMessage('Password must be at least 8 characters!', 'error');
       return;
     }
 
@@ -225,16 +228,15 @@ export default function ProfilePage() {
         },
       );
       if (result.errors) {
-        setMessage({ type: 'error', text: result.errors[0]?.message || 'Failed to change password' });
+        showMessage(result.errors[0]?.message || 'Failed to change password', 'error');
       } else {
-        setMessage({ type: 'success', text: 'Password changed successfully!' });
+        showMessage('Password changed successfully!', 'success');
         setIsChangingPassword(false);
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       }
     } catch {
-      setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
+      showMessage('An error occurred. Please try again.', 'error');
     }
-    setTimeout(() => setMessage(null), 3000);
   };
 
   if (!profileLoaded) {
@@ -276,6 +278,7 @@ export default function ProfilePage() {
 
         {isEditing ? (
           <form onSubmit={handleSaveProfile} className="space-y-4">
+            {/* Read-only identity fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
@@ -286,64 +289,17 @@ export default function ProfilePage() {
                 <p className="text-base font-medium text-gray-900 px-3 py-2">{formData.lastName}</p>
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <p className="text-base font-medium text-gray-900 px-3 py-2">{formData.email}</p>
             </div>
 
-            <div className="border-t pt-4 mt-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">4H Member Info</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Horse Name</label>
-                  <input
-                    type="text"
-                    name="horseName"
-                    value={formData.horseName}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="Your horse's name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-                  <input
-                    type="text"
-                    name="project"
-                    value={formData.project}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="Your 4H project"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
-                  <input
-                    type="date"
-                    name="birthday"
-                    value={formData.birthday}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">T-Shirt Size</label>
-                  <select
-                    name="tshirtSize"
-                    value={formData.tshirtSize}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    {TSHIRT_OPTIONS.map(size => (
-                      <option key={size} value={size}>
-                        {size || '-- Select size --'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+            {/* Shared editable fields */}
+            <MemberProfileFields
+              data={formData}
+              onChange={(updates) => setFormData(prev => ({ ...prev, ...updates }))}
+              onMessage={showMessage}
+            />
 
             <div className="flex space-x-3 pt-4">
               <button
@@ -383,11 +339,6 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <p className="text-sm text-gray-600">Phone Number</p>
-              <p className="text-base font-medium text-gray-900">{formData.phone || 'Not provided'}</p>
-            </div>
-
-            <div>
               <p className="text-sm text-gray-600">Role</p>
               <p className="text-base font-medium text-gray-900">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
@@ -396,12 +347,37 @@ export default function ProfilePage() {
               </p>
             </div>
 
+            {/* Contact Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Phone</p>
+                <p className="text-base font-medium text-gray-900">{formData.phone || 'Not provided'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Address</p>
+                <p className="text-base font-medium text-gray-900">{formData.address || 'Not provided'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Emergency Contact</p>
+                <p className="text-base font-medium text-gray-900">{formData.emergencyContact || 'Not provided'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Emergency Phone</p>
+                <p className="text-base font-medium text-gray-900">{formData.emergencyPhone || 'Not provided'}</p>
+              </div>
+            </div>
+
+            {/* 4H Info */}
             <div className="border-t pt-4 mt-4">
               <h3 className="text-lg font-medium text-gray-900 mb-3">4H Member Info</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Horse Name</p>
                   <p className="text-base font-medium text-gray-900">{formData.horseName || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Horse Experience</p>
+                  <p className="text-base font-medium text-gray-900">{HORSE_EXP_LABELS[formData.horseExperience || ''] || formData.horseExperience || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Project</p>
@@ -418,6 +394,33 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-sm text-gray-600">T-Shirt Size</p>
                   <p className="text-base font-medium text-gray-900">{formData.tshirtSize || 'Not provided'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Photos & Avatar (view mode) */}
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-3">Photos & Avatar</h3>
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Profile</p>
+                  {formData.profilePhotoUrl ? (
+                    <img src={formData.profilePhotoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">None</div>
+                  )}
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Horse</p>
+                  {formData.horsePhotoUrl ? (
+                    <img src={formData.horsePhotoUrl} alt="Horse" className="w-16 h-16 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">None</div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Avatar</p>
+                  <p className="text-sm font-medium text-gray-900 capitalize">{formData.avatarChoice || 'Initials'}</p>
                 </div>
               </div>
             </div>

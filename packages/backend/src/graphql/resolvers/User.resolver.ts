@@ -226,19 +226,31 @@ export class UserResolver {
 
   @Mutation(() => User)
   async updateMyProfile(
+    @Arg('phone', { nullable: true }) phone: string,
+    @Arg('address', { nullable: true }) address: string,
+    @Arg('emergencyContact', { nullable: true }) emergencyContact: string,
+    @Arg('emergencyPhone', { nullable: true }) emergencyPhone: string,
     @Arg('horseName', { nullable: true }) horseName: string,
+    @Arg('horseExperience', { nullable: true }) horseExperience: string,
     @Arg('project', { nullable: true }) project: string,
     @Arg('birthday', { nullable: true }) birthday: string,
     @Arg('tshirtSize', { nullable: true }) tshirtSize: string,
+    @Arg('avatarChoice', { nullable: true }) avatarChoice: string,
     @Ctx() context: Context
   ): Promise<User> {
     const userId = this.getAuthUserId(context);
 
     const updateData: any = {};
+    if (phone !== undefined) updateData.phone = phone || null;
+    if (address !== undefined) updateData.address = address || null;
+    if (emergencyContact !== undefined) updateData.emergency_contact = emergencyContact || null;
+    if (emergencyPhone !== undefined) updateData.emergency_phone = emergencyPhone || null;
     if (horseName !== undefined) updateData.horse_name = horseName || null;
+    if (horseExperience !== undefined) updateData.horse_experience = horseExperience || null;
     if (project !== undefined) updateData.project = project || null;
     if (birthday !== undefined) updateData.birthday = birthday || null;
     if (tshirtSize !== undefined) updateData.tshirt_size = tshirtSize || null;
+    if (avatarChoice !== undefined) updateData.avatar_choice = avatarChoice || 'initials';
 
     const updated = await this.userRepo.update(userId, updateData);
     if (!updated) {

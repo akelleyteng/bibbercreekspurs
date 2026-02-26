@@ -8,6 +8,7 @@ import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
 import AdminCommunications from '../components/AdminCommunications';
+import MemberProfileFields from '../components/MemberProfileFields';
 import { authFetch } from '../utils/authFetch';
 
 interface OfficerRole {
@@ -1599,151 +1600,16 @@ export default function AdminPage() {
                               {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                             </select>
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                            <input className="input" value={memberForm.phone || ''} onChange={e => setMemberForm(f => ({ ...f, phone: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
-                            <input className="input" value={memberForm.address || ''} onChange={e => setMemberForm(f => ({ ...f, address: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Contact</label>
-                            <input className="input" value={memberForm.emergencyContact || ''} onChange={e => setMemberForm(f => ({ ...f, emergencyContact: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Phone</label>
-                            <input className="input" value={memberForm.emergencyPhone || ''} onChange={e => setMemberForm(f => ({ ...f, emergencyPhone: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Horse Name</label>
-                            <input className="input" value={memberForm.horseName || ''} onChange={e => setMemberForm(f => ({ ...f, horseName: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Horse Experience</label>
-                            <select className="input" value={memberForm.horseExperience || ''} onChange={e => setMemberForm(f => ({ ...f, horseExperience: e.target.value }))}>
-                              <option value="">Select...</option>
-                              <option value="none">No Experience</option>
-                              <option value="some">Some Experience</option>
-                              <option value="regular">Regular Rider</option>
-                              <option value="advanced">Advanced</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Project</label>
-                            <input className="input" value={memberForm.project || ''} onChange={e => setMemberForm(f => ({ ...f, project: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Birthday</label>
-                            <input className="input" type="date" value={memberForm.birthday ? memberForm.birthday.split('T')[0] : ''} onChange={e => setMemberForm(f => ({ ...f, birthday: e.target.value }))} />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">T-Shirt Size</label>
-                            <select className="input" value={memberForm.tshirtSize || ''} onChange={e => setMemberForm(f => ({ ...f, tshirtSize: e.target.value }))}>
-                              <option value="">Select...</option>
-                              <option value="YS">Youth Small</option>
-                              <option value="YM">Youth Medium</option>
-                              <option value="YL">Youth Large</option>
-                              <option value="AS">Adult Small</option>
-                              <option value="AM">Adult Medium</option>
-                              <option value="AL">Adult Large</option>
-                              <option value="AXL">Adult XL</option>
-                              <option value="A2XL">Adult 2XL</option>
-                            </select>
-                          </div>
                         </div>
 
-                        {/* Photos & Avatar */}
-                        <div className="border-t pt-4 mt-4">
-                          <h5 className="text-sm font-semibold text-gray-700 mb-3">Photos & Avatar</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-2">Profile Photo</label>
-                              <div className="flex items-center gap-3">
-                                {memberForm.profilePhotoUrl ? (
-                                  <img src={memberForm.profilePhotoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
-                                ) : (
-                                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">No photo</div>
-                                )}
-                                <label className="btn-secondary text-sm cursor-pointer">
-                                  Upload
-                                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const formData = new FormData();
-                                    formData.append('file', file);
-                                    formData.append('userId', member.id);
-                                    try {
-                                      const token = localStorage.getItem('accessToken');
-                                      const resp = await fetch(`${apiBase}/api/upload/profile-photo`, {
-                                        method: 'POST',
-                                        headers: { Authorization: `Bearer ${token}` },
-                                        body: formData,
-                                      });
-                                      const data = await resp.json();
-                                      if (resp.ok) {
-                                        setMemberForm(f => ({ ...f, profilePhotoUrl: data.url }));
-                                        showToast('Profile photo uploaded');
-                                      } else {
-                                        showToast(data.error || 'Upload failed', 'error');
-                                      }
-                                    } catch { showToast('Upload failed', 'error'); }
-                                    e.target.value = '';
-                                  }} />
-                                </label>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-2">Horse Photo</label>
-                              <div className="flex items-center gap-3">
-                                {memberForm.horsePhotoUrl ? (
-                                  <img src={memberForm.horsePhotoUrl} alt="Horse" className="w-16 h-16 rounded-full object-cover" />
-                                ) : (
-                                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">No photo</div>
-                                )}
-                                <label className="btn-secondary text-sm cursor-pointer">
-                                  Upload
-                                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const formData = new FormData();
-                                    formData.append('file', file);
-                                    formData.append('userId', member.id);
-                                    try {
-                                      const token = localStorage.getItem('accessToken');
-                                      const resp = await fetch(`${apiBase}/api/upload/horse-photo`, {
-                                        method: 'POST',
-                                        headers: { Authorization: `Bearer ${token}` },
-                                        body: formData,
-                                      });
-                                      const data = await resp.json();
-                                      if (resp.ok) {
-                                        setMemberForm(f => ({ ...f, horsePhotoUrl: data.url }));
-                                        showToast('Horse photo uploaded');
-                                      } else {
-                                        showToast(data.error || 'Upload failed', 'error');
-                                      }
-                                    } catch { showToast('Upload failed', 'error'); }
-                                    e.target.value = '';
-                                  }} />
-                                </label>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-2">Avatar Display</label>
-                              <select
-                                className="input"
-                                value={memberForm.avatarChoice || 'initials'}
-                                onChange={e => setMemberForm(f => ({ ...f, avatarChoice: e.target.value }))}
-                              >
-                                <option value="initials">Initials</option>
-                                <option value="profile" disabled={!memberForm.profilePhotoUrl}>Profile Photo{!memberForm.profilePhotoUrl ? ' (no photo)' : ''}</option>
-                                <option value="horse" disabled={!memberForm.horsePhotoUrl}>Horse Photo{!memberForm.horsePhotoUrl ? ' (no photo)' : ''}</option>
-                              </select>
-                              <p className="text-xs text-gray-400 mt-1">Shown on member directory instead of initials</p>
-                            </div>
-                          </div>
-                        </div>
+                        {/* Shared member fields (contact, 4H info, photos) */}
+                        <MemberProfileFields
+                          data={memberForm}
+                          onChange={(updates) => setMemberForm(f => ({ ...f, ...updates }))}
+                          targetUserId={member.id}
+                          onMessage={showToast}
+                          compact
+                        />
 
                         {/* Youth Members section */}
                         <div className="border-t pt-4 mt-4">
