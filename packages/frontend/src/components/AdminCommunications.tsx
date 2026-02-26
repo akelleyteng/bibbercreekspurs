@@ -37,6 +37,12 @@ interface CommunicationRecord {
 const EMAIL_TYPE_OPTIONS = Object.entries(COMMUNICATION_EMAIL_TYPE_LABELS).map(([value, label]) => ({ value, label }));
 const RECIPIENT_OPTIONS = Object.entries(RECIPIENT_GROUP_LABELS).map(([value, label]) => ({ value, label }));
 
+function htmlToPlainText(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+}
+
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -69,6 +75,7 @@ export default function AdminCommunications() {
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -98,6 +105,40 @@ export default function AdminCommunications() {
   useEffect(() => {
     fetchLog();
   }, [fetchLog]);
+
+  // Fetch member counts per recipient group
+  useEffect(() => {
+    (async () => {
+      try {
+        const usersResult = await authFetch(
+          `query { adminUsers { id role } }`,
+        );
+        const users: { id: string; role: string }[] = usersResult.data?.adminUsers || [];
+
+        const now = new Date();
+        const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+        const termYear = `${year}-${year + 1}`;
+        const officerResult = await authFetch(
+          `query($termYear: String!) { officerPositions(termYear: $termYear) { holderUserId } }`,
+          { termYear },
+        );
+        const officerIds = new Set<string>();
+        for (const o of officerResult.data?.officerPositions || []) {
+          if (o.holderUserId) officerIds.add(o.holderUserId);
+        }
+
+        setGroupCounts({
+          [RecipientGroup.ALL_MEMBERS]: users.length,
+          [RecipientGroup.YOUTH_MEMBERS]: users.filter(u => u.role === 'YOUTH_MEMBER').length,
+          [RecipientGroup.ADULT_LEADERS]: users.filter(u => u.role === 'ADULT_LEADER').length,
+          [RecipientGroup.PARENTS]: users.filter(u => u.role === 'PARENT').length,
+          [RecipientGroup.OFFICERS]: officerIds.size,
+        });
+      } catch {
+        // Counts are optional UI enhancement
+      }
+    })();
+  }, []);
 
   const fetchDetail = async (id: string) => {
     if (expandedId === id) {
@@ -181,7 +222,9 @@ export default function AdminCommunications() {
     }
 
     const groupLabel = RECIPIENT_GROUP_LABELS[recipientGroup as RecipientGroup] || recipientGroup;
-    if (!confirm(`Send this email to ${groupLabel}? This action cannot be undone.`)) return;
+    const count = groupCounts[recipientGroup];
+    const countStr = count !== undefined ? ` (${count} member${count !== 1 ? 's' : ''})` : '';
+    if (!confirm(`Send this email to ${groupLabel}${countStr}? This action cannot be undone.`)) return;
 
     setSending(true);
     try {
@@ -373,14 +416,23 @@ export default function AdminCommunications() {
         <div className="card">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Send to</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Send to
+                {groupCounts[recipientGroup] !== undefined && (
+                  <span className="ml-2 text-xs font-normal text-gray-500">
+                    ({groupCounts[recipientGroup]} member{groupCounts[recipientGroup] !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </label>
               <select
                 className="input"
                 value={recipientGroup}
                 onChange={(e) => setRecipientGroup(e.target.value)}
               >
                 {RECIPIENT_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value}>
+                    {o.label}{groupCounts[o.value] !== undefined ? ` (${groupCounts[o.value]})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -468,6 +520,22 @@ export default function AdminCommunications() {
               className={`btn-primary ${sending ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {sending ? 'Sending...' : 'Send Email'}
+            </button>
+            <button
+              onClick={() => {
+                const plainBody = htmlToPlainText(body);
+                const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+                window.open(mailto, '_blank');
+              }}
+              disabled={!subject.trim() && !body.trim()}
+              className="btn-secondary inline-flex items-center gap-1.5"
+              title="Open in your email client to preview"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              Preview
             </button>
             <button
               onClick={() => setView('log')}

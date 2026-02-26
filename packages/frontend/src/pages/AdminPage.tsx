@@ -151,7 +151,7 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications'>('members');
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [officerRoles, setOfficerRoles] = useState<OfficerRole[]>([]);
   const [termYear, setTermYear] = useState(() => {
@@ -977,7 +977,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-8">
         <nav className="-mb-px flex space-x-8">
-          {['home', 'members', 'blog', 'sponsors', 'testimonials', 'officers', 'communications'].map((tab) => (
+          {['members', 'officers', 'communications', 'blog', 'home', 'sponsors', 'testimonials'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -1566,10 +1566,16 @@ export default function AdminPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2 ml-4">
-                          <button onClick={() => handleEditMember(member)} className="btn-secondary text-sm">Edit</button>
-                          <button onClick={() => handleDisableMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-amber-600">Disable</button>
-                          <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-red-600">Delete</button>
+                        <div className="flex gap-1 ml-2 flex-shrink-0">
+                          <button onClick={() => handleEditMember(member)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600" title="Edit">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                          <button onClick={() => handleDisableMember(member.id, `${member.firstName} ${member.lastName}`)} className="p-1.5 rounded hover:bg-amber-50 text-gray-500 hover:text-amber-600" title="Disable">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                          </button>
+                          <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="p-1.5 rounded hover:bg-red-50 text-gray-500 hover:text-red-600" title="Delete">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
                         </div>
                       </div>
                     ) : (
@@ -2100,12 +2106,12 @@ export default function AdminPage() {
                             Disabled
                           </span>
                         </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEnableMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-primary text-sm">
-                            Enable
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={() => handleEnableMember(member.id, `${member.firstName} ${member.lastName}`)} className="p-1.5 rounded hover:bg-green-50 text-gray-500 hover:text-green-600" title="Enable">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           </button>
-                          <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-red-600">
-                            Delete
+                          <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="p-1.5 rounded hover:bg-red-50 text-gray-500 hover:text-red-600" title="Delete">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
                       </div>
@@ -2388,11 +2394,29 @@ export default function AdminPage() {
 
           {/* Officer Assignment Cards */}
           <div className="space-y-4">
-            {officerRoles.map((role) => {
-              const assigned = officers.find(o => o.position === role.name);
-              return (
-                <div key={role.name} className="card">
-                  {editingRoleId === role.id ? (
+            {/* Roles defined in officer_roles + any orphaned positions */}
+            {[
+              ...officerRoles.map(role => ({
+                roleName: role.name,
+                roleId: role.id,
+                roleLabel: role.label,
+                roleDescription: role.description,
+                assigned: officers.find(o => o.position === role.name),
+                isOrphan: false,
+              })),
+              ...officers
+                .filter(o => !officerRoles.some(r => r.name === o.position))
+                .map(o => ({
+                  roleName: o.position,
+                  roleId: o.id,
+                  roleLabel: o.label || o.position,
+                  roleDescription: o.description || '',
+                  assigned: o,
+                  isOrphan: true,
+                })),
+            ].map(({ roleName, roleId, roleLabel, roleDescription, assigned, isOrphan }) => (
+                <div key={roleName} className="card">
+                  {!isOrphan && editingRoleId === roleId ? (
                     <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                       <h4 className="font-semibold text-sm mb-2">Edit Role</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -2414,15 +2438,15 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => handleUpdateRole(role.id)} className="btn-primary text-sm">Save</button>
+                        <button onClick={() => handleUpdateRole(roleId)} className="btn-primary text-sm">Save</button>
                         <button onClick={() => setEditingRoleId(null)} className="btn-secondary text-sm">Cancel</button>
                       </div>
                     </div>
                   ) : null}
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h4 className="font-semibold">{role.label}</h4>
-                      <p className="text-sm text-gray-500">{role.description}</p>
+                      <h4 className="font-semibold">{roleLabel}</h4>
+                      <p className="text-sm text-gray-500">{roleDescription}</p>
                       {assigned?.holder ? (
                         <div className="mt-2 flex items-center gap-2">
                           <img
@@ -2448,7 +2472,7 @@ export default function AdminPage() {
                         onChange={(e) => {
                           const [type, id] = e.target.value.split(':');
                           if (type && id) {
-                            handleSetOfficer(role.name, id, type as 'user' | 'youth');
+                            handleSetOfficer(roleName, id, type as 'user' | 'youth');
                           }
                         }}
                       >
@@ -2461,38 +2485,41 @@ export default function AdminPage() {
                       </select>
                       {assigned?.holder && (
                         <button
-                          onClick={() => handleRemoveOfficer(role.name)}
+                          onClick={() => handleRemoveOfficer(roleName)}
                           className="btn-secondary text-sm text-red-600"
                         >
                           Remove
                         </button>
                       )}
-                      <button
-                        onClick={() => {
-                          setEditingRoleId(role.id);
-                          setEditRoleForm({ label: role.label, description: role.description });
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                        title="Edit role"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRole(role.id, role.name)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
-                        title="Delete role"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </button>
+                      {!isOrphan && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingRoleId(roleId);
+                              setEditRoleForm({ label: roleLabel, description: roleDescription });
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+                            title="Edit role"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRole(roleId, roleName)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
+                            title="Delete role"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              ))}
           </div>
         </div>
       )}

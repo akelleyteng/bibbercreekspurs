@@ -25,6 +25,8 @@ interface MemberData {
   role: string;
   phone?: string;
   profilePhotoUrl?: string;
+  horsePhotoUrl?: string;
+  avatarChoice?: string;
   horseName?: string;
   project?: string;
   birthday?: string;
@@ -33,14 +35,29 @@ interface MemberData {
   createdAt: string;
 }
 
-type RoleFilter = 'ALL' | 'YOUTH' | 'ADULT';
+type RoleFilter = 'all' | 'youth' | 'adult_leader' | 'parent' | 'officer';
+
+const FILTERS: { key: RoleFilter; label: string }[] = [
+  { key: 'all', label: 'All Members' },
+  { key: 'youth', label: 'Youth Members' },
+  { key: 'adult_leader', label: 'Adult Leaders' },
+  { key: 'parent', label: 'Parents' },
+  { key: 'officer', label: 'Officers' },
+];
+
+function getAvatarUrl(member: MemberData): string {
+  if (member.avatarChoice === 'profile' && member.profilePhotoUrl) return member.profilePhotoUrl;
+  if (member.avatarChoice === 'horse' && member.horsePhotoUrl) return member.horsePhotoUrl;
+  return member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff`;
+}
 
 export default function MembersPage() {
   const { isAuthenticated } = useAuth();
   const [members, setMembers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [officerUserIds, setOfficerUserIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -50,7 +67,7 @@ export default function MembersPage() {
       return;
     }
 
-    authFetch(`query { users { id firstName lastName email role phone profilePhotoUrl horseName project birthday tshirtSize youthMembers { id firstName lastName birthdate } createdAt } }`)
+    authFetch(`query { users { id firstName lastName email role phone profilePhotoUrl horsePhotoUrl avatarChoice horseName project birthday tshirtSize youthMembers { id firstName lastName birthdate } createdAt } }`)
       .then((result) => {
         if (result.data?.users) {
           setMembers(result.data.users);
@@ -58,19 +75,41 @@ export default function MembersPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Fetch current term officers for the Officers filter
+    const now = new Date();
+    const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+    const termYear = `${year}-${year + 1}`;
+    authFetch(
+      `query($termYear: String!) { officerPositions(termYear: $termYear) { holderUserId } }`,
+      { termYear },
+    ).then((result) => {
+      if (result.data?.officerPositions) {
+        const ids = new Set<string>();
+        for (const o of result.data.officerPositions) {
+          if (o.holderUserId) ids.add(o.holderUserId);
+        }
+        setOfficerUserIds(ids);
+      }
+    }).catch(() => {});
   }, [isAuthenticated]);
 
   const filteredMembers = members
     .filter((user) => {
-      const matchesSearch =
-        user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = !query ||
+        user.firstName.toLowerCase().includes(query) ||
+        user.lastName.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query) ||
+        (user.horseName && user.horseName.toLowerCase().includes(query));
 
-      const matchesRole =
-        roleFilter === 'ALL' ||
-        (roleFilter === 'YOUTH' && user.role === 'YOUTH_MEMBER') ||
-        (roleFilter === 'ADULT' && ['PARENT', 'ADULT_LEADER', 'ADMIN'].includes(user.role));
+      let matchesRole = true;
+      switch (roleFilter) {
+        case 'youth': matchesRole = user.role === 'YOUTH_MEMBER'; break;
+        case 'adult_leader': matchesRole = user.role === 'ADULT_LEADER'; break;
+        case 'parent': matchesRole = user.role === 'PARENT'; break;
+        case 'officer': matchesRole = officerUserIds.has(user.id); break;
+      }
 
       return matchesSearch && matchesRole;
     })
@@ -98,26 +137,11 @@ export default function MembersPage() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Members</h1>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
-        <div className="flex gap-1">
-          {(['ALL', 'YOUTH', 'ADULT'] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setRoleFilter(filter)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                roleFilter === filter
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {filter === 'ALL' ? 'All Members' : filter === 'YOUTH' ? 'Youth' : 'Adults'}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <div className="relative max-w-md w-full">
           <input
             type="text"
-            placeholder="Search members..."
+            placeholder="Search by name, email, or horse name..."
             className="input w-full pr-8"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -134,14 +158,37 @@ export default function MembersPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setRoleFilter(f.key)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              roleFilter === f.key
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {f.label}
+            <span className="ml-1.5 text-xs opacity-75">
+              ({f.key === 'all' ? members.length
+                : f.key === 'youth' ? members.filter(m => m.role === 'YOUTH_MEMBER').length
+                : f.key === 'adult_leader' ? members.filter(m => m.role === 'ADULT_LEADER').length
+                : f.key === 'parent' ? members.filter(m => m.role === 'PARENT').length
+                : members.filter(m => officerUserIds.has(m.id)).length})
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredMembers.map((member) => (
           <div key={member.id} className="card">
             <div className="flex items-center mb-4">
               <img
-                src={member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff`}
+                src={getAvatarUrl(member)}
                 alt={member.firstName}
-                className="w-16 h-16 rounded-full mr-4"
+                className="w-16 h-16 rounded-full mr-4 object-cover"
               />
               <div>
                 <h3 className="font-bold text-gray-900">

@@ -5,6 +5,7 @@ export enum CommunicationEmailType {
   EVENT_REMINDER = 'EVENT_REMINDER',
   VOLUNTEER_REQUEST = 'VOLUNTEER_REQUEST',
   FUNDRAISER = 'FUNDRAISER',
+  OTHER = 'OTHER',
 }
 
 export const COMMUNICATION_EMAIL_TYPE_LABELS: Record<CommunicationEmailType, string> = {
@@ -14,6 +15,7 @@ export const COMMUNICATION_EMAIL_TYPE_LABELS: Record<CommunicationEmailType, str
   [CommunicationEmailType.EVENT_REMINDER]: 'Event Reminder',
   [CommunicationEmailType.VOLUNTEER_REQUEST]: 'Volunteer Request',
   [CommunicationEmailType.FUNDRAISER]: 'Fundraiser',
+  [CommunicationEmailType.OTHER]: 'Other',
 };
 
 export enum RecipientGroup {
