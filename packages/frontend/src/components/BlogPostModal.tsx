@@ -1,7 +1,9 @@
 import { Visibility } from '@4hclub/shared';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import RichTextEditor from './RichTextEditor';
+
+const apiBaseUrl = (import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql').replace('/graphql', '');
 
 interface BlogPostFormData {
   title: string;
@@ -21,6 +23,50 @@ interface BlogPostModalProps {
 }
 
 export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mode }: BlogPostModalProps) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Only image files are allowed');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File too large (max 10 MB)');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', file);
+
+      const res = await fetch(`${apiBaseUrl}/api/upload/blog-image`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setUploadError(err.error || 'Upload failed');
+        return;
+      }
+
+      const result = await res.json();
+      setFormData(prev => ({ ...prev, featuredImageUrl: result.url }));
+    } catch {
+      setUploadError('Upload failed');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const [formData, setFormData] = useState<BlogPostFormData>({
     title: initialData?.title || '',
     content: initialData?.content || '',
@@ -128,21 +174,65 @@ export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mo
                 Featured Image (Optional)
               </label>
               {formData.featuredImageUrl && (
-                <div className="mb-3">
+                <div className="mb-3 relative">
                   <img
                     src={formData.featuredImageUrl}
                     alt="Featured preview"
                     className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                   />
+                  <button
+                    type="button"
+                    onClick={() => handleChange('featuredImageUrl', '')}
+                    className="absolute top-2 right-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-red-600 rounded-full p-1.5 shadow"
+                    title="Remove image"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
               )}
+              {uploadError && (
+                <p className="text-sm text-red-600 mb-2">{uploadError}</p>
+              )}
               <input
-                type="url"
-                className="input"
-                value={formData.featuredImageUrl}
-                onChange={(e) => handleChange('featuredImageUrl', e.target.value)}
-                placeholder="https://example.com/image.jpg"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageUpload(file);
+                }}
               />
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="btn-primary text-sm"
+                >
+                  {uploading ? 'Uploading...' : formData.featuredImageUrl ? 'Replace Image' : 'Upload Image'}
+                </button>
+                {!showUrlInput && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlInput(true)}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    or paste URL
+                  </button>
+                )}
+              </div>
+              {showUrlInput && (
+                <div className="mt-2">
+                  <input
+                    type="url"
+                    className="input text-sm"
+                    value={formData.featuredImageUrl}
+                    onChange={(e) => handleChange('featuredImageUrl', e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Visibility & Publishing */}

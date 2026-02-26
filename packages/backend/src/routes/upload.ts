@@ -421,6 +421,81 @@ router.post('/upload/horse-photo', async (req: Request, res: Response) => {
   }
 });
 
+// Blog featured image upload (admin only)
+router.post('/upload/blog-image', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    const payload = verifyAccessToken(token);
+
+    const userRepo = new UserRepository();
+    const user = await userRepo.findById(payload.userId);
+    if (!user || user.role !== Role.ADMIN) {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const multer = require('multer');
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }).single('file');
+
+    await new Promise<void>((resolve, reject) => {
+      upload(req, res, (err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const file = (req as any).file;
+    if (!file) {
+      res.status(400).json({ error: 'No file provided' });
+      return;
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image files are allowed' });
+      return;
+    }
+
+    const ext = file.originalname.includes('.')
+      ? file.originalname.substring(file.originalname.lastIndexOf('.'))
+      : '.jpg';
+    const { randomUUID } = require('crypto');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const gcsPath = `blog-images/${year}/${month}/${randomUUID()}${ext}`;
+
+    const result = await gcsService.uploadToPath(gcsPath, file.buffer, file.mimetype);
+
+    logger.info(`Blog image uploaded by ${user.email}: ${gcsPath}`);
+
+    res.status(200).json({
+      url: result.publicUrl,
+      filename: file.originalname,
+    });
+  } catch (error: any) {
+    logger.error('Blog image upload failed', { error: error.message });
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({ error: 'File too large (max 10 MB)' });
+      return;
+    }
+    res.status(500).json({ error: `Upload failed: ${error.message}` });
+  }
+});
+
 // Public proxy for Google Drive images (sponsors, etc.)
 // Streams file content via service account so sharing settings don't matter.
 router.get('/drive-image/:fileId', async (req: Request, res: Response) => {
