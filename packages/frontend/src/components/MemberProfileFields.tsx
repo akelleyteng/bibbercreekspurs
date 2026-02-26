@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ImageCropModal from './ImageCropModal';
 
 const apiBaseUrl = (import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql').replace('/graphql', '');
 
@@ -49,6 +50,8 @@ interface MemberProfileFieldsProps {
 
 export default function MemberProfileFields({ data, onChange, targetUserId, onMessage, compact }: MemberProfileFieldsProps) {
   const [uploadingPhoto, setUploadingPhoto] = useState<'profile' | 'horse' | null>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [cropType, setCropType] = useState<'profile' | 'horse' | null>(null);
 
   const labelClass = compact
     ? 'block text-xs font-medium text-gray-600 mb-1'
@@ -57,7 +60,7 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
     ? 'input'
     : 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent';
 
-  const handlePhotoUpload = async (type: 'profile' | 'horse', file: File) => {
+  const openCrop = (type: 'profile' | 'horse', file: File) => {
     if (!file.type.startsWith('image/')) {
       onMessage?.('Only image files are allowed', 'error');
       return;
@@ -66,7 +69,23 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
       onMessage?.('File too large (max 10 MB)', 'error');
       return;
     }
+    setCropType(type);
+    setCropImage(URL.createObjectURL(file));
+  };
 
+  const closeCrop = () => {
+    if (cropImage) URL.revokeObjectURL(cropImage);
+    setCropImage(null);
+    setCropType(null);
+  };
+
+  const handleCropConfirm = (croppedFile: File) => {
+    const type = cropType;
+    closeCrop();
+    if (type) handlePhotoUpload(type, croppedFile);
+  };
+
+  const handlePhotoUpload = async (type: 'profile' | 'horse', file: File) => {
     setUploadingPhoto(type);
     try {
       const formData = new FormData();
@@ -221,7 +240,7 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
                   className="hidden"
                   onChange={e => {
                     const file = e.target.files?.[0];
-                    if (file) handlePhotoUpload('profile', file);
+                    if (file) openCrop('profile', file);
                     e.target.value = '';
                   }}
                   disabled={uploadingPhoto !== null}
@@ -247,7 +266,7 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
                   className="hidden"
                   onChange={e => {
                     const file = e.target.files?.[0];
-                    if (file) handlePhotoUpload('horse', file);
+                    if (file) openCrop('horse', file);
                     e.target.value = '';
                   }}
                   disabled={uploadingPhoto !== null}
@@ -272,6 +291,13 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
           </div>
         </div>
       </div>
+      {cropImage && (
+        <ImageCropModal
+          imageSrc={cropImage}
+          onConfirm={handleCropConfirm}
+          onCancel={closeCrop}
+        />
+      )}
     </div>
   );
 }
