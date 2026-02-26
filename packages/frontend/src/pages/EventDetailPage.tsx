@@ -40,6 +40,12 @@ const EVENT_QUERY = `query GetEvent($id: String!) {
   }
 }`;
 
+/** Transform a Google Docs/Drive URL to open in edit or preview mode. */
+function agendaHref(url: string, canEdit: boolean): string {
+  const base = url.replace(/\/(edit|preview|view)(#.*|\?.*)?$/, '');
+  return canEdit ? `${base}/edit` : `${base}/preview`;
+}
+
 const RSVP_OPTIONS = [
   { value: 'ATTENDING', label: 'Attending', shortLabel: 'Attending', icon: '\u2705' },
   { value: 'MAYBE', label: 'Maybe', shortLabel: 'Maybe', icon: '\uD83E\uDD14' },
@@ -49,20 +55,28 @@ const RSVP_OPTIONS = [
 
 export default function EventDetailPage() {
   const { id } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [event, setEvent] = useState<EventDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState(1);
   const [showGuestInput, setShowGuestInput] = useState(false);
+  const [canEditAgenda, setCanEditAgenda] = useState(false);
 
   const fetchEvent = async () => {
     try {
-      const result = await authFetch(EVENT_QUERY, { id });
-      if (result.data?.event) {
-        setEvent(result.data.event);
+      const [eventResult, managerResult] = await Promise.all([
+        authFetch(EVENT_QUERY, { id }),
+        isAuthenticated
+          ? authFetch(`query { isCurrentUserPresentationManager }`)
+          : Promise.resolve({ data: null }),
+      ]);
+      if (eventResult.data?.event) {
+        setEvent(eventResult.data.event);
       }
+      const isManager = managerResult.data?.isCurrentUserPresentationManager === true;
+      setCanEditAgenda(user?.role === 'ADMIN' || isManager);
     } catch {
       // silently fail
     }
@@ -226,12 +240,12 @@ export default function EventDetailPage() {
               <div>
                 <p className="font-semibold text-gray-900">Meeting Agenda</p>
                 <a
-                  href={event.agendaUrl}
+                  href={agendaHref(event.agendaUrl, canEditAgenda)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary-600 hover:text-primary-700 underline"
                 >
-                  View Agenda
+                  {canEditAgenda ? 'Edit Agenda' : 'View Agenda'}
                 </a>
               </div>
             </div>

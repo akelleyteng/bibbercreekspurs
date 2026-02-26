@@ -92,6 +92,12 @@ const FILE_TYPE_ICONS: Record<FileType, string> = {
   recording: '\u{1F3A5}', // camera
 };
 
+/** Transform a Google Docs/Drive URL to open in edit or preview mode. */
+function agendaHref(url: string, canEdit: boolean): string {
+  const base = url.replace(/\/(edit|preview|view)(#.*|\?.*)?$/, '');
+  return canEdit ? `${base}/edit` : `${base}/preview`;
+}
+
 // ── GraphQL helpers ──
 
 
@@ -818,12 +824,12 @@ function MeetingCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-gray-700">Agenda:</span>
               <a
-                href={meeting.agendaDriveFileUrl || `https://docs.google.com/document/d/${meeting.agendaDriveFileId}/edit`}
+                href={agendaHref(meeting.agendaDriveFileUrl || `https://docs.google.com/document/d/${meeting.agendaDriveFileId}/edit`, canManage)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-primary-600 hover:text-primary-700 underline truncate max-w-[200px] sm:max-w-[300px]"
               >
-                {meeting.agendaDriveFileName || 'View Agenda'}
+                {canManage ? (meeting.agendaDriveFileName || 'Edit Agenda') : (meeting.agendaDriveFileName || 'View Agenda')}
               </a>
               {canManage && (
                 <>
