@@ -23,6 +23,13 @@ interface EventData {
   userRsvpStatus?: string;
 }
 
+const RSVP_OPTIONS = [
+  { value: 'ATTENDING', label: 'Attending', icon: '\u2705' },
+  { value: 'MAYBE', label: 'Maybe', icon: '\uD83E\uDD14' },
+  { value: 'NOT_ATTENDING', label: "Won't attend", icon: '\u274C' },
+  { value: 'ATTENDING_PLUS', label: '+ Guests', icon: '\uD83D\uDC65' },
+];
+
 const RSVP_LABELS: Record<string, string> = {
   ATTENDING: '\u2705 Attending',
   MAYBE: '\uD83E\uDD14 Maybe',
@@ -36,6 +43,8 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(EVENTS_PER_PAGE);
   const [rsvpLoadingIds, setRsvpLoadingIds] = useState<Set<string>>(new Set());
+  const [rsvpPickerEventId, setRsvpPickerEventId] = useState<string | null>(null);
+  const [guestCount, setGuestCount] = useState(1);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -74,28 +83,31 @@ export default function EventsPage() {
     return () => observer.disconnect();
   }, [hasMore, loadMore]);
 
-  const handleQuickRsvp = async (e: React.MouseEvent, eventId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleRsvp = async (eventId: string, status: string, guests: number = 0) => {
     if (!localStorage.getItem('token')) return;
 
     setRsvpLoadingIds((prev) => new Set(prev).add(eventId));
+    setRsvpPickerEventId(null);
     try {
       const result = await authFetch(
         `mutation RsvpEvent($input: RsvpInput!) { rsvpEvent(input: $input) }`,
-        { input: { eventId, status: 'ATTENDING', guestCount: 0 } },
+        { input: { eventId, status, guestCount: guests } },
       );
       if (!result.errors?.length) {
+        const countsAsAttending = status === 'ATTENDING' || status === 'ATTENDING_PLUS';
         setEvents((prev) =>
-          prev.map((ev) =>
-            ev.id === eventId
-              ? { ...ev, userRsvpStatus: 'ATTENDING', registrationCount: ev.registrationCount + 1 }
-              : ev
-          )
+          prev.map((ev) => {
+            if (ev.id !== eventId) return ev;
+            const wasAttending = ev.userRsvpStatus === 'ATTENDING' || ev.userRsvpStatus === 'ATTENDING_PLUS';
+            let countDelta = 0;
+            if (countsAsAttending && !wasAttending) countDelta = 1;
+            else if (!countsAsAttending && wasAttending) countDelta = -1;
+            return { ...ev, userRsvpStatus: status, registrationCount: ev.registrationCount + countDelta };
+          })
         );
       }
     } catch {
-      // silently fail — user can retry or use detail page
+      // silently fail
     } finally {
       setRsvpLoadingIds((prev) => {
         const next = new Set(prev);
@@ -185,12 +197,15 @@ export default function EventsPage() {
                 {isAuthenticated && (
                   <div className="mt-auto pt-4 flex justify-center md:justify-end">
                     {event.userRsvpStatus ? (
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRsvpPickerEventId(event.id); setGuestCount(1); }}
+                        className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                      >
                         {RSVP_LABELS[event.userRsvpStatus] || event.userRsvpStatus}
-                      </span>
+                      </button>
                     ) : (
                       <button
-                        onClick={(e) => handleQuickRsvp(e, event.id)}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRsvpPickerEventId(event.id); setGuestCount(1); }}
                         disabled={rsvpLoadingIds.has(event.id)}
                         className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
                       >
@@ -215,6 +230,83 @@ export default function EventsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* RSVP Picker Modal */}
+      {rsvpPickerEventId && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setRsvpPickerEventId(null)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-900 mb-4">RSVP</h3>
+            <div className="space-y-2 mb-4">
+              {RSVP_OPTIONS.map((option) => {
+                const currentStatus = events.find((e) => e.id === rsvpPickerEventId)?.userRsvpStatus;
+                const isSelected = currentStatus === option.value;
+                if (option.value === 'ATTENDING_PLUS') {
+                  return (
+                    <div key={option.value}>
+                      <button
+                        disabled={rsvpLoadingIds.has(rsvpPickerEventId)}
+                        className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                          isSelected
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-200 bg-gray-50'
+                        }`}
+                      >
+                        <span className="mr-2">{option.icon}</span>
+                        {option.label}
+                      </button>
+                      <div className="flex items-center gap-2 mt-2 ml-8">
+                        <label className="text-sm text-gray-600">Guests:</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={guestCount}
+                          onChange={(e) => setGuestCount(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="input w-20 text-sm"
+                        />
+                        <button
+                          onClick={() => handleRsvp(rsvpPickerEventId, 'ATTENDING_PLUS', guestCount)}
+                          disabled={rsvpLoadingIds.has(rsvpPickerEventId)}
+                          className="btn-primary text-sm disabled:opacity-50"
+                        >
+                          Confirm
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleRsvp(rsvpPickerEventId, option.value)}
+                    disabled={rsvpLoadingIds.has(rsvpPickerEventId)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors disabled:opacity-50 ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'
+                    }`}
+                  >
+                    <span className="mr-2">{option.icon}</span>
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setRsvpPickerEventId(null)}
+              className="text-sm text-gray-500 hover:text-gray-700 w-full text-center"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
