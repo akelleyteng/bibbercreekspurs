@@ -168,27 +168,27 @@ export default function EventDetailPage() {
 
       <div className="card">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-              {format(startTime, 'EEEE, MMMM d, yyyy')}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium bg-primary-100 text-primary-800">
+              {format(startTime, 'EEE, MMM d, yyyy')}
             </span>
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            <span className={`inline-flex items-center px-2 py-1 sm:px-3 rounded-full text-xs font-medium ${
               event.visibility === 'PUBLIC'
                 ? 'bg-blue-100 text-blue-800'
                 : 'bg-purple-100 text-purple-800'
             }`}>
-              {event.visibility === 'PUBLIC' ? 'Public Event' : 'Members Only'}
+              {event.visibility === 'PUBLIC' ? 'Public' : 'Members'}
             </span>
           </div>
         </div>
 
-        <h1 className="text-4xl font-bold text-gray-900 mb-6">{event.title}</h1>
+        <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-4 sm:mb-6">{event.title}</h1>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <div className="space-y-4">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="space-y-3 sm:space-y-4">
             {!event.isAllDay && (
               <div className="flex items-start">
-                <span className="text-2xl mr-3">&#9200;</span>
+                <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#9200;</span>
                 <div>
                   <p className="font-semibold text-gray-900">Time</p>
                   <p className="text-gray-600">
@@ -200,7 +200,7 @@ export default function EventDetailPage() {
 
             {event.location && (
               <div className="flex items-start">
-                <span className="text-2xl mr-3">&#128205;</span>
+                <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#128205;</span>
                 <div>
                   <p className="font-semibold text-gray-900">Location</p>
                   <a
@@ -216,9 +216,9 @@ export default function EventDetailPage() {
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex items-start">
-              <span className="text-2xl mr-3">&#128101;</span>
+              <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#128101;</span>
               <div>
                 <p className="font-semibold text-gray-900">Attendees</p>
                 <p className="text-gray-600">{event.registrationCount} attending</p>
@@ -227,16 +227,16 @@ export default function EventDetailPage() {
           </div>
         </div>
 
-        <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-3">Description</h2>
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">Description</h2>
           <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
         </div>
 
         {/* Agenda Link */}
         {event.agendaUrl && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mb-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center">
-              <span className="text-2xl mr-3">&#128196;</span>
+              <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#128196;</span>
               <div>
                 <p className="font-semibold text-gray-900">Meeting Agenda</p>
                 <a
@@ -358,23 +358,25 @@ export default function EventDetailPage() {
 
             {/* Guest count input for ATTENDING_PLUS */}
             {showGuestInput && (
-              <div className="flex items-center gap-2 mt-3 ml-1">
+              <div className="flex flex-wrap items-center gap-2 mt-3 ml-1">
                 <label className="text-sm text-gray-600">How many guests?</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={guestCount}
-                  onChange={(e) => setGuestCount(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="input w-20 text-sm"
-                />
-                <button
-                  onClick={() => handleRsvp('ATTENDING_PLUS', guestCount)}
-                  disabled={rsvpLoading}
-                  className="btn-primary text-sm"
-                >
-                  {rsvpLoading ? 'Saving...' : 'Confirm'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={guestCount}
+                    onChange={(e) => setGuestCount(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="input w-20 text-sm"
+                  />
+                  <button
+                    onClick={() => handleRsvp('ATTENDING_PLUS', guestCount)}
+                    disabled={rsvpLoading}
+                    className="btn-primary text-sm"
+                  >
+                    {rsvpLoading ? 'Saving...' : 'Confirm'}
+                  </button>
+                </div>
               </div>
             )}
 

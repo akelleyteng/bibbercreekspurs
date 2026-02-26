@@ -122,7 +122,7 @@ export default function EventsPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Upcoming Events</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Upcoming Events</h1>
         <p className="text-gray-500 text-center py-12">Loading events...</p>
       </div>
     );
@@ -130,25 +130,25 @@ export default function EventsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Upcoming Events</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Upcoming Events</h1>
 
       {events.length === 0 ? (
         <p className="text-gray-500 text-center py-12">No upcoming events at this time. Check back soon!</p>
       ) : (
         <>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {visibleEvents.map((event) => (
               <Link
                 key={event.id}
                 to={`/events/${event.id}`}
                 className="card hover:shadow-lg transition-shadow flex flex-col"
               >
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+                <div className="mb-3 sm:mb-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className="inline-flex items-center px-2.5 py-1 sm:px-3 rounded-full text-xs sm:text-sm font-medium bg-primary-100 text-primary-800">
                       {format(parseEventDate(event.startTime), 'MMM d, yyyy')}
                     </span>
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                    <span className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium ${
                       event.visibility === 'PUBLIC'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-purple-100 text-purple-800'
@@ -163,7 +163,7 @@ export default function EventsPage() {
                   )}
                 </div>
 
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
                 <div className="prose prose-sm max-w-none text-gray-600 mb-4 line-clamp-2" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
 
                 <div className="space-y-2 text-sm text-gray-600">
@@ -261,7 +261,7 @@ export default function EventsPage() {
                         <span className="mr-2">{option.icon}</span>
                         {option.label}
                       </button>
-                      <div className="flex items-center gap-2 mt-2 ml-8">
+                      <div className="flex flex-wrap items-center gap-2 mt-2 ml-4 sm:ml-8">
                         <label className="text-sm text-gray-600">Guests:</label>
                         <input
                           type="number"

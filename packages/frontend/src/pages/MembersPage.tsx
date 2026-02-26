@@ -118,7 +118,7 @@ export default function MembersPage() {
   if (!isAuthenticated) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Members</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Members</h1>
         <p className="text-gray-500 text-center py-12">Please log in to view the member directory.</p>
       </div>
     );
@@ -127,7 +127,7 @@ export default function MembersPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Members</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Members</h1>
         <p className="text-gray-500 text-center py-12">Loading members...</p>
       </div>
     );
@@ -135,7 +135,7 @@ export default function MembersPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Club Members</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Club Members</h1>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <div className="relative max-w-md w-full">
@@ -181,14 +181,14 @@ export default function MembersPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredMembers.map((member) => (
           <div key={member.id} className="card">
-            <div className="flex items-center mb-4">
+            <div className="flex items-center mb-3 sm:mb-4">
               <img
                 src={getAvatarUrl(member)}
                 alt={member.firstName}
-                className="w-16 h-16 rounded-full mr-4 object-cover"
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full mr-3 sm:mr-4 object-cover"
               />
               <div>
                 <h3 className="font-bold text-gray-900">

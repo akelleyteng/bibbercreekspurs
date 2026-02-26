@@ -242,7 +242,7 @@ export default function ProfilePage() {
   if (!profileLoaded) {
     return (
       <div className="max-w-4xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">My Profile</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">My Profile</h1>
         <p className="text-gray-500 text-center py-12">Loading profile...</p>
       </div>
     );
@@ -250,7 +250,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl" data-page="profile" data-version="1.0">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">My Profile</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">My Profile</h1>
 
       {message && (
         <div
@@ -263,13 +263,13 @@ export default function ProfilePage() {
       )}
 
       {/* Profile Information */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Profile Information</h2>
+      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Profile Information</h2>
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm sm:text-base w-full sm:w-auto"
             >
               Edit Profile
             </button>
@@ -401,21 +401,21 @@ export default function ProfilePage() {
             {/* Photos & Avatar (view mode) */}
             <div className="border-t pt-4 mt-4">
               <h3 className="text-lg font-medium text-gray-900 mb-3">Photos & Avatar</h3>
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 <div className="text-center">
                   <p className="text-xs text-gray-500 mb-1">Profile</p>
                   {formData.profilePhotoUrl ? (
-                    <img src={formData.profilePhotoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
+                    <img src={formData.profilePhotoUrl} alt="Profile" className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover" />
                   ) : (
-                    <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">None</div>
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">None</div>
                   )}
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-500 mb-1">Horse</p>
                   {formData.horsePhotoUrl ? (
-                    <img src={formData.horsePhotoUrl} alt="Horse" className="w-16 h-16 rounded-full object-cover" />
+                    <img src={formData.horsePhotoUrl} alt="Horse" className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover" />
                   ) : (
-                    <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">None</div>
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">None</div>
                   )}
                 </div>
                 <div>
@@ -430,8 +430,8 @@ export default function ProfilePage() {
 
       {/* Family Section */}
       {authUser && (familyData.linkedChildren.length > 0 || familyData.linkedParents.length > 0 || authUser.role === 'PARENT' || authUser.role === 'ADULT_LEADER' || authUser.role === 'ADMIN') && (
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Family</h2>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Family</h2>
 
           {familyData.linkedChildren.length > 0 && (
             <div className="mb-4">
@@ -486,7 +486,7 @@ export default function ProfilePage() {
           )}
 
           {authUser && (authUser.role === 'PARENT' || authUser.role === 'ADULT_LEADER' || authUser.role === 'ADMIN') && (
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-3">
               <select
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 value={linkChildUserId}
@@ -517,16 +517,16 @@ export default function ProfilePage() {
       )}
 
       {/* Password Section */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Password & Security</h2>
-            <p className="text-sm text-gray-600 mt-1">Keep your account secure with a strong password</p>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Password & Security</h2>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">Keep your account secure with a strong password</p>
           </div>
           {!isChangingPassword && (
             <button
               onClick={() => setIsChangingPassword(true)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm sm:text-base w-full sm:w-auto"
             >
               Change Password
             </button>
