@@ -190,6 +190,237 @@ router.post('/upload/media', async (req: Request, res: Response) => {
   }
 });
 
+// Email attachment upload (admin-only, uploads to GCS)
+router.post('/upload/email-attachment', async (req: Request, res: Response) => {
+  try {
+    // 1. Auth check
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    const payload = verifyAccessToken(token);
+
+    // 2. Verify user exists and is admin
+    const userRepo = new UserRepository();
+    const user = await userRepo.findById(payload.userId);
+    if (!user || user.role !== Role.ADMIN) {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+
+    // 3. Parse multipart (10 MB limit)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const multer = require('multer');
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }).single('file');
+
+    await new Promise<void>((resolve, reject) => {
+      upload(req, res, (err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const file = (req as any).file;
+    if (!file) {
+      res.status(400).json({ error: 'No file provided' });
+      return;
+    }
+
+    // 4. Upload to GCS under email-attachments prefix
+    const ext = file.originalname.includes('.')
+      ? file.originalname.substring(file.originalname.lastIndexOf('.'))
+      : '';
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const { randomUUID } = require('crypto');
+    const gcsPath = `email-attachments/${year}/${month}/${randomUUID()}${ext}`;
+
+    const result = await gcsService.uploadToPath(gcsPath, file.buffer, file.mimetype);
+
+    logger.info(`Email attachment uploaded by ${user.email}: ${gcsPath}`);
+
+    res.status(200).json({
+      url: result.publicUrl,
+      filename: file.originalname,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+    });
+  } catch (error: any) {
+    logger.error('Email attachment upload failed', { error: error.message });
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({ error: 'File too large (max 10 MB)' });
+      return;
+    }
+    res.status(500).json({ error: `Upload failed: ${error.message}` });
+  }
+});
+
+// Profile photo upload (any authenticated user)
+router.post('/upload/profile-photo', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    const payload = verifyAccessToken(token);
+
+    const userRepo = new UserRepository();
+    const user = await userRepo.findById(payload.userId);
+    if (!user || user.approval_status !== 'APPROVED') {
+      res.status(403).json({ error: 'Account not approved' });
+      return;
+    }
+
+    // Optional: admin can upload on behalf of another user
+    const targetUserId = req.body?.userId && user.role === Role.ADMIN ? req.body.userId : payload.userId;
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const multer = require('multer');
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }).single('file');
+
+    await new Promise<void>((resolve, reject) => {
+      upload(req, res, (err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const file = (req as any).file;
+    if (!file) {
+      res.status(400).json({ error: 'No file provided' });
+      return;
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image files are allowed' });
+      return;
+    }
+
+    const ext = file.originalname.includes('.')
+      ? file.originalname.substring(file.originalname.lastIndexOf('.'))
+      : '.jpg';
+    const { randomUUID } = require('crypto');
+    const gcsPath = `profile-photos/${targetUserId}/${randomUUID()}${ext}`;
+
+    const result = await gcsService.uploadToPath(gcsPath, file.buffer, file.mimetype);
+
+    // Update user record
+    await userRepo.adminUpdate(targetUserId, { profile_photo_url: result.publicUrl });
+
+    logger.info(`Profile photo uploaded for ${targetUserId} by ${user.email}`);
+
+    res.status(200).json({
+      url: result.publicUrl,
+      filename: file.originalname,
+    });
+  } catch (error: any) {
+    logger.error('Profile photo upload failed', { error: error.message });
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({ error: 'File too large (max 10 MB)' });
+      return;
+    }
+    res.status(500).json({ error: `Upload failed: ${error.message}` });
+  }
+});
+
+// Horse photo upload (any authenticated user)
+router.post('/upload/horse-photo', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    const payload = verifyAccessToken(token);
+
+    const userRepo = new UserRepository();
+    const user = await userRepo.findById(payload.userId);
+    if (!user || user.approval_status !== 'APPROVED') {
+      res.status(403).json({ error: 'Account not approved' });
+      return;
+    }
+
+    const targetUserId = req.body?.userId && user.role === Role.ADMIN ? req.body.userId : payload.userId;
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const multer = require('multer');
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }).single('file');
+
+    await new Promise<void>((resolve, reject) => {
+      upload(req, res, (err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const file = (req as any).file;
+    if (!file) {
+      res.status(400).json({ error: 'No file provided' });
+      return;
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image files are allowed' });
+      return;
+    }
+
+    const ext = file.originalname.includes('.')
+      ? file.originalname.substring(file.originalname.lastIndexOf('.'))
+      : '.jpg';
+    const { randomUUID } = require('crypto');
+    const gcsPath = `horse-photos/${targetUserId}/${randomUUID()}${ext}`;
+
+    const result = await gcsService.uploadToPath(gcsPath, file.buffer, file.mimetype);
+
+    // Update user record
+    await userRepo.adminUpdate(targetUserId, { horse_photo_url: result.publicUrl });
+
+    logger.info(`Horse photo uploaded for ${targetUserId} by ${user.email}`);
+
+    res.status(200).json({
+      url: result.publicUrl,
+      filename: file.originalname,
+    });
+  } catch (error: any) {
+    logger.error('Horse photo upload failed', { error: error.message });
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({ error: 'File too large (max 10 MB)' });
+      return;
+    }
+    res.status(500).json({ error: `Upload failed: ${error.message}` });
+  }
+});
+
 // Public proxy for Google Drive images (sponsors, etc.)
 // Streams file content via service account so sharing settings don't matter.
 router.get('/drive-image/:fileId', async (req: Request, res: Response) => {

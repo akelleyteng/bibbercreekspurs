@@ -67,12 +67,16 @@ export class UserResolver {
       emergencyContact: u.emergency_contact,
       emergencyPhone: u.emergency_phone,
       profilePhotoUrl: u.profile_photo_url,
+      horsePhotoUrl: u.horse_photo_url,
+      avatarChoice: u.avatar_choice || 'initials',
       passwordResetRequired: u.password_reset_required || false,
       horseName: u.horse_name,
+      horseExperience: u.horse_experience,
       project: u.project,
       birthday: u.birthday,
       tshirtSize: u.tshirt_size,
       approvalStatus: u.approval_status,
+      isActive: u.is_active !== false,
       lastLogin: u.last_login || undefined,
       lastLoginDevice: u.last_login_device || undefined,
       postCount: activityCounts?.post_count ?? 0,
@@ -132,8 +136,8 @@ export class UserResolver {
       const activityMap = await this.userRepo.getAllActivityCounts();
       const familyLinksMap = await this.familyLinkRepo.findAllGrouped();
 
-      // Member directory only shows approved members (even for admins)
-      const visibleUsers = dbUsers.filter(u => u.approval_status === 'APPROVED');
+      // Member directory only shows approved and active members
+      const visibleUsers = dbUsers.filter(u => u.approval_status === 'APPROVED' && u.is_active !== false);
 
       const users: User[] = [];
       for (const u of visibleUsers) {
@@ -321,6 +325,12 @@ export class UserResolver {
     @Arg('address', { nullable: true }) address: string,
     @Arg('emergencyContact', { nullable: true }) emergencyContact: string,
     @Arg('emergencyPhone', { nullable: true }) emergencyPhone: string,
+    @Arg('horseName', { nullable: true }) horseName: string,
+    @Arg('horseExperience', { nullable: true }) horseExperience: string,
+    @Arg('project', { nullable: true }) project: string,
+    @Arg('birthday', { nullable: true }) birthday: string,
+    @Arg('tshirtSize', { nullable: true }) tshirtSize: string,
+    @Arg('avatarChoice', { nullable: true }) avatarChoice: string,
     @Ctx() context: Context
   ): Promise<User> {
     await this.requireAdmin(context);
@@ -334,6 +344,12 @@ export class UserResolver {
     if (address !== undefined) updateData.address = address || null;
     if (emergencyContact !== undefined) updateData.emergency_contact = emergencyContact || null;
     if (emergencyPhone !== undefined) updateData.emergency_phone = emergencyPhone || null;
+    if (horseName !== undefined) updateData.horse_name = horseName || null;
+    if (horseExperience !== undefined) updateData.horse_experience = horseExperience || null;
+    if (project !== undefined) updateData.project = project || null;
+    if (birthday !== undefined) updateData.birthday = birthday || null;
+    if (tshirtSize !== undefined) updateData.tshirt_size = tshirtSize || null;
+    if (avatarChoice !== undefined) updateData.avatar_choice = avatarChoice || 'initials';
 
     try {
       const updated = await this.userRepo.adminUpdate(id, updateData);
@@ -346,10 +362,14 @@ export class UserResolver {
     } catch (error: any) {
       if (error instanceof GraphQLError) throw error;
       if (error.message === 'Email already exists') {
-        throw new GraphQLError('Email already exists', { extensions: { code: 'BAD_INPUT' } });
+        throw new GraphQLError('A user with this email already exists', { extensions: { code: 'BAD_INPUT' } });
       }
       logger.error('adminUpdateUser error:', error);
-      throw new GraphQLError('Failed to update user', { extensions: { code: 'INTERNAL_ERROR' } });
+      // Surface the actual error message for debugging instead of generic message
+      const message = error.code === '23505' ? 'A unique constraint was violated'
+        : error.code === '23503' ? 'A referenced record was not found'
+        : `Failed to update user: ${error.message || 'Unknown error'}`;
+      throw new GraphQLError(message, { extensions: { code: 'INTERNAL_ERROR' } });
     }
   }
 
@@ -360,6 +380,52 @@ export class UserResolver {
   ): Promise<boolean> {
     await this.requireAdmin(context);
     return this.userRepo.delete(id);
+  }
+
+  @Mutation(() => User)
+  async adminDisableUser(
+    @Arg('id') id: string,
+    @Ctx() context: Context
+  ): Promise<User> {
+    await this.requireAdmin(context);
+
+    const updated = await this.userRepo.adminUpdate(id, { is_active: false });
+    if (!updated) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    return this.mapUser(updated);
+  }
+
+  @Mutation(() => User)
+  async adminEnableUser(
+    @Arg('id') id: string,
+    @Ctx() context: Context
+  ): Promise<User> {
+    await this.requireAdmin(context);
+
+    const updated = await this.userRepo.adminUpdate(id, { is_active: true });
+    if (!updated) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    return this.mapUser(updated);
+  }
+
+  @Query(() => [User])
+  async adminDisabledUsers(@Ctx() context: Context): Promise<User[]> {
+    await this.requireAdmin(context);
+
+    try {
+      const disabled = await this.userRepo.findDisabled();
+      return disabled.map(u => this.mapUser(u));
+    } catch (error: any) {
+      if (error instanceof GraphQLError) throw error;
+      logger.error('adminDisabledUsers query error:', error);
+      throw new GraphQLError('Failed to fetch disabled users', {
+        extensions: { code: 'INTERNAL_ERROR' },
+      });
+    }
   }
 
   @Mutation(() => Boolean)

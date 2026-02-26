@@ -203,6 +203,49 @@ class EmailService {
       relatedResourceId: userId,
     });
   }
+  async sendBulkEmail(options: {
+    bccRecipients: string[];
+    subject: string;
+    html: string;
+    attachments?: Array<{
+      filename: string;
+      content?: Buffer;
+      path?: string;
+      contentType?: string;
+    }>;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const adminFrom = process.env.SMTP_ADMIN_FROM || 'admin@bibbercreekspurs4h.org';
+
+    try {
+      const transport = this.getTransporter();
+      const info = await transport.sendMail({
+        from: adminFrom,
+        to: adminFrom,
+        bcc: options.bccRecipients,
+        subject: options.subject,
+        html: options.html,
+        attachments: options.attachments?.map(a => ({
+          filename: a.filename,
+          ...(a.content ? { content: a.content } : {}),
+          ...(a.path ? { path: a.path } : {}),
+          ...(a.contentType ? { contentType: a.contentType } : {}),
+        })),
+      });
+
+      const messageId = this.smtpConfigured ? (info.messageId || null) : null;
+
+      if (!this.smtpConfigured) {
+        logger.info(`Bulk email (not sent, SMTP not configured): "${options.subject}" to ${options.bccRecipients.length} recipients`);
+      } else {
+        logger.info(`Bulk email sent: "${options.subject}" to ${options.bccRecipients.length} recipients`);
+      }
+
+      return { success: true, messageId: messageId || undefined };
+    } catch (error: any) {
+      logger.error('Failed to send bulk email:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 export const emailService = new EmailService();

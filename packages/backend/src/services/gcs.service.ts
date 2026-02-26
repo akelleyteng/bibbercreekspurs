@@ -131,6 +131,31 @@ export async function uploadMedia(
 }
 
 /**
+ * Upload a buffer to a specific GCS path (generic, not media-specific).
+ */
+export async function uploadToPath(
+  gcsPath: string,
+  fileBuffer: Buffer,
+  mimeType: string
+): Promise<{ publicUrl: string; gcsPath: string }> {
+  const bucket = getBucket();
+  const file = bucket.file(gcsPath);
+
+  await file.save(fileBuffer, {
+    metadata: {
+      contentType: mimeType,
+      cacheControl: 'public, max-age=31536000',
+    },
+    resumable: false,
+  });
+
+  const publicUrl = `https://storage.googleapis.com/${env.GCP_STORAGE_BUCKET}/${gcsPath}`;
+  logger.info(`File uploaded to GCS: ${gcsPath} (${fileBuffer.length} bytes)`);
+
+  return { publicUrl, gcsPath };
+}
+
+/**
  * Delete a file from GCS by its path.
  */
 export async function deleteMedia(gcsPath: string): Promise<boolean> {

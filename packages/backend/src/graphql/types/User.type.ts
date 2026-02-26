@@ -43,6 +43,12 @@ export class User {
   @Field({ nullable: true })
   profilePhotoUrl?: string;
 
+  @Field({ nullable: true })
+  horsePhotoUrl?: string;
+
+  @Field({ nullable: true })
+  avatarChoice?: string;
+
   @Field()
   passwordResetRequired!: boolean;
 
@@ -63,6 +69,9 @@ export class User {
 
   @Field()
   approvalStatus!: string;
+
+  @Field()
+  isActive!: boolean;
 
   @Field(() => [YouthMember], { nullable: true })
   youthMembers?: YouthMember[];

@@ -3,6 +3,7 @@ export * from './enums/roles.enum';
 export * from './enums/visibility.enum';
 export * from './enums/officer-position.enum';
 export * from './enums/approval-status.enum';
+export * from './enums/communication.enum';
 
 // Types
 export * from './types/user.types';

@@ -25,6 +25,7 @@ import { FamilyLinkResolver } from './graphql/resolvers/FamilyLink.resolver';
 import { SponsorResolver } from './graphql/resolvers/Sponsor.resolver';
 import { HomeContentResolver } from './graphql/resolvers/HomeContent.resolver';
 import { PresentationResolver } from './graphql/resolvers/Presentation.resolver';
+import { CommunicationResolver } from './graphql/resolvers/Communication.resolver';
 import uploadRouter from './routes/upload';
 
 export async function createApp(includeGraphQL: boolean = false): Promise<Express> {
@@ -89,7 +90,7 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
   // Add GraphQL middleware if requested (for testing)
   if (includeGraphQL) {
     const schema = await buildSchema({
-      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver],
+      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver],
       validate: true, // Enable class-validator validation
     });
 

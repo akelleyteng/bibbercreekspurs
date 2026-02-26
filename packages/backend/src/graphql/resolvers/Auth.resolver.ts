@@ -51,6 +51,8 @@ function mapDbUserToGql(user: DbUser): User {
     emergencyContact: user.emergency_contact,
     emergencyPhone: user.emergency_phone,
     profilePhotoUrl: user.profile_photo_url,
+    horsePhotoUrl: user.horse_photo_url,
+    avatarChoice: user.avatar_choice || 'initials',
     passwordResetRequired: user.password_reset_required || false,
     horseName: user.horse_name,
     horseExperience: user.horse_experience,
@@ -58,6 +60,7 @@ function mapDbUserToGql(user: DbUser): User {
     birthday: user.birthday,
     tshirtSize: user.tshirt_size,
     approvalStatus: user.approval_status,
+    isActive: user.is_active !== false,
     postCount: 0,
     commentCount: 0,
     blogPostCount: 0,
@@ -189,6 +192,11 @@ export class AuthResolver {
           extensions: { code: 'ACCOUNT_DECLINED' },
         });
       }
+      if (userWithPassword.is_active === false) {
+        throw new GraphQLError('Your account has been disabled. Please contact the club leadership.', {
+          extensions: { code: 'ACCOUNT_DISABLED' },
+        });
+      }
 
       const isValidPassword = await comparePassword(password, userWithPassword.password_hash);
 
@@ -264,6 +272,11 @@ export class AuthResolver {
           extensions: { code: 'ACCOUNT_NOT_APPROVED' },
         });
       }
+      if (user.is_active === false) {
+        throw new GraphQLError('Your account has been disabled', {
+          extensions: { code: 'ACCOUNT_DISABLED' },
+        });
+      }
 
       return mapDbUserToGql(user);
     } catch (error: any) {
@@ -303,6 +316,11 @@ export class AuthResolver {
       if (user.approval_status !== 'APPROVED') {
         throw new GraphQLError('Your account is not approved', {
           extensions: { code: 'ACCOUNT_NOT_APPROVED' },
+        });
+      }
+      if (user.is_active === false) {
+        throw new GraphQLError('Your account has been disabled', {
+          extensions: { code: 'ACCOUNT_DISABLED' },
         });
       }
 
@@ -347,7 +365,7 @@ export class AuthResolver {
       const user = await this.userRepository.findByEmail(email.toLowerCase());
 
       // Always return true to avoid leaking whether an email exists
-      if (!user || user.approval_status !== 'APPROVED') {
+      if (!user || user.approval_status !== 'APPROVED' || user.is_active === false) {
         return true;
       }
 

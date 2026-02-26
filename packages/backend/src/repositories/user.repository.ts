@@ -4,15 +4,15 @@ import { logger } from '../utils/logger';
 
 const USER_COLUMNS = `id, email, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, password_reset_required,
+                profile_photo_url, horse_photo_url, avatar_choice, password_reset_required,
                 horse_name, horse_experience, project, birthday, tshirt_size, approval_status,
-                last_login, last_login_device, created_at, updated_at`;
+                is_active, last_login, last_login_device, created_at, updated_at`;
 
 const USER_COLUMNS_WITH_PASSWORD = `id, email, password_hash, first_name, last_name, role,
                 phone, address, emergency_contact, emergency_phone,
-                profile_photo_url, password_reset_required,
+                profile_photo_url, horse_photo_url, avatar_choice, password_reset_required,
                 horse_name, horse_experience, project, birthday, tshirt_size, approval_status,
-                last_login, last_login_device, created_at, updated_at`;
+                is_active, last_login, last_login_device, created_at, updated_at`;
 
 export interface User {
   id: string;
@@ -25,6 +25,8 @@ export interface User {
   emergency_contact?: string;
   emergency_phone?: string;
   profile_photo_url?: string;
+  horse_photo_url?: string;
+  avatar_choice?: string;
   password_reset_required?: boolean;
   horse_name?: string;
   horse_experience?: string;
@@ -32,6 +34,7 @@ export interface User {
   birthday?: Date;
   tshirt_size?: string;
   approval_status: string;
+  is_active: boolean;
   last_login?: Date;
   last_login_device?: string;
   created_at: Date;
@@ -75,6 +78,8 @@ export interface UpdateUserData {
   emergency_contact?: string;
   emergency_phone?: string;
   profile_photo_url?: string;
+  horse_photo_url?: string;
+  avatar_choice?: string;
   horse_name?: string;
   horse_experience?: string;
   project?: string;
@@ -86,6 +91,7 @@ export interface AdminUpdateUserData extends UpdateUserData {
   email?: string;
   role?: Role;
   approval_status?: string;
+  is_active?: boolean;
 }
 
 export class UserRepository {
@@ -187,6 +193,8 @@ export class UserRepository {
         'emergency_contact',
         'emergency_phone',
         'profile_photo_url',
+        'horse_photo_url',
+        'avatar_choice',
         'horse_name',
         'horse_experience',
         'project',
@@ -238,8 +246,9 @@ export class UserRepository {
 
       const allowedFields: (keyof AdminUpdateUserData)[] = [
         'first_name', 'last_name', 'email', 'role',
-        'phone', 'address', 'emergency_contact', 'emergency_phone', 'profile_photo_url',
-        'horse_name', 'horse_experience', 'project', 'birthday', 'tshirt_size', 'approval_status',
+        'phone', 'address', 'emergency_contact', 'emergency_phone',
+        'profile_photo_url', 'horse_photo_url', 'avatar_choice',
+        'horse_name', 'horse_experience', 'project', 'birthday', 'tshirt_size', 'approval_status', 'is_active',
       ];
 
       for (const field of allowedFields) {
@@ -322,6 +331,21 @@ export class UserRepository {
       return result.rows;
     } catch (error) {
       logger.error('Error finding pending users:', error);
+      throw error;
+    }
+  }
+
+  async findDisabled(): Promise<User[]> {
+    try {
+      const result = await db.query<User>(
+        `SELECT ${USER_COLUMNS}
+         FROM users
+         WHERE is_active = false
+         ORDER BY updated_at DESC`
+      );
+      return result.rows;
+    } catch (error) {
+      logger.error('Error finding disabled users:', error);
       throw error;
     }
   }

@@ -7,6 +7,7 @@ import RichTextEditor from '../components/RichTextEditor';
 import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
+import AdminCommunications from '../components/AdminCommunications';
 import { authFetch } from '../utils/authFetch';
 
 interface OfficerRole {
@@ -65,9 +66,13 @@ interface AdminMember {
   emergencyContact?: string;
   emergencyPhone?: string;
   profilePhotoUrl?: string;
+  horsePhotoUrl?: string;
+  avatarChoice?: string;
   horseName?: string;
   horseExperience?: string;
+  project?: string;
   birthday?: string;
+  tshirtSize?: string;
   lastLogin?: string;
   lastLoginDevice?: string;
   postCount: number;
@@ -146,7 +151,7 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications'>('home');
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [officerRoles, setOfficerRoles] = useState<OfficerRole[]>([]);
   const [termYear, setTermYear] = useState(() => {
@@ -186,6 +191,10 @@ export default function AdminPage() {
   const [declineReason, setDeclineReason] = useState('');
   const [officerError, setOfficerError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [memberFilter, setMemberFilter] = useState<'all' | 'youth' | 'adult_leader' | 'parent' | 'officer'>('all');
+  const [officerUserIds, setOfficerUserIds] = useState<Set<string>>(new Set());
+  const [disabledMembers, setDisabledMembers] = useState<AdminMember[]>([]);
+  const [showDisabled, setShowDisabled] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -355,7 +364,7 @@ export default function AdminPage() {
 
   const fetchMembers = useCallback(async () => {
     const result = await authFetch(
-      `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl lastLogin lastLoginDevice postCount commentCount blogPostCount youthMembers { id firstName lastName birthdate project horseNames userId } linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
+      `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl horsePhotoUrl avatarChoice horseName horseExperience project birthday tshirtSize lastLogin lastLoginDevice postCount commentCount blogPostCount createdAt youthMembers { id firstName lastName birthdate project horseNames userId } linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
     );
     if (result.data?.users) {
       setAdminMembers(result.data.users);
@@ -370,6 +379,44 @@ export default function AdminPage() {
       setPendingMembers(result.data.pendingUsers);
     }
   }, []);
+
+  const fetchDisabledMembers = useCallback(async () => {
+    const result = await authFetch(
+      `query { adminDisabledUsers { id firstName lastName email role profilePhotoUrl createdAt } }`,
+    );
+    if (result.data?.adminDisabledUsers) {
+      setDisabledMembers(result.data.adminDisabledUsers);
+    }
+  }, []);
+
+  const handleDisableMember = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to disable ${name}? They will no longer be able to log in.`)) return;
+    const result = await authFetch(
+      `mutation AdminDisableUser($id: String!) { adminDisableUser(id: $id) { id } }`,
+      { id },
+    );
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    showToast(`${name} has been disabled`);
+    fetchMembers();
+    fetchDisabledMembers();
+  };
+
+  const handleEnableMember = async (id: string, name: string) => {
+    const result = await authFetch(
+      `mutation AdminEnableUser($id: String!) { adminEnableUser(id: $id) { id } }`,
+      { id },
+    );
+    if (result.errors) {
+      alert(`Error: ${result.errors[0]?.message || 'Unknown error'}`);
+      return;
+    }
+    showToast(`${name} has been re-enabled`);
+    fetchMembers();
+    fetchDisabledMembers();
+  };
 
   const handleApproveUser = async (id: string) => {
     await authFetch(
@@ -399,8 +446,18 @@ export default function AdminPage() {
     fetchHolderOptions();
     fetchMembers();
     fetchPendingMembers();
+    fetchDisabledMembers();
     fetchHomeContent();
-  }, [fetchSponsors, fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, fetchHomeContent, termYear]);
+  }, [fetchSponsors, fetchTestimonials, fetchBlogPosts, fetchOfficers, fetchOfficerRoles, fetchHolderOptions, fetchMembers, fetchPendingMembers, fetchDisabledMembers, fetchHomeContent, termYear]);
+
+  // Derive officer user IDs for member filtering
+  useEffect(() => {
+    const ids = new Set<string>();
+    officers.forEach(o => {
+      if (o.holderUserId) ids.add(o.holderUserId);
+    });
+    setOfficerUserIds(ids);
+  }, [officers]);
 
   // Sponsor handlers
   const handleEditSponsor = (sponsorId: string) => {
@@ -635,8 +692,8 @@ export default function AdminPage() {
   const handleSaveMember = async () => {
     if (!editingMemberId || !memberForm) return;
     const result = await authFetch(
-      `mutation AdminUpdateUser($id: String!, $firstName: String, $lastName: String, $email: String, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String) {
-        adminUpdateUser(id: $id, firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone) { id }
+      `mutation AdminUpdateUser($id: String!, $firstName: String, $lastName: String, $email: String, $role: String, $phone: String, $address: String, $emergencyContact: String, $emergencyPhone: String, $horseName: String, $horseExperience: String, $project: String, $birthday: String, $tshirtSize: String, $avatarChoice: String) {
+        adminUpdateUser(id: $id, firstName: $firstName, lastName: $lastName, email: $email, role: $role, phone: $phone, address: $address, emergencyContact: $emergencyContact, emergencyPhone: $emergencyPhone, horseName: $horseName, horseExperience: $horseExperience, project: $project, birthday: $birthday, tshirtSize: $tshirtSize, avatarChoice: $avatarChoice) { id }
       }`,
       {
         id: editingMemberId,
@@ -648,6 +705,12 @@ export default function AdminPage() {
         address: memberForm.address || '',
         emergencyContact: memberForm.emergencyContact || '',
         emergencyPhone: memberForm.emergencyPhone || '',
+        horseName: memberForm.horseName || '',
+        horseExperience: memberForm.horseExperience || '',
+        project: memberForm.project || '',
+        birthday: memberForm.birthday ? memberForm.birthday.split('T')[0] : '',
+        tshirtSize: memberForm.tshirtSize || '',
+        avatarChoice: memberForm.avatarChoice || 'initials',
       },
     );
     if (result.errors) {
@@ -914,7 +977,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-8">
         <nav className="-mb-px flex space-x-8">
-          {['home', 'members', 'blog', 'sponsors', 'testimonials', 'officers'].map((tab) => (
+          {['home', 'members', 'blog', 'sponsors', 'testimonials', 'officers', 'communications'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -1325,12 +1388,12 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Manage Members</h3>
             <div className="flex items-center gap-3">
               <input
                 type="text"
-                placeholder="Search members..."
+                placeholder="Search by name, email, or horse name..."
                 className="input w-64"
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
@@ -1339,6 +1402,35 @@ export default function AdminPage() {
                 + Add Member
               </button>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            {([
+              { key: 'all', label: 'All' },
+              { key: 'youth', label: 'Youth Members' },
+              { key: 'adult_leader', label: 'Adult Leaders' },
+              { key: 'parent', label: 'Parents' },
+              { key: 'officer', label: 'Officers' },
+            ] as const).map(f => (
+              <button
+                key={f.key}
+                onClick={() => setMemberFilter(f.key)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  memberFilter === f.key
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {f.label}
+                <span className="ml-1.5 text-xs opacity-75">
+                  ({f.key === 'all' ? adminMembers.length
+                    : f.key === 'youth' ? adminMembers.filter(m => m.role === 'YOUTH_MEMBER').length
+                    : f.key === 'adult_leader' ? adminMembers.filter(m => m.role === 'ADULT_LEADER').length
+                    : f.key === 'parent' ? adminMembers.filter(m => m.role === 'PARENT').length
+                    : adminMembers.filter(m => officerUserIds.has(m.id)).length})
+                </span>
+              </button>
+            ))}
           </div>
 
           {isAddingMember && (
@@ -1390,11 +1482,20 @@ export default function AdminPage() {
 
           <div className="space-y-4">
             {adminMembers
-              .filter(m =>
-                !memberSearch ||
-                `${m.firstName} ${m.lastName}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
-                m.email.toLowerCase().includes(memberSearch.toLowerCase())
-              )
+              .filter(m => {
+                const matchesSearch = !memberSearch ||
+                  `${m.firstName} ${m.lastName}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                  m.email.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                  (m.horseName && m.horseName.toLowerCase().includes(memberSearch.toLowerCase()));
+                if (!matchesSearch) return false;
+                switch (memberFilter) {
+                  case 'youth': return m.role === 'YOUTH_MEMBER';
+                  case 'adult_leader': return m.role === 'ADULT_LEADER';
+                  case 'parent': return m.role === 'PARENT';
+                  case 'officer': return officerUserIds.has(m.id);
+                  default: return true;
+                }
+              })
               .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
               .map((member) => {
                 const isEditing = editingMemberId === member.id;
@@ -1404,9 +1505,13 @@ export default function AdminPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-4">
                           <img
-                            src={member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff&size=48`}
+                            src={
+                              member.avatarChoice === 'profile' && member.profilePhotoUrl ? member.profilePhotoUrl
+                              : member.avatarChoice === 'horse' && member.horsePhotoUrl ? member.horsePhotoUrl
+                              : member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff&size=48`
+                            }
                             alt=""
-                            className="w-12 h-12 rounded-full flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex-shrink-0 object-cover"
                           />
                           <div>
                             <h4 className="font-semibold text-gray-900">{member.firstName} {member.lastName}</h4>
@@ -1420,12 +1525,20 @@ export default function AdminPage() {
                               {ROLE_OPTIONS.find(r => r.value === member.role)?.label || member.role}
                             </span>
                             {member.phone && <p className="text-sm text-gray-600 mt-1">{member.phone}</p>}
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
+                              {member.horseName && <span>Horse: {member.horseName}</span>}
+                              {member.horseExperience && <span>{EXPERIENCE_LABELS[member.horseExperience] || member.horseExperience}</span>}
+                              {member.birthday && <span>Birthday: {format(new Date(member.birthday), 'MMM d, yyyy')}</span>}
+                              {member.project && <span>Project: {member.project}</span>}
+                              {member.tshirtSize && <span>Shirt: {member.tshirtSize}</span>}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-gray-500">
                               <span title={member.lastLogin ? format(new Date(member.lastLogin), 'MMM d, yyyy h:mm a') : undefined}>
                                 Last login: {member.lastLogin ? timeAgo(member.lastLogin) : 'Never'}
                               </span>
                               {member.lastLoginDevice && <span>{member.lastLoginDevice}</span>}
                               <span>{member.postCount} posts · {member.commentCount} comments · {member.blogPostCount} blog articles</span>
+                              {member.createdAt && <span>Joined: {format(new Date(member.createdAt), 'MMM d, yyyy')}</span>}
                             </div>
                             {member.youthMembers && member.youthMembers.length > 0 && (
                               <div className="mt-2">
@@ -1455,6 +1568,7 @@ export default function AdminPage() {
                         </div>
                         <div className="flex gap-2 ml-4">
                           <button onClick={() => handleEditMember(member)} className="btn-secondary text-sm">Edit</button>
+                          <button onClick={() => handleDisableMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-amber-600">Disable</button>
                           <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-red-600">Delete</button>
                         </div>
                       </div>
@@ -1494,6 +1608,134 @@ export default function AdminPage() {
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Phone</label>
                             <input className="input" value={memberForm.emergencyPhone || ''} onChange={e => setMemberForm(f => ({ ...f, emergencyPhone: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Horse Name</label>
+                            <input className="input" value={memberForm.horseName || ''} onChange={e => setMemberForm(f => ({ ...f, horseName: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Horse Experience</label>
+                            <select className="input" value={memberForm.horseExperience || ''} onChange={e => setMemberForm(f => ({ ...f, horseExperience: e.target.value }))}>
+                              <option value="">Select...</option>
+                              <option value="none">No Experience</option>
+                              <option value="some">Some Experience</option>
+                              <option value="regular">Regular Rider</option>
+                              <option value="advanced">Advanced</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Project</label>
+                            <input className="input" value={memberForm.project || ''} onChange={e => setMemberForm(f => ({ ...f, project: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Birthday</label>
+                            <input className="input" type="date" value={memberForm.birthday ? memberForm.birthday.split('T')[0] : ''} onChange={e => setMemberForm(f => ({ ...f, birthday: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">T-Shirt Size</label>
+                            <select className="input" value={memberForm.tshirtSize || ''} onChange={e => setMemberForm(f => ({ ...f, tshirtSize: e.target.value }))}>
+                              <option value="">Select...</option>
+                              <option value="YS">Youth Small</option>
+                              <option value="YM">Youth Medium</option>
+                              <option value="YL">Youth Large</option>
+                              <option value="AS">Adult Small</option>
+                              <option value="AM">Adult Medium</option>
+                              <option value="AL">Adult Large</option>
+                              <option value="AXL">Adult XL</option>
+                              <option value="A2XL">Adult 2XL</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Photos & Avatar */}
+                        <div className="border-t pt-4 mt-4">
+                          <h5 className="text-sm font-semibold text-gray-700 mb-3">Photos & Avatar</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-2">Profile Photo</label>
+                              <div className="flex items-center gap-3">
+                                {memberForm.profilePhotoUrl ? (
+                                  <img src={memberForm.profilePhotoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">No photo</div>
+                                )}
+                                <label className="btn-secondary text-sm cursor-pointer">
+                                  Upload
+                                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    formData.append('userId', member.id);
+                                    try {
+                                      const token = localStorage.getItem('accessToken');
+                                      const resp = await fetch(`${apiBase}/api/upload/profile-photo`, {
+                                        method: 'POST',
+                                        headers: { Authorization: `Bearer ${token}` },
+                                        body: formData,
+                                      });
+                                      const data = await resp.json();
+                                      if (resp.ok) {
+                                        setMemberForm(f => ({ ...f, profilePhotoUrl: data.url }));
+                                        showToast('Profile photo uploaded');
+                                      } else {
+                                        showToast(data.error || 'Upload failed', 'error');
+                                      }
+                                    } catch { showToast('Upload failed', 'error'); }
+                                    e.target.value = '';
+                                  }} />
+                                </label>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-2">Horse Photo</label>
+                              <div className="flex items-center gap-3">
+                                {memberForm.horsePhotoUrl ? (
+                                  <img src={memberForm.horsePhotoUrl} alt="Horse" className="w-16 h-16 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">No photo</div>
+                                )}
+                                <label className="btn-secondary text-sm cursor-pointer">
+                                  Upload
+                                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    formData.append('userId', member.id);
+                                    try {
+                                      const token = localStorage.getItem('accessToken');
+                                      const resp = await fetch(`${apiBase}/api/upload/horse-photo`, {
+                                        method: 'POST',
+                                        headers: { Authorization: `Bearer ${token}` },
+                                        body: formData,
+                                      });
+                                      const data = await resp.json();
+                                      if (resp.ok) {
+                                        setMemberForm(f => ({ ...f, horsePhotoUrl: data.url }));
+                                        showToast('Horse photo uploaded');
+                                      } else {
+                                        showToast(data.error || 'Upload failed', 'error');
+                                      }
+                                    } catch { showToast('Upload failed', 'error'); }
+                                    e.target.value = '';
+                                  }} />
+                                </label>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-2">Avatar Display</label>
+                              <select
+                                className="input"
+                                value={memberForm.avatarChoice || 'initials'}
+                                onChange={e => setMemberForm(f => ({ ...f, avatarChoice: e.target.value }))}
+                              >
+                                <option value="initials">Initials</option>
+                                <option value="profile" disabled={!memberForm.profilePhotoUrl}>Profile Photo{!memberForm.profilePhotoUrl ? ' (no photo)' : ''}</option>
+                                <option value="horse" disabled={!memberForm.horsePhotoUrl}>Horse Photo{!memberForm.horsePhotoUrl ? ' (no photo)' : ''}</option>
+                              </select>
+                              <p className="text-xs text-gray-400 mt-1">Shown on member directory instead of initials</p>
+                            </div>
                           </div>
                         </div>
 
@@ -1664,16 +1906,22 @@ export default function AdminPage() {
                             </div>
                           )}
 
-                          {/* Link a child account */}
+                          {/* Link a child or parent account */}
                           <div className="flex items-center gap-2 mb-3">
                             <select
                               className="input text-sm flex-1"
                               value={linkChildUserId}
                               onChange={e => setLinkChildUserId(e.target.value)}
                             >
-                              <option value="">Link a child account...</option>
+                              <option value="">{member.role === 'YOUTH_MEMBER' ? 'Link a parent account...' : 'Link a child account...'}</option>
                               {adminMembers
-                                .filter(m => m.id !== member.id && !member.linkedChildren?.some(c => c.id === m.id))
+                                .filter(m => {
+                                  if (m.id === member.id) return false;
+                                  if (member.role === 'YOUTH_MEMBER') {
+                                    return !member.linkedParents?.some(p => p.id === m.id);
+                                  }
+                                  return !member.linkedChildren?.some(c => c.id === m.id);
+                                })
                                 .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
                                 .map(m => (
                                   <option key={m.id} value={m.id}>
@@ -1683,10 +1931,16 @@ export default function AdminPage() {
                             </select>
                             <button
                               className="btn-primary text-sm whitespace-nowrap"
-                              onClick={() => handleAddFamilyLink(member.id, linkChildUserId)}
+                              onClick={() => {
+                                if (member.role === 'YOUTH_MEMBER') {
+                                  handleAddFamilyLink(linkChildUserId, member.id);
+                                } else {
+                                  handleAddFamilyLink(member.id, linkChildUserId);
+                                }
+                              }}
                               disabled={!linkChildUserId}
                             >
-                              Link Child
+                              {member.role === 'YOUTH_MEMBER' ? 'Link Parent' : 'Link Child'}
                             </button>
                           </div>
 
@@ -1813,8 +2067,59 @@ export default function AdminPage() {
           {adminMembers.length === 0 && (
             <p className="text-gray-500 text-center py-8">No members found.</p>
           )}
+
+          {/* Disabled Members Section */}
+          {disabledMembers.length > 0 && (
+            <div className="mt-8">
+              <button
+                onClick={() => setShowDisabled(!showDisabled)}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium mb-4"
+              >
+                <span className={`transform transition-transform ${showDisabled ? 'rotate-90' : ''}`}>&#9654;</span>
+                Disabled Members ({disabledMembers.length})
+              </button>
+              {showDisabled && (
+                <div className="space-y-3">
+                  {disabledMembers.map((member) => (
+                    <div key={member.id} className="card border-2 border-gray-200 bg-gray-50 opacity-75">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=9ca3af&color=fff&size=40`}
+                            alt=""
+                            className="w-10 h-10 rounded-full grayscale"
+                          />
+                          <div>
+                            <h4 className="font-medium text-gray-700">{member.firstName} {member.lastName}</h4>
+                            <p className="text-sm text-gray-500">{member.email}</p>
+                          </div>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">
+                            {member.role === 'ADULT_LEADER' ? 'Adult Leader' : member.role === 'YOUTH_MEMBER' ? 'Youth Member' : member.role === 'PARENT' ? 'Parent' : member.role}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                            Disabled
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleEnableMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-primary text-sm">
+                            Enable
+                          </button>
+                          <button onClick={() => handleDeleteMember(member.id, `${member.firstName} ${member.lastName}`)} className="btn-secondary text-sm text-red-600">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Communications */}
+      {activeTab === 'communications' && <AdminCommunications />}
 
       {/* Blog */}
       {activeTab === 'blog' && (
