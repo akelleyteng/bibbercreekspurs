@@ -2112,6 +2112,7 @@ export default function AdminPage() {
 
       {/* Blog Post Modal */}
       <BlogPostModal
+        key={editingBlogPostId || 'new'}
         isOpen={isBlogModalOpen}
         onClose={() => {
           setIsBlogModalOpen(false);
