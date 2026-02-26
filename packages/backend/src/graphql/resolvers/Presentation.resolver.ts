@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
+import { Resolver, Query, Mutation, Arg, Ctx, Int } from 'type-graphql';
 import {
   PresentationMeetingGQL,
   PresentationReservationGQL,
@@ -26,6 +26,7 @@ import { verifyAccessToken } from '../../services/auth.service';
 import { listCalendarEvents, getCalendarEvent, addAttendeeToEvent } from '../../services/google-calendar.service';
 import { EventRsvpRepository } from '../../repositories/event-rsvp.repository';
 import * as driveService from '../../services/google-drive.service';
+import db from '../../models/database';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
 import { logger } from '../../utils/logger';
@@ -869,6 +870,9 @@ export class PresentationResolver {
       });
     }
 
+    // Share so anyone with the link can view (members don't need a specific Google account)
+    await driveService.shareFilePublicRead(copiedFile.id);
+
     const agendaUrl = `https://docs.google.com/document/d/${copiedFile.id}/edit`;
 
     const updated = await this.presRepo.updateMeeting(meetingId, {
@@ -955,5 +959,25 @@ export class PresentationResolver {
 
     logger.info(`Agenda deleted for meeting ${meetingId}`);
     return gql;
+  }
+
+  @Mutation(() => Int, { description: 'Share all existing agenda files publicly (admin only). Returns count of files shared.' })
+  async shareExistingAgendas(
+    @Ctx() context: Context
+  ): Promise<number> {
+    await this.requireManagerAccess(context);
+
+    const result = await db.query(
+      `SELECT id, agenda_drive_file_id FROM presentation_meetings WHERE agenda_drive_file_id IS NOT NULL`
+    );
+
+    let shared = 0;
+    for (const row of result.rows) {
+      const ok = await driveService.shareFilePublicRead(row.agenda_drive_file_id);
+      if (ok) shared++;
+    }
+
+    logger.info(`Shared ${shared}/${result.rows.length} existing agenda files publicly`);
+    return shared;
   }
 }

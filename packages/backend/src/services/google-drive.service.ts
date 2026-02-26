@@ -237,6 +237,34 @@ export async function copyFile(
 }
 
 /**
+ * Share a file so anyone with the link can view it (no Google account required).
+ * Uses the OAuth2 upload client since it owns the files.
+ */
+export async function shareFilePublicRead(fileId: string): Promise<boolean> {
+  const drive = getDriveUploadClient();
+  if (!drive) return false;
+
+  try {
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+    logger.info(`Google Drive file shared publicly (reader): ${fileId}`);
+    return true;
+  } catch (error: any) {
+    logger.error('Failed to share Google Drive file publicly', {
+      fileId,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+    });
+    return false;
+  }
+}
+
+/**
  * Delete a file or folder from Google Drive.
  */
 export async function deleteFile(fileId: string): Promise<boolean> {
