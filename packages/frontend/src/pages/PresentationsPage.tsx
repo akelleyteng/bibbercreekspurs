@@ -547,6 +547,17 @@ export default function PresentationsPage() {
               onEmailAgenda={() => setShowEmailAgendaModal(meeting)}
               onCreateAgendaFromTemplate={() => handleCreateAgendaFromTemplate(meeting.id)}
               onDeleteAgenda={() => handleDeleteAgenda(meeting.id)}
+              onRequestEditAccess={async () => {
+                try {
+                  const result = await authFetch(
+                    `mutation RequestAgendaEditAccess($meetingId: String!) { requestAgendaEditAccess(meetingId: $meetingId) }`,
+                    { meetingId: meeting.id },
+                  );
+                  return result.data?.requestAgendaEditAccess || null;
+                } catch {
+                  return null;
+                }
+              }}
               isCreatingAgenda={creatingAgendaForMeeting === meeting.id}
               isDeletingAgenda={deletingAgendaForMeeting === meeting.id}
             />
@@ -712,6 +723,28 @@ function AdminEnableSection({
   );
 }
 
+function EditAgendaButton({ onRequestEditAccess }: { onRequestEditAccess: () => Promise<string | null> }) {
+  const [loading, setLoading] = useState(false);
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const url = await onRequestEditAccess();
+      if (url) window.open(url, '_blank');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="text-sm text-primary-600 hover:text-primary-700 underline disabled:opacity-50"
+    >
+      {loading ? 'Requesting...' : 'Edit'}
+    </button>
+  );
+}
+
 // ── Meeting Card ──
 
 function MeetingCard({
@@ -732,6 +765,7 @@ function MeetingCard({
   onEmailAgenda,
   onCreateAgendaFromTemplate,
   onDeleteAgenda,
+  onRequestEditAccess,
   isCreatingAgenda,
   isDeletingAgenda,
 }: {
@@ -752,6 +786,7 @@ function MeetingCard({
   onEmailAgenda: () => void;
   onCreateAgendaFromTemplate: () => void;
   onDeleteAgenda: () => void;
+  onRequestEditAccess: () => Promise<string | null>;
   isCreatingAgenda: boolean;
   isDeletingAgenda: boolean;
 }) {
@@ -824,13 +859,16 @@ function MeetingCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-gray-700">Agenda:</span>
               <a
-                href={agendaHref(meeting.agendaDriveFileUrl || `https://docs.google.com/document/d/${meeting.agendaDriveFileId}/edit`, canManage)}
+                href={agendaHref(meeting.agendaDriveFileUrl || `https://docs.google.com/document/d/${meeting.agendaDriveFileId}/edit`, false)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-primary-600 hover:text-primary-700 underline truncate max-w-[200px] sm:max-w-[300px]"
               >
-                {canManage ? (meeting.agendaDriveFileName || 'Edit Agenda') : (meeting.agendaDriveFileName || 'View Agenda')}
+                {meeting.agendaDriveFileName || 'View Agenda'}
               </a>
+              {canManage && (
+                <EditAgendaButton onRequestEditAccess={onRequestEditAccess} />
+              )}
               {canManage && (
                 <>
                   <button

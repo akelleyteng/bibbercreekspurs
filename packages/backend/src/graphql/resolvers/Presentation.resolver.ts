@@ -870,8 +870,8 @@ export class PresentationResolver {
       });
     }
 
-    // Share so anyone with the link can view (members don't need a specific Google account)
-    await driveService.shareFilePublicRead(copiedFile.id);
+    // Share so anyone with the link can view/edit (members don't need a specific Google account)
+    await driveService.shareFilePublic(copiedFile.id);
 
     const agendaUrl = `https://docs.google.com/document/d/${copiedFile.id}/edit`;
 
@@ -973,11 +973,50 @@ export class PresentationResolver {
 
     let shared = 0;
     for (const row of result.rows) {
-      const ok = await driveService.shareFilePublicRead(row.agenda_drive_file_id);
+      const ok = await driveService.shareFilePublic(row.agenda_drive_file_id);
       if (ok) shared++;
     }
 
     logger.info(`Shared ${shared}/${result.rows.length} existing agenda files publicly`);
     return shared;
+  }
+
+  @Mutation(() => String, { description: 'Grant the current user edit access to an agenda file. Returns the edit URL.' })
+  async requestAgendaEditAccess(
+    @Arg('meetingId') meetingId: string,
+    @Ctx() context: Context
+  ): Promise<string> {
+    const userId = await this.requireManagerAccess(context);
+
+    const meeting = await this.presRepo.findMeetingById(meetingId);
+    if (!meeting) {
+      throw new GraphQLError('Meeting not found', {
+        extensions: { code: 'NOT_FOUND' },
+      });
+    }
+
+    if (!meeting.agenda_drive_file_id) {
+      throw new GraphQLError('No agenda linked to this meeting', {
+        extensions: { code: 'BAD_INPUT' },
+      });
+    }
+
+    const user = await this.userRepo.findById(userId);
+    if (!user?.email) {
+      throw new GraphQLError('Your account has no email address', {
+        extensions: { code: 'BAD_INPUT' },
+      });
+    }
+
+    const ok = await driveService.shareFileWithEmail(meeting.agenda_drive_file_id, user.email, 'writer');
+    if (!ok) {
+      throw new GraphQLError('Failed to grant edit access — your email may not be a Google account', {
+        extensions: { code: 'INTERNAL_SERVER_ERROR' },
+      });
+    }
+
+    const editUrl = `https://docs.google.com/document/d/${meeting.agenda_drive_file_id}/edit`;
+    logger.info(`Granted edit access to agenda for meeting ${meetingId} to ${user.email}`);
+    return editUrl;
   }
 }

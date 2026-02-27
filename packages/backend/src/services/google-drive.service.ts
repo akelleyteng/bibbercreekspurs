@@ -240,7 +240,7 @@ export async function copyFile(
  * Share a file so anyone with the link can view it (no Google account required).
  * Uses the OAuth2 upload client since it owns the files.
  */
-export async function shareFilePublicRead(fileId: string): Promise<boolean> {
+export async function shareFilePublic(fileId: string): Promise<boolean> {
   const drive = getDriveUploadClient();
   if (!drive) return false;
 
@@ -257,6 +257,37 @@ export async function shareFilePublicRead(fileId: string): Promise<boolean> {
   } catch (error: any) {
     logger.error('Failed to share Google Drive file publicly', {
       fileId,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+    });
+    return false;
+  }
+}
+
+/**
+ * Grant a specific email address write access to a file.
+ * Uses the OAuth2 upload client since it owns the files.
+ */
+export async function shareFileWithEmail(fileId: string, email: string, role: 'reader' | 'writer' = 'writer'): Promise<boolean> {
+  const drive = getDriveUploadClient();
+  if (!drive) return false;
+
+  try {
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role,
+        type: 'user',
+        emailAddress: email,
+      },
+      sendNotificationEmail: false,
+    });
+    logger.info(`Google Drive file shared with ${email} (${role}): ${fileId}`);
+    return true;
+  } catch (error: any) {
+    logger.error('Failed to share Google Drive file with email', {
+      fileId,
+      email,
       errorMessage: error?.message,
       errorCode: error?.code,
     });
