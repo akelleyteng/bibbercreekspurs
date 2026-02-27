@@ -129,6 +129,7 @@ export class EventResolver {
         if (reservations.length > 0) {
           gql.presenters = reservations.map((r) => {
             const p = new EventPresenterGQL();
+            p.userId = r.user_id;
             p.firstName = r.first_name;
             p.lastName = r.last_name;
             p.title = r.title;

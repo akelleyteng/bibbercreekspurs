@@ -12,6 +12,18 @@ registerEnumType(Role, {
 });
 
 @ObjectType()
+export class UserAvatarInfo {
+  @Field({ nullable: true })
+  profilePhotoUrl?: string;
+
+  @Field({ nullable: true })
+  horsePhotoUrl?: string;
+
+  @Field({ nullable: true })
+  avatarChoice?: string;
+}
+
+@ObjectType()
 export class User {
   @Field(() => ID)
   id!: string;

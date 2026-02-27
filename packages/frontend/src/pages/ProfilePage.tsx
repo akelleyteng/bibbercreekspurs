@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import MemberAvatar from '../components/MemberAvatar';
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
 import MemberProfileFields, { MemberProfileData } from '../components/MemberProfileFields';
@@ -440,11 +441,7 @@ export default function ProfilePage() {
                 {familyData.linkedChildren.map(child => (
                   <div key={child.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={child.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(child.firstName + ' ' + child.lastName)}&background=4f772d&color=fff&size=32`}
-                        alt=""
-                        className="w-8 h-8 rounded-full"
-                      />
+                      <MemberAvatar userId={child.id} firstName={child.firstName} lastName={child.lastName} size="sm" />
                       <div>
                         <p className="text-sm font-medium text-gray-900">{child.firstName} {child.lastName}</p>
                         <p className="text-xs text-gray-500">{child.email}</p>
@@ -469,11 +466,7 @@ export default function ProfilePage() {
                 {familyData.linkedParents.map(parent => (
                   <div key={parent.id} className="flex items-center bg-gray-50 p-3 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={parent.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(parent.firstName + ' ' + parent.lastName)}&background=4f772d&color=fff&size=32`}
-                        alt=""
-                        className="w-8 h-8 rounded-full"
-                      />
+                      <MemberAvatar userId={parent.id} firstName={parent.firstName} lastName={parent.lastName} size="sm" />
                       <div>
                         <p className="text-sm font-medium text-gray-900">{parent.firstName} {parent.lastName}</p>
                         <p className="text-xs text-gray-500">{parent.email}</p>

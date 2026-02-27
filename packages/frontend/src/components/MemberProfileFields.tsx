@@ -1,7 +1,4 @@
-import { useState } from 'react';
-import ImageCropModal from './ImageCropModal';
-
-const apiBaseUrl = (import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql').replace('/graphql', '');
+import PhotoUploadField from './PhotoUploadField';
 
 const TSHIRT_OPTIONS = [
   { value: '', label: '-- Select size --' },
@@ -49,76 +46,12 @@ interface MemberProfileFieldsProps {
 }
 
 export default function MemberProfileFields({ data, onChange, targetUserId, onMessage, compact }: MemberProfileFieldsProps) {
-  const [uploadingPhoto, setUploadingPhoto] = useState<'profile' | 'horse' | null>(null);
-  const [cropImage, setCropImage] = useState<string | null>(null);
-  const [cropType, setCropType] = useState<'profile' | 'horse' | null>(null);
-
   const labelClass = compact
     ? 'block text-xs font-medium text-gray-600 mb-1'
     : 'block text-sm font-medium text-gray-700 mb-1';
   const inputClass = compact
     ? 'input'
     : 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent';
-
-  const openCrop = (type: 'profile' | 'horse', file: File) => {
-    if (!file.type.startsWith('image/')) {
-      onMessage?.('Only image files are allowed', 'error');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      onMessage?.('File too large (max 10 MB)', 'error');
-      return;
-    }
-    setCropType(type);
-    setCropImage(URL.createObjectURL(file));
-  };
-
-  const closeCrop = () => {
-    if (cropImage) URL.revokeObjectURL(cropImage);
-    setCropImage(null);
-    setCropType(null);
-  };
-
-  const handleCropConfirm = (croppedFile: File) => {
-    const type = cropType;
-    closeCrop();
-    if (type) handlePhotoUpload(type, croppedFile);
-  };
-
-  const handlePhotoUpload = async (type: 'profile' | 'horse', file: File) => {
-    setUploadingPhoto(type);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (targetUserId) formData.append('userId', targetUserId);
-
-      const token = localStorage.getItem('token');
-      const endpoint = type === 'profile' ? 'profile-photo' : 'horse-photo';
-      const res = await fetch(`${apiBaseUrl}/api/upload/${endpoint}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        onMessage?.(err.error || 'Upload failed', 'error');
-        return;
-      }
-
-      const result = await res.json();
-      if (type === 'profile') {
-        onChange({ profilePhotoUrl: result.url });
-      } else {
-        onChange({ horsePhotoUrl: result.url });
-      }
-      onMessage?.(`${type === 'profile' ? 'Profile' : 'Horse'} photo uploaded!`, 'success');
-    } catch {
-      onMessage?.('Upload failed', 'error');
-    } finally {
-      setUploadingPhoto(null);
-    }
-  };
 
   return (
     <div className={compact ? '' : 'space-y-4'}>
@@ -223,57 +156,25 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
           Photos & Avatar
         </h5>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Profile Photo */}
-          <div>
-            <label className={`${labelClass} mb-2`}>Profile Photo</label>
-            <div className="flex items-center gap-3">
-              {data.profilePhotoUrl ? (
-                <img src={data.profilePhotoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">No photo</div>
-              )}
-              <label className={`${compact ? 'btn-secondary text-sm' : 'inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50'} cursor-pointer transition-colors ${uploadingPhoto === 'profile' ? 'opacity-50 pointer-events-none' : ''}`}>
-                {uploadingPhoto === 'profile' ? 'Uploading...' : 'Upload'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) openCrop('profile', file);
-                    e.target.value = '';
-                  }}
-                  disabled={uploadingPhoto !== null}
-                />
-              </label>
-            </div>
-          </div>
+          <PhotoUploadField
+            type="profile"
+            photoUrl={data.profilePhotoUrl}
+            label="Profile Photo"
+            onUploaded={url => onChange({ profilePhotoUrl: url })}
+            targetUserId={targetUserId}
+            onMessage={onMessage}
+            compact={compact}
+          />
 
-          {/* Horse Photo */}
-          <div>
-            <label className={`${labelClass} mb-2`}>Horse Photo</label>
-            <div className="flex items-center gap-3">
-              {data.horsePhotoUrl ? (
-                <img src={data.horsePhotoUrl} alt="Horse" className="w-16 h-16 rounded-full object-cover" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">No photo</div>
-              )}
-              <label className={`${compact ? 'btn-secondary text-sm' : 'inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50'} cursor-pointer transition-colors ${uploadingPhoto === 'horse' ? 'opacity-50 pointer-events-none' : ''}`}>
-                {uploadingPhoto === 'horse' ? 'Uploading...' : 'Upload'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) openCrop('horse', file);
-                    e.target.value = '';
-                  }}
-                  disabled={uploadingPhoto !== null}
-                />
-              </label>
-            </div>
-          </div>
+          <PhotoUploadField
+            type="horse"
+            photoUrl={data.horsePhotoUrl}
+            label="Horse Photo"
+            onUploaded={url => onChange({ horsePhotoUrl: url })}
+            targetUserId={targetUserId}
+            onMessage={onMessage}
+            compact={compact}
+          />
 
           {/* Avatar Choice */}
           <div>
@@ -291,13 +192,6 @@ export default function MemberProfileFields({ data, onChange, targetUserId, onMe
           </div>
         </div>
       </div>
-      {cropImage && (
-        <ImageCropModal
-          imageSrc={cropImage}
-          onConfirm={handleCropConfirm}
-          onCancel={closeCrop}
-        />
-      )}
     </div>
   );
 }

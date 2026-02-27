@@ -8,6 +8,9 @@ interface User {
   lastName: string;
   role: string;
   passwordResetRequired: boolean;
+  profilePhotoUrl?: string;
+  horsePhotoUrl?: string;
+  avatarChoice?: string;
 }
 
 interface AuthContextType {
@@ -55,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 lastName
                 role
                 passwordResetRequired
+                profilePhotoUrl
+                horsePhotoUrl
+                avatarChoice
               }
             }
           `,
@@ -96,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   lastName
                   role
                   passwordResetRequired
+                  profilePhotoUrl
+                  horsePhotoUrl
+                  avatarChoice
                 }
               }
             }

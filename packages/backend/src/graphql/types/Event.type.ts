@@ -2,6 +2,9 @@ import { ObjectType, Field, ID, Int } from 'type-graphql';
 
 @ObjectType('EventPresenter')
 export class EventPresenterGQL {
+  @Field(() => ID, { nullable: true })
+  userId?: string;
+
   @Field()
   firstName!: string;
 

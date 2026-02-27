@@ -8,6 +8,7 @@ import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
 import AdminCommunications from '../components/AdminCommunications';
+import MemberAvatar, { seedAvatarCache } from '../components/MemberAvatar';
 import MemberProfileFields from '../components/MemberProfileFields';
 import { authFetch } from '../utils/authFetch';
 
@@ -368,6 +369,7 @@ export default function AdminPage() {
       `query { users { id firstName lastName email role phone address emergencyContact emergencyPhone profilePhotoUrl horsePhotoUrl avatarChoice horseName horseExperience project birthday tshirtSize lastLogin lastLoginDevice postCount commentCount blogPostCount createdAt youthMembers { id firstName lastName birthdate project horseNames userId } linkedChildren { id firstName lastName email role profilePhotoUrl } linkedParents { id firstName lastName email role profilePhotoUrl } } }`,
     );
     if (result.data?.users) {
+      seedAvatarCache(result.data.users);
       setAdminMembers(result.data.users);
     }
   }, []);
@@ -386,6 +388,7 @@ export default function AdminPage() {
       `query { adminDisabledUsers { id firstName lastName email role profilePhotoUrl createdAt } }`,
     );
     if (result.data?.adminDisabledUsers) {
+      seedAvatarCache(result.data.adminDisabledUsers);
       setDisabledMembers(result.data.adminDisabledUsers);
     }
   }, []);
@@ -1520,15 +1523,7 @@ export default function AdminPage() {
                     {!isEditing ? (
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3 sm:gap-4 min-w-0">
-                          <img
-                            src={
-                              member.avatarChoice === 'profile' && member.profilePhotoUrl ? member.profilePhotoUrl
-                              : member.avatarChoice === 'horse' && member.horsePhotoUrl ? member.horsePhotoUrl
-                              : member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff&size=48`
-                            }
-                            alt=""
-                            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex-shrink-0 object-cover"
-                          />
+                          <MemberAvatar userId={member.id} firstName={member.firstName} lastName={member.lastName} size="lg" />
                           <div>
                             <h4 className="font-semibold text-gray-900">{member.firstName} {member.lastName}</h4>
                             <p className="text-sm text-gray-500">{member.email}</p>
@@ -1748,11 +1743,7 @@ export default function AdminPage() {
                               {member.linkedChildren.map(child => (
                                 <div key={child.id} className="flex items-center justify-between bg-gray-50 p-2 rounded mb-1">
                                   <div className="flex items-center gap-2">
-                                    <img
-                                      src={child.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(child.firstName + ' ' + child.lastName)}&background=4f772d&color=fff&size=24`}
-                                      alt=""
-                                      className="w-6 h-6 rounded-full"
-                                    />
+                                    <MemberAvatar userId={child.id} firstName={child.firstName} lastName={child.lastName} size="xs" />
                                     <span className="text-sm text-gray-800">{child.firstName} {child.lastName}</span>
                                     <span className="text-xs text-gray-500">({child.email})</span>
                                   </div>
@@ -1774,11 +1765,7 @@ export default function AdminPage() {
                               {member.linkedParents.map(parent => (
                                 <div key={parent.id} className="flex items-center justify-between bg-gray-50 p-2 rounded mb-1">
                                   <div className="flex items-center gap-2">
-                                    <img
-                                      src={parent.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(parent.firstName + ' ' + parent.lastName)}&background=4f772d&color=fff&size=24`}
-                                      alt=""
-                                      className="w-6 h-6 rounded-full"
-                                    />
+                                    <MemberAvatar userId={parent.id} firstName={parent.firstName} lastName={parent.lastName} size="xs" />
                                     <span className="text-sm text-gray-800">{parent.firstName} {parent.lastName}</span>
                                     <span className="text-xs text-gray-500">({parent.email})</span>
                                   </div>
@@ -1971,11 +1958,7 @@ export default function AdminPage() {
                     <div key={member.id} className="card border-2 border-gray-200 bg-gray-50 opacity-75">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                          <img
-                            src={member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=9ca3af&color=fff&size=40`}
-                            alt=""
-                            className="w-10 h-10 rounded-full grayscale flex-shrink-0"
-                          />
+                          <MemberAvatar userId={member.id} firstName={member.firstName} lastName={member.lastName} size="md" className="grayscale" />
                           <div className="min-w-0">
                             <h4 className="font-medium text-gray-700">{member.firstName} {member.lastName}</h4>
                             <p className="text-sm text-gray-500 truncate">{member.email}</p>
@@ -2331,11 +2314,7 @@ export default function AdminPage() {
                       <p className="text-sm text-gray-500">{roleDescription}</p>
                       {assigned?.holder ? (
                         <div className="mt-2 flex items-center gap-2">
-                          <img
-                            src={assigned.holder.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(assigned.holder.firstName + ' ' + assigned.holder.lastName)}&background=4f772d&color=fff&size=32`}
-                            alt=""
-                            className="w-8 h-8 rounded-full"
-                          />
+                          <MemberAvatar userId={assigned.holderUserId} firstName={assigned.holder.firstName} lastName={assigned.holder.lastName} size="sm" />
                           <span className="text-sm font-medium text-gray-900">
                             {assigned.holder.firstName} {assigned.holder.lastName}
                           </span>

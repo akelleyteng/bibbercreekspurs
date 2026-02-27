@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
-import { User } from '../types/User.type';
+import { User, UserAvatarInfo } from '../types/User.type';
 import { YouthMember } from '../types/YouthMember.type';
 import { UserRepository } from '../../repositories/user.repository';
 import { YouthMemberRepository } from '../../repositories/youth-member.repository';
@@ -155,6 +155,31 @@ export class UserResolver {
         extensions: { code: 'INTERNAL_ERROR' },
       });
     }
+  }
+
+  @Query(() => UserAvatarInfo, { nullable: true })
+  async userAvatar(
+    @Arg('userId', () => String) userId: string,
+    @Ctx() context: Context
+  ): Promise<UserAvatarInfo | null> {
+    // Require authentication
+    const authHeader = context.req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new GraphQLError('Not authenticated', {
+        extensions: { code: 'UNAUTHENTICATED' },
+      });
+    }
+    const token = authHeader.substring(7);
+    verifyAccessToken(token);
+
+    const user = await this.userRepo.findById(userId);
+    if (!user) return null;
+
+    return {
+      profilePhotoUrl: user.profile_photo_url || undefined,
+      horsePhotoUrl: user.horse_photo_url || undefined,
+      avatarChoice: user.avatar_choice || 'initials',
+    };
   }
 
   @Query(() => [User])

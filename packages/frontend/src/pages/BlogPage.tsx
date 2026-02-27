@@ -18,7 +18,6 @@ interface BlogPostData {
     id: string;
     firstName: string;
     lastName: string;
-    profileImageUrl?: string;
   };
 }
 
@@ -29,7 +28,7 @@ export default function BlogPage() {
 
   useEffect(() => {
     const isLoggedIn = !!localStorage.getItem('token');
-    authFetch(`query { blogPosts(publicOnly: ${!isLoggedIn}) { id title slug excerpt featuredImageUrl visibility publishedAt author { id firstName lastName profileImageUrl } } }`)
+    authFetch(`query { blogPosts(publicOnly: ${!isLoggedIn}) { id title slug excerpt featuredImageUrl visibility publishedAt author { id firstName lastName } } }`)
       .then((result) => {
         if (result.data?.blogPosts) {
           setPosts(result.data.blogPosts);

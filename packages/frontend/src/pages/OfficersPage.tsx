@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+import MemberAvatar from '../components/MemberAvatar';
+
 interface OfficerHolder {
   firstName: string;
   lastName: string;
@@ -10,6 +12,7 @@ interface OfficerHolder {
 interface OfficerData {
   id: string;
   position: string;
+  holderUserId?: string;
   label: string;
   description: string;
   holder?: OfficerHolder;
@@ -37,7 +40,7 @@ export default function OfficersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position label description holder { firstName lastName holderType profilePhotoUrl } } }`,
+          query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position holderUserId label description holder { firstName lastName holderType profilePhotoUrl } } }`,
           variables: { termYear },
         }),
       }).then(res => res.json()),
@@ -97,11 +100,7 @@ export default function OfficersPage() {
         {assignedOfficers.map((officer) => (
           <div key={officer.id} className="card hover:shadow-lg transition-shadow">
             <div className="flex items-start gap-3 sm:gap-4">
-              <img
-                src={officer.holder!.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(officer.holder!.firstName + ' ' + officer.holder!.lastName)}&background=4f772d&color=fff&size=80`}
-                alt={`${officer.holder!.firstName} ${officer.holder!.lastName}`}
-                className="w-14 h-14 sm:w-20 sm:h-20 rounded-full object-cover flex-shrink-0"
-              />
+              <MemberAvatar userId={officer.holderUserId} firstName={officer.holder!.firstName} lastName={officer.holder!.lastName} size="xl" />
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
                   {officer.holder!.firstName} {officer.holder!.lastName}

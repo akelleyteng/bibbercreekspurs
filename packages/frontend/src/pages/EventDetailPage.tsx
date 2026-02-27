@@ -2,16 +2,17 @@ import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
+import MemberAvatar from '../components/MemberAvatar';
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
 import { parseEventDate } from '../utils/dateUtils';
 import { formatDescription } from '../utils/formatDescription';
 
 interface EventPresenter {
+  userId?: string;
   firstName: string;
   lastName: string;
   title: string;
-  profilePhotoUrl?: string;
 }
 
 interface EventDetailData {
@@ -36,7 +37,7 @@ const EVENT_QUERY = `query GetEvent($id: String!) {
     id title description startTime endTime location visibility
     externalRegistrationUrl isAllDay registrationCount userRsvpStatus
     agendaUrl meetingId
-    presenters { firstName lastName title profilePhotoUrl }
+    presenters { userId firstName lastName title }
   }
 }`;
 
@@ -63,6 +64,7 @@ export default function EventDetailPage() {
   const [guestCount, setGuestCount] = useState(1);
   const [showGuestInput, setShowGuestInput] = useState(false);
   const [canEditAgenda, setCanEditAgenda] = useState(false);
+  const [editAccessLoading, setEditAccessLoading] = useState(false);
 
   const fetchEvent = async () => {
     try {
@@ -135,6 +137,27 @@ export default function EventDetailPage() {
       setRsvpError('Network error — please try again.');
     } finally {
       setRsvpLoading(false);
+    }
+  };
+
+  const handleEditAgenda = async () => {
+    if (!event?.meetingId) return;
+    setEditAccessLoading(true);
+    try {
+      const result = await authFetch(
+        `mutation RequestAgendaEditAccess($meetingId: String!) { requestAgendaEditAccess(meetingId: $meetingId) }`,
+        { meetingId: event.meetingId },
+      );
+      const editUrl = result.data?.requestAgendaEditAccess;
+      if (editUrl) {
+        window.open(editUrl, '_blank');
+      } else if (result.errors?.length) {
+        alert(result.errors[0].message);
+      }
+    } catch {
+      alert('Failed to request edit access.');
+    } finally {
+      setEditAccessLoading(false);
     }
   };
 
@@ -239,14 +262,25 @@ export default function EventDetailPage() {
               <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#128196;</span>
               <div>
                 <p className="font-semibold text-gray-900">Meeting Agenda</p>
-                <a
-                  href={agendaHref(event.agendaUrl, canEditAgenda)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary-600 hover:text-primary-700 underline"
-                >
-                  {canEditAgenda ? 'Edit Agenda' : 'View Agenda'}
-                </a>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={agendaHref(event.agendaUrl, false)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 hover:text-primary-700 underline"
+                  >
+                    View Agenda
+                  </a>
+                  {canEditAgenda && (
+                    <button
+                      onClick={handleEditAgenda}
+                      disabled={editAccessLoading}
+                      className="text-primary-600 hover:text-primary-700 underline disabled:opacity-50"
+                    >
+                      {editAccessLoading ? 'Requesting access...' : 'Edit Agenda'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -268,11 +302,7 @@ export default function EventDetailPage() {
             <div className="space-y-3">
               {event.presenters.map((presenter, idx) => (
                 <div key={idx} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <img
-                    src={presenter.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(presenter.firstName + ' ' + presenter.lastName)}&background=4f772d&color=fff&size=40`}
-                    alt={`${presenter.firstName} ${presenter.lastName}`}
-                    className="w-10 h-10 rounded-full object-cover mr-3"
-                  />
+                  <MemberAvatar userId={presenter.userId} firstName={presenter.firstName} lastName={presenter.lastName} size="md" className="mr-3" />
                   <div>
                     <p className="font-semibold text-gray-900">{presenter.firstName} {presenter.lastName}</p>
                     <p className="text-sm text-gray-600">{presenter.title}</p>

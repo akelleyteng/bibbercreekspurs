@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
+import MemberAvatar from '../components/MemberAvatar';
 import { authFetch } from '../utils/authFetch';
 
 interface BlogPostDetail {
@@ -18,7 +19,6 @@ interface BlogPostDetail {
     id: string;
     firstName: string;
     lastName: string;
-    profileImageUrl?: string;
   };
 }
 
@@ -29,7 +29,7 @@ export default function BlogDetailPage() {
 
   useEffect(() => {
     if (!slug) return;
-    authFetch(`query { blogPost(slug: "${slug}") { id title slug content excerpt featuredImageUrl visibility publishedAt author { id firstName lastName profileImageUrl } } }`)
+    authFetch(`query { blogPost(slug: "${slug}") { id title slug content excerpt featuredImageUrl visibility publishedAt author { id firstName lastName } } }`)
       .then((result) => {
         if (result.data?.blogPost) {
           setPost(result.data.blogPost);
@@ -79,13 +79,7 @@ export default function BlogDetailPage() {
         <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">{post.title}</h1>
 
         <div className="flex items-center mb-4 sm:mb-8 pb-4 sm:pb-8 border-b">
-          {post.author.profileImageUrl && (
-            <img
-              src={post.author.profileImageUrl}
-              alt={post.author.firstName}
-              className="w-12 h-12 rounded-full mr-4"
-            />
-          )}
+          <MemberAvatar userId={post.author.id} firstName={post.author.firstName} lastName={post.author.lastName} size="lg" className="mr-4" />
           <div>
             <p className="font-semibold text-gray-900">
               {post.author.firstName} {post.author.lastName}

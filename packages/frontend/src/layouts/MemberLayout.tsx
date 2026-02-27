@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
+import MemberAvatar, { seedAvatarCache } from '../components/MemberAvatar';
 
 // Member layout with user menu dropdown (Profile/Help/Logout)
 // Rendered by AdaptiveLayout when user is authenticated — no auth check here.
@@ -13,6 +14,9 @@ export default function MemberLayout() {
 
   // Type-narrowing guard (never executes — AdaptiveLayout guarantees user is set)
   if (!user) return null;
+
+  // Seed avatar cache so MemberAvatar renders instantly for the current user
+  seedAvatarCache([{ id: user.id, profilePhotoUrl: user.profilePhotoUrl, horsePhotoUrl: user.horsePhotoUrl, avatarChoice: user.avatarChoice }]);
 
   const isActive = (path: string) => {
     // Exact match
@@ -73,14 +77,15 @@ export default function MemberLayout() {
               {/* User Menu Dropdown */}
               <div className="relative" ref={userMenuRef}>
                 <button
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  onClick={() => {
+                    setIsUserMenuOpen(!isUserMenuOpen);
+                  }}
+                  className="flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-full"
                   aria-label="User menu"
                   aria-expanded={isUserMenuOpen}
                   aria-haspopup="true"
                 >
-                  {user.firstName[0]}
-                  {user.lastName[0]}
+                  <MemberAvatar userId={user.id} firstName={user.firstName} lastName={user.lastName} size="md" />
                 </button>
 
                 {/* Dropdown Menu */}

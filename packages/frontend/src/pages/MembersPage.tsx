@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
+import MemberAvatar, { seedAvatarCache } from '../components/MemberAvatar';
 
 const ROLE_LABELS: Record<string, string> = {
   PARENT: 'Parent',
@@ -45,11 +46,6 @@ const FILTERS: { key: RoleFilter; label: string }[] = [
   { key: 'officer', label: 'Officers' },
 ];
 
-function getAvatarUrl(member: MemberData): string {
-  if (member.avatarChoice === 'profile' && member.profilePhotoUrl) return member.profilePhotoUrl;
-  if (member.avatarChoice === 'horse' && member.horsePhotoUrl) return member.horsePhotoUrl;
-  return member.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.firstName + ' ' + member.lastName)}&background=4f772d&color=fff`;
-}
 
 export default function MembersPage() {
   const { isAuthenticated } = useAuth();
@@ -70,6 +66,7 @@ export default function MembersPage() {
     authFetch(`query { users { id firstName lastName email role phone profilePhotoUrl horsePhotoUrl avatarChoice horseName project birthday tshirtSize youthMembers { id firstName lastName birthdate } createdAt } }`)
       .then((result) => {
         if (result.data?.users) {
+          seedAvatarCache(result.data.users);
           setMembers(result.data.users);
         }
       })
@@ -185,11 +182,7 @@ export default function MembersPage() {
         {filteredMembers.map((member) => (
           <div key={member.id} className="card">
             <div className="flex items-center mb-3 sm:mb-4">
-              <img
-                src={getAvatarUrl(member)}
-                alt={member.firstName}
-                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full mr-3 sm:mr-4 object-cover"
-              />
+              <MemberAvatar userId={member.id} firstName={member.firstName} lastName={member.lastName} size="lg" className="mr-3 sm:mr-4" />
               <div>
                 <h3 className="font-bold text-gray-900">
                   {member.firstName} {member.lastName}
