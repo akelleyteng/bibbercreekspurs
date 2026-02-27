@@ -445,7 +445,7 @@ export class BlogResolver {
   @Mutation(() => BlogPostGQL)
   async rejectBlogPost(
     @Arg('id') id: string,
-    @Arg('reason', { nullable: true }) reason: string | undefined,
+    @Arg('reason', () => String, { nullable: true }) reason: string | undefined,
     @Ctx() context: Context
   ): Promise<BlogPostGQL> {
     const { userId, role } = await this.requireAuth(context);
