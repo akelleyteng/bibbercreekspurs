@@ -2,6 +2,24 @@ import { ObjectType, Field, ID } from 'type-graphql';
 import { DateTimeScalar } from './scalars';
 
 @ObjectType()
+export class LinkedBlogPostGQL {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  slug!: string;
+
+  @Field()
+  title!: string;
+
+  @Field({ nullable: true })
+  excerpt?: string;
+
+  @Field({ nullable: true })
+  featuredImageUrl?: string;
+}
+
+@ObjectType()
 export class PostAuthor {
   @Field(() => ID)
   id!: string;
@@ -98,6 +116,9 @@ export class PostGQL {
 
   @Field({ nullable: true })
   userReaction?: string;
+
+  @Field(() => LinkedBlogPostGQL, { nullable: true })
+  linkedBlogPost?: LinkedBlogPostGQL;
 
   @Field()
   canEdit!: boolean;

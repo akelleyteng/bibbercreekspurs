@@ -11,6 +11,10 @@ export interface BlogPostRow {
   visibility: string;
   featured_image_url?: string;
   published_at?: Date;
+  approval_status: string;
+  reviewed_by?: string;
+  reviewed_at?: Date;
+  rejection_reason?: string;
   created_at: Date;
   updated_at: Date;
   deleted_at?: Date;
@@ -18,6 +22,7 @@ export interface BlogPostRow {
   author_first_name: string;
   author_last_name: string;
   author_profile_image_url?: string;
+  author_role?: string;
 }
 
 export interface CreateBlogPostData {
@@ -29,6 +34,7 @@ export interface CreateBlogPostData {
   visibility: string;
   featured_image_url?: string;
   published_at?: Date;
+  approval_status: string;
 }
 
 export interface UpdateBlogPostData {
@@ -38,21 +44,29 @@ export interface UpdateBlogPostData {
   excerpt?: string;
   visibility?: string;
   featured_image_url?: string;
-  published_at?: Date;
+  published_at?: Date | null;
+  approval_status?: string;
+  reviewed_by?: string | null;
+  reviewed_at?: Date | null;
+  rejection_reason?: string | null;
 }
 
 const BASE_SELECT = `
   SELECT bp.id, bp.title, bp.slug, bp.content, bp.excerpt,
          bp.author_id, bp.visibility, bp.featured_image_url,
-         bp.published_at, bp.created_at, bp.updated_at,
+         bp.published_at, bp.approval_status, bp.reviewed_by,
+         bp.reviewed_at, bp.rejection_reason,
+         bp.created_at, bp.updated_at,
          u.first_name AS author_first_name,
          u.last_name AS author_last_name,
-         u.profile_photo_url AS author_profile_image_url
+         u.profile_photo_url AS author_profile_image_url,
+         u.role AS author_role
   FROM blog_posts bp
   JOIN users u ON u.id = bp.author_id
   WHERE bp.deleted_at IS NULL`;
 
 export class BlogPostRepository {
+  /** All non-deleted posts — admin/leader view */
   async findAll(): Promise<BlogPostRow[]> {
     const result = await db.query<BlogPostRow>(
       `${BASE_SELECT}
@@ -61,18 +75,58 @@ export class BlogPostRepository {
     return result.rows;
   }
 
-  async findPublished(): Promise<BlogPostRow[]> {
+  /** APPROVED + published (any visibility) — authenticated member view */
+  async findApprovedPublished(): Promise<BlogPostRow[]> {
     const result = await db.query<BlogPostRow>(
-      `${BASE_SELECT} AND bp.published_at IS NOT NULL AND bp.published_at <= CURRENT_TIMESTAMP
+      `${BASE_SELECT}
+       AND bp.approval_status = 'APPROVED'
+       AND bp.published_at IS NOT NULL AND bp.published_at <= CURRENT_TIMESTAMP
        ORDER BY bp.published_at DESC`
     );
     return result.rows;
   }
 
-  async findPublicPublished(): Promise<BlogPostRow[]> {
+  /** APPROVED + published + PUBLIC visibility — unauthenticated view */
+  async findApprovedPublishedPublic(): Promise<BlogPostRow[]> {
     const result = await db.query<BlogPostRow>(
-      `${BASE_SELECT} AND bp.visibility = 'PUBLIC' AND bp.published_at IS NOT NULL AND bp.published_at <= CURRENT_TIMESTAMP
+      `${BASE_SELECT}
+       AND bp.approval_status = 'APPROVED'
+       AND bp.visibility = 'PUBLIC'
+       AND bp.published_at IS NOT NULL AND bp.published_at <= CURRENT_TIMESTAMP
        ORDER BY bp.published_at DESC`
+    );
+    return result.rows;
+  }
+
+  /** All non-deleted posts by a specific author */
+  async findByAuthorId(authorId: string): Promise<BlogPostRow[]> {
+    const result = await db.query<BlogPostRow>(
+      `${BASE_SELECT} AND bp.author_id = $1
+       ORDER BY bp.created_at DESC`,
+      [authorId]
+    );
+    return result.rows;
+  }
+
+  /** PENDING posts by specific author IDs (for parent view) */
+  async findPendingByAuthorIds(authorIds: string[]): Promise<BlogPostRow[]> {
+    if (authorIds.length === 0) return [];
+    const placeholders = authorIds.map((_, i) => `$${i + 1}`).join(', ');
+    const result = await db.query<BlogPostRow>(
+      `${BASE_SELECT}
+       AND bp.approval_status = 'PENDING'
+       AND bp.author_id IN (${placeholders})
+       ORDER BY bp.created_at DESC`,
+      authorIds
+    );
+    return result.rows;
+  }
+
+  /** All PENDING posts — admin/leader view */
+  async findAllPending(): Promise<BlogPostRow[]> {
+    const result = await db.query<BlogPostRow>(
+      `${BASE_SELECT} AND bp.approval_status = 'PENDING'
+       ORDER BY bp.created_at DESC`
     );
     return result.rows;
   }
@@ -95,8 +149,9 @@ export class BlogPostRepository {
 
   async create(data: CreateBlogPostData): Promise<BlogPostRow> {
     const result = await db.query<{ id: string }>(
-      `INSERT INTO blog_posts (title, slug, content, excerpt, author_id, visibility, featured_image_url, published_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO blog_posts
+         (title, slug, content, excerpt, author_id, visibility, featured_image_url, published_at, approval_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
       [
         data.title,
@@ -107,6 +162,7 @@ export class BlogPostRepository {
         data.visibility,
         data.featured_image_url || null,
         data.published_at || null,
+        data.approval_status,
       ]
     );
     logger.info(`Blog post created: ${result.rows[0].id}`);
@@ -119,7 +175,8 @@ export class BlogPostRepository {
     let paramIndex = 1;
 
     const fields: (keyof UpdateBlogPostData)[] = [
-      'title', 'slug', 'content', 'excerpt', 'visibility', 'featured_image_url', 'published_at',
+      'title', 'slug', 'content', 'excerpt', 'visibility', 'featured_image_url',
+      'published_at', 'approval_status', 'reviewed_by', 'reviewed_at', 'rejection_reason',
     ];
 
     for (const field of fields) {

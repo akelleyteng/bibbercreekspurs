@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Arg, Ctx } from 'type-graphql';
-import { PostGQL, PostAuthor, CommentGQL, ReactionSummaryGQL, PostMediaGQL } from '../types/Post.type';
+import { PostGQL, PostAuthor, CommentGQL, ReactionSummaryGQL, PostMediaGQL, LinkedBlogPostGQL } from '../types/Post.type';
 import { CreatePostInput, UpdatePostInput } from '../inputs/PostInput';
 import { PostRepository, PostRow, CommentRow, PostMediaRow } from '../../repositories/post.repository';
 import { UserRepository } from '../../repositories/user.repository';
@@ -89,6 +89,17 @@ export class PostResolver {
     };
   }
 
+  private mapLinkedBlogPost(row: PostRow): LinkedBlogPostGQL | undefined {
+    if (!row.blog_post_id || !row.bp_slug) return undefined;
+    return {
+      id: row.blog_post_id,
+      slug: row.bp_slug,
+      title: row.bp_title || '',
+      excerpt: row.bp_excerpt || undefined,
+      featuredImageUrl: row.bp_featured_image_url || undefined,
+    };
+  }
+
   private mapPost(
     row: PostRow,
     comments: CommentGQL[],
@@ -108,6 +119,7 @@ export class PostResolver {
       comments,
       reactions,
       userReaction,
+      linkedBlogPost: this.mapLinkedBlogPost(row),
       canEdit,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

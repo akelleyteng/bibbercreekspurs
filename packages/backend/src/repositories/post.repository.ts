@@ -9,13 +9,19 @@ export interface PostRow {
   is_hidden: boolean;
   hidden_by: string | null;
   hidden_at: Date | null;
+  blog_post_id: string | null;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
-  // Joined fields
+  // Joined author fields
   author_first_name: string;
   author_last_name: string;
   author_profile_photo_url: string | null;
+  // Joined blog post fields (when blog_post_id is set)
+  bp_slug: string | null;
+  bp_title: string | null;
+  bp_excerpt: string | null;
+  bp_featured_image_url: string | null;
 }
 
 export interface CommentRow {
@@ -70,6 +76,7 @@ export interface CreatePostData {
   author_id: string;
   content: string;
   visibility: string;
+  blog_post_id?: string;
 }
 
 export interface UpdatePostData {
@@ -79,13 +86,16 @@ export interface UpdatePostData {
 
 const BASE_POST_SELECT = `
   SELECT p.id, p.author_id, p.content, p.visibility,
-         p.is_hidden, p.hidden_by, p.hidden_at,
+         p.is_hidden, p.hidden_by, p.hidden_at, p.blog_post_id,
          p.created_at, p.updated_at,
          u.first_name AS author_first_name,
          u.last_name AS author_last_name,
-         u.profile_photo_url AS author_profile_photo_url
+         u.profile_photo_url AS author_profile_photo_url,
+         bp.slug AS bp_slug, bp.title AS bp_title,
+         bp.excerpt AS bp_excerpt, bp.featured_image_url AS bp_featured_image_url
   FROM posts p
   JOIN users u ON u.id = p.author_id
+  LEFT JOIN blog_posts bp ON bp.id = p.blog_post_id AND bp.deleted_at IS NULL
   WHERE p.deleted_at IS NULL`;
 
 const BASE_COMMENT_SELECT = `
@@ -118,10 +128,10 @@ export class PostRepository {
 
   async create(data: CreatePostData): Promise<PostRow> {
     const result = await db.query<{ id: string }>(
-      `INSERT INTO posts (author_id, content, visibility)
-       VALUES ($1, $2, $3)
+      `INSERT INTO posts (author_id, content, visibility, blog_post_id)
+       VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [data.author_id, data.content, data.visibility]
+      [data.author_id, data.content, data.visibility, data.blog_post_id || null]
     );
     logger.info(`Post created: ${result.rows[0].id}`);
     return (await this.findById(result.rows[0].id))!;

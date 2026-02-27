@@ -2,7 +2,7 @@ import { ReactionType } from '@4hclub/shared';
 import DOMPurify from 'dompurify';
 import { formatDistanceToNow } from 'date-fns';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 
 import MemberAvatar from '../components/MemberAvatar';
 import RichTextEditor from '../components/RichTextEditor';
@@ -48,6 +48,14 @@ interface PendingMedia {
   error?: string;
 }
 
+interface LinkedBlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt?: string;
+  featuredImageUrl?: string;
+}
+
 interface Post {
   id: string;
   author: PostAuthor;
@@ -59,6 +67,7 @@ interface Post {
   comments: Comment[];
   reactions: ReactionSummary[];
   userReaction?: string;
+  linkedBlogPost?: LinkedBlogPost;
   canEdit: boolean;
   createdAt: string;
   updatedAt: string;
@@ -136,6 +145,7 @@ export default function SocialFeedPage() {
             comments { id postId content createdAt author { id firstName lastName profilePhotoUrl } }
             reactions { reactionType count }
             userReaction
+            linkedBlogPost { id slug title excerpt featuredImageUrl }
           }
         }`,
       );
@@ -568,6 +578,35 @@ export default function SocialFeedPage() {
                   </div>
                 );
               })()}
+
+              {/* Blog Post Card (for blog announcement posts) */}
+              {post.linkedBlogPost && (
+                <div className="mb-4">
+                  <Link
+                    to={`/blog/${post.linkedBlogPost.slug}`}
+                    className="block border border-gray-200 rounded-lg overflow-hidden hover:border-primary-300 hover:shadow-sm transition-all"
+                  >
+                    {post.linkedBlogPost.featuredImageUrl && (
+                      <img
+                        src={post.linkedBlogPost.featuredImageUrl}
+                        alt={post.linkedBlogPost.title}
+                        className="w-full h-40 object-cover"
+                      />
+                    )}
+                    <div className="p-3">
+                      <p className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                        {post.linkedBlogPost.title}
+                      </p>
+                      {post.linkedBlogPost.excerpt && (
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {DOMPurify.sanitize(post.linkedBlogPost.excerpt, { ALLOWED_TAGS: [] }).replace(/&nbsp;/g, ' ')}
+                        </p>
+                      )}
+                      <p className="text-sm text-primary-600 font-medium mt-2">Read more &rarr;</p>
+                    </div>
+                  </Link>
+                </div>
+              )}
 
               {/* Media Gallery */}
               {post.media && post.media.length > 0 && (

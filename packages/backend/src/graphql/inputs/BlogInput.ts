@@ -1,5 +1,5 @@
 import { InputType, Field } from 'type-graphql';
-import { IsString, IsOptional, IsUrl, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsUrl, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 
 @InputType()
 export class CreateBlogPostInput {
@@ -29,6 +29,10 @@ export class CreateBlogPostInput {
   @IsOptional()
   @IsDateString()
   publishedAt?: string;
+
+  @Field({ defaultValue: false })
+  @IsBoolean()
+  guidelinesAgreed!: boolean;
 }
 
 @InputType()
@@ -67,4 +71,11 @@ export class UpdateBlogPostInput {
   @IsOptional()
   @IsDateString()
   publishedAt?: string;
+}
+
+@InputType()
+export class UpdateBlogGuidelinesInput {
+  @Field()
+  @IsString()
+  content!: string;
 }

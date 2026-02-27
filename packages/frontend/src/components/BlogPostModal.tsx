@@ -17,15 +17,28 @@ interface BlogPostFormData {
 interface BlogPostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: BlogPostFormData) => void;
+  onSave: (data: BlogPostFormData & { guidelinesAgreed: boolean }) => void;
   initialData?: Partial<BlogPostFormData>;
   mode: 'create' | 'edit';
+  /** Whether the current user is ADMIN or ADULT_LEADER (privileged) */
+  isPrivileged?: boolean;
+  /** Called when the guidelines link is clicked */
+  onViewGuidelines?: () => void;
 }
 
-export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mode }: BlogPostModalProps) {
+export default function BlogPostModal({
+  isOpen,
+  onClose,
+  onSave,
+  initialData,
+  mode,
+  isPrivileged = false,
+  onViewGuidelines,
+}: BlogPostModalProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [guidelinesAgreed, setGuidelinesAgreed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = async (file: File) => {
@@ -85,17 +98,23 @@ export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mo
       featuredImageUrl: initialData?.featuredImageUrl || '',
       publishedAt: initialData?.publishedAt || '',
     });
+    setGuidelinesAgreed(false);
+    setUploadError(null);
+    setShowUrlInput(false);
   }, [isOpen, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({ ...formData, guidelinesAgreed: isPrivileged ? true : guidelinesAgreed });
     onClose();
   };
 
   const handleChange = (field: keyof BlogPostFormData, value: any) => {
     setFormData({ ...formData, [field]: value });
   };
+
+  const showGuidelinesCheckbox = mode === 'create' && !isPrivileged;
+  const showPublishDate = isPrivileged;
 
   if (!isOpen) return null;
 
@@ -110,7 +129,9 @@ export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mo
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 id="blog-post-modal-title" className="text-2xl font-bold text-gray-900">
-              {mode === 'create' ? 'Create New Post' : 'Edit Post'}
+              {mode === 'create'
+                ? (isPrivileged ? 'Create New Post' : 'Submit a Blog Post')
+                : 'Edit Post'}
             </h2>
             <button
               onClick={onClose}
@@ -120,6 +141,12 @@ export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mo
               ×
             </button>
           </div>
+
+          {!isPrivileged && mode === 'create' && (
+            <div className="mb-5 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              Your post will be reviewed by a club leader before it appears on the blog.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 mb-6">
@@ -267,29 +294,67 @@ export default function BlogPostModal({ isOpen, onClose, onSave, initialData, mo
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Publish Date
-                </label>
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={formData.publishedAt}
-                  onChange={(e) => handleChange('publishedAt', e.target.value)}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Leave blank to save as draft
-                </p>
-              </div>
+              {showPublishDate && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Publish Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={formData.publishedAt}
+                    onChange={(e) => handleChange('publishedAt', e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Leave blank to publish immediately
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Guidelines Agreement (non-privileged create mode) */}
+            {showGuidelinesCheckbox && (
+              <div className="mb-6 p-4 border border-amber-200 bg-amber-50 rounded-lg">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    required
+                    checked={guidelinesAgreed}
+                    onChange={(e) => setGuidelinesAgreed(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 text-primary-600 border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-gray-700">
+                    I have read and agree to the{' '}
+                    {onViewGuidelines ? (
+                      <button
+                        type="button"
+                        onClick={onViewGuidelines}
+                        className="text-primary-600 hover:text-primary-700 underline font-medium"
+                      >
+                        Blog Posting Guidelines
+                      </button>
+                    ) : (
+                      <span className="font-medium">Blog Posting Guidelines</span>
+                    )}
+                    . I understand my post will be reviewed before it is published.
+                  </span>
+                </label>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 justify-end">
               <button type="button" onClick={onClose} className="btn-secondary">
                 Cancel
               </button>
-              <button type="submit" className="btn-primary">
-                {mode === 'create' ? 'Create Post' : 'Save Changes'}
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={showGuidelinesCheckbox && !guidelinesAgreed}
+              >
+                {mode === 'create'
+                  ? (isPrivileged ? 'Create Post' : 'Submit for Review')
+                  : 'Save Changes'}
               </button>
             </div>
           </form>
