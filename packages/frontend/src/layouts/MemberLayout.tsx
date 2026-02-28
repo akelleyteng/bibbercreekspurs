@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 
 import { useAuth } from '../context/AuthContext';
 import MemberAvatar, { seedAvatarCache } from '../components/MemberAvatar';
+import NotificationBell from '../components/NotificationBell';
 
 // Member layout with user menu dropdown (Profile/Help/Logout)
 // Rendered by AdaptiveLayout when user is authenticated — no auth check here.
@@ -73,6 +74,9 @@ export default function MemberLayout() {
               <span className="hidden sm:inline text-sm text-gray-700" aria-label="Current user">
                 {user.firstName} {user.lastName}
               </span>
+
+              {/* Notification Bell */}
+              <NotificationBell />
 
               {/* User Menu Dropdown */}
               <div className="relative" ref={userMenuRef}>

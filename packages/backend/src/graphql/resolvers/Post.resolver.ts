@@ -3,6 +3,7 @@ import { PostGQL, PostAuthor, CommentGQL, ReactionSummaryGQL, PostMediaGQL, Link
 import { CreatePostInput, UpdatePostInput } from '../inputs/PostInput';
 import { PostRepository, PostRow, CommentRow, PostMediaRow } from '../../repositories/post.repository';
 import { UserRepository } from '../../repositories/user.repository';
+import { NotificationRepository } from '../../repositories/notification.repository';
 import { verifyAccessToken } from '../../services/auth.service';
 import { Role } from '@4hclub/shared';
 import { Context } from '../context';
@@ -13,10 +14,12 @@ import { logger } from '../../utils/logger';
 export class PostResolver {
   private postRepo: PostRepository;
   private userRepo: UserRepository;
+  private notifRepo: NotificationRepository;
 
   constructor() {
     this.postRepo = new PostRepository();
     this.userRepo = new UserRepository();
+    this.notifRepo = new NotificationRepository();
   }
 
   private async requireAuth(context: Context): Promise<{ userId: string; role: string }> {
@@ -234,6 +237,21 @@ export class PostResolver {
       media = mediaRows.map(m => this.mapMediaRow(m));
     }
 
+    // Notify all other active approved members about the new post (fire-and-forget)
+    this.userRepo.findAll().then(allUsers => {
+      const recipientIds = allUsers
+        .filter(u => u.id !== userId && u.approval_status === 'APPROVED' && u.is_active !== false)
+        .map(u => u.id);
+      if (recipientIds.length > 0) {
+        this.notifRepo.createForMultipleUsers(recipientIds, {
+          type: 'NEW_POST',
+          actor_id: userId,
+          related_post_id: row.id,
+          title: 'New post added',
+        }).catch(err => logger.warn('Failed to create new post notifications', { error: err?.message }));
+      }
+    }).catch(err => logger.warn('Failed to fetch users for post notifications', { error: err?.message }));
+
     return this.mapPost(row, [], [], undefined, true, media);
   }
 
@@ -346,6 +364,18 @@ export class PostResolver {
     }
 
     const row = await this.postRepo.createComment(postId, userId, content);
+
+    // Notify post author about the comment (fire-and-forget)
+    if (post.author_id !== userId) {
+      this.notifRepo.create({
+        user_id: post.author_id,
+        type: 'NEW_COMMENT',
+        actor_id: userId,
+        related_post_id: postId,
+        title: 'commented on your post',
+      }).catch(err => logger.warn('Failed to create comment notification', { error: err?.message }));
+    }
+
     return this.mapComment(row);
   }
 
@@ -362,6 +392,23 @@ export class PostResolver {
       throw new GraphQLError('Post not found', { extensions: { code: 'NOT_FOUND' } });
     }
 
-    return this.postRepo.toggleReaction(postId, userId, reactionType);
+    const added = await this.postRepo.toggleReaction(postId, userId, reactionType);
+
+    // Notify post author when a reaction is added (fire-and-forget)
+    if (added && post.author_id !== userId) {
+      this.notifRepo.exists(post.author_id, 'NEW_REACTION', userId, postId).then(alreadyNotified => {
+        if (!alreadyNotified) {
+          this.notifRepo.create({
+            user_id: post.author_id,
+            type: 'NEW_REACTION',
+            actor_id: userId,
+            related_post_id: postId,
+            title: 'liked your post',
+          }).catch(err => logger.warn('Failed to create reaction notification', { error: err?.message }));
+        }
+      }).catch(err => logger.warn('Failed to check reaction notification', { error: err?.message }));
+    }
+
+    return added;
   }
 }

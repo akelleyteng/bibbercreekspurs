@@ -15,17 +15,21 @@ import {
   MappedCalendarEvent,
 } from '../../services/google-calendar.service';
 import { UserRepository } from '../../repositories/user.repository';
+import { NotificationRepository } from '../../repositories/notification.repository';
+import db from '../../models/database';
 
 @Resolver()
 export class EventResolver {
   private rsvpRepo: EventRsvpRepository;
   private userRepo: UserRepository;
   private presRepo: PresentationRepository;
+  private notifRepo: NotificationRepository;
 
   constructor() {
     this.rsvpRepo = new EventRsvpRepository();
     this.userRepo = new UserRepository();
     this.presRepo = new PresentationRepository();
+    this.notifRepo = new NotificationRepository();
   }
 
   /**
@@ -99,7 +103,44 @@ export class EventResolver {
       ? allEvents.filter((e) => e.visibility === 'PUBLIC')
       : allEvents;
 
+    // Check for new events and create notifications (fire-and-forget)
+    this.checkForNewEventNotifications(allEvents)
+      .catch(err => logger.warn('Event notification check failed', { error: err?.message }));
+
     return Promise.all(filtered.map((e) => this.mapToGQL(e, auth?.userId)));
+  }
+
+  private async checkForNewEventNotifications(events: MappedCalendarEvent[]): Promise<void> {
+    if (events.length === 0) return;
+
+    const eventIds = events.map(e => e.id);
+    const result = await db.query<{ google_event_id: string }>(
+      `SELECT google_event_id FROM notified_events WHERE google_event_id = ANY($1)`,
+      [eventIds]
+    );
+    const alreadyNotified = new Set(result.rows.map(r => r.google_event_id));
+
+    const newEvents = events.filter(e => !alreadyNotified.has(e.id));
+    if (newEvents.length === 0) return;
+
+    const allUsers = await this.userRepo.findAll();
+    const activeUserIds = allUsers
+      .filter(u => u.approval_status === 'APPROVED' && u.is_active !== false)
+      .map(u => u.id);
+
+    for (const event of newEvents) {
+      if (activeUserIds.length > 0) {
+        await this.notifRepo.createForMultipleUsers(activeUserIds, {
+          type: 'NEW_EVENT',
+          related_event_id: event.id,
+          title: `${event.title} - click here to RSVP`,
+        });
+      }
+      await db.query(
+        `INSERT INTO notified_events (google_event_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+        [event.id]
+      );
+    }
   }
 
   @Query(() => EventGQL, { nullable: true })

@@ -4,6 +4,7 @@ export enum NotificationType {
   NEW_POST = 'NEW_POST',
   NEW_COMMENT = 'NEW_COMMENT',
   NEW_REACTION = 'NEW_REACTION',
+  NEW_MEMBER = 'NEW_MEMBER',
   EVENT_REMINDER = 'EVENT_REMINDER',
   ROLE_CHANGED = 'ROLE_CHANGED',
 }
@@ -12,27 +13,26 @@ export interface Notification {
   id: string;
   userId: string;
   type: NotificationType;
+  actorId?: string;
   title: string;
-  content?: string;
+  body?: string;
   relatedPostId?: string;
   relatedEventId?: string;
-  relatedBlogId?: string;
+  relatedUserId?: string;
   isRead: boolean;
   createdAt: Date;
 }
 
-export interface NotificationWithDetails extends Notification {
-  relatedPost?: {
-    id: string;
-    content: string;
-    authorName: string;
-  };
-  relatedEvent?: {
-    id: string;
-    title: string;
-  };
-  relatedBlog?: {
-    id: string;
-    title: string;
-  };
+export interface GroupedNotification {
+  type: NotificationType;
+  title: string;
+  body?: string;
+  relatedPostId?: string;
+  relatedEventId?: string;
+  relatedUserId?: string;
+  count: number;
+  actorNames: string[];
+  latestAt: Date;
+  notificationIds: string[];
+  isRead: boolean;
 }

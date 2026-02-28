@@ -22,6 +22,7 @@ import PresentationsPage from './pages/PresentationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import NotificationsPage from './pages/NotificationsPage';
 import SocialFeedPage from './pages/SocialFeedPage';
 
 function App() {
@@ -54,6 +55,7 @@ function App() {
           <Route path="/files" element={<DriveFilesPage />} />
           <Route path="/presentations" element={<PresentationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>

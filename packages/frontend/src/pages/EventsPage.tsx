@@ -45,6 +45,7 @@ export default function EventsPage() {
   const [rsvpLoadingIds, setRsvpLoadingIds] = useState<Set<string>>(new Set());
   const [rsvpPickerEventId, setRsvpPickerEventId] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState(1);
+  const [visibilityFilter, setVisibilityFilter] = useState<'ALL' | 'PUBLIC' | 'MEMBER_ONLY'>('ALL');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,11 +61,15 @@ export default function EventsPage() {
     setVisibleCount(EVENTS_PER_PAGE);
   }, [isAuthenticated]);
 
-  const hasMore = visibleCount < events.length;
+  const filteredEvents = visibilityFilter === 'ALL'
+    ? events
+    : events.filter(e => e.visibility === visibilityFilter);
+
+  const hasMore = visibleCount < filteredEvents.length;
 
   const loadMore = useCallback(() => {
-    setVisibleCount((prev) => Math.min(prev + EVENTS_PER_PAGE, events.length));
-  }, [events.length]);
+    setVisibleCount((prev) => Math.min(prev + EVENTS_PER_PAGE, filteredEvents.length));
+  }, [filteredEvents.length]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -117,7 +122,7 @@ export default function EventsPage() {
     }
   };
 
-  const visibleEvents = events.slice(0, visibleCount);
+  const visibleEvents = filteredEvents.slice(0, visibleCount);
 
   if (loading) {
     return (
@@ -130,10 +135,33 @@ export default function EventsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Upcoming Events</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Upcoming Events</h1>
+        {isAuthenticated && (
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {([['ALL', 'All'], ['PUBLIC', 'Public'], ['MEMBER_ONLY', 'Members Only']] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => { setVisibilityFilter(value); setVisibleCount(EVENTS_PER_PAGE); }}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  visibilityFilter === value
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {events.length === 0 ? (
-        <p className="text-gray-500 text-center py-12">No upcoming events at this time. Check back soon!</p>
+      {filteredEvents.length === 0 ? (
+        <p className="text-gray-500 text-center py-12">
+          {visibilityFilter === 'ALL'
+            ? 'No upcoming events at this time. Check back soon!'
+            : `No ${visibilityFilter === 'PUBLIC' ? 'public' : 'members only'} events at this time.`}
+        </p>
       ) : (
         <>
           <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -6,6 +6,7 @@ import { YouthMemberRepository } from '../../repositories/youth-member.repositor
 import { FamilyLinkRepository, LinkedUser } from '../../repositories/family-link.repository';
 import { verifyAccessToken, hashPassword } from '../../services/auth.service';
 import { emailService } from '../../services/email.service';
+import { NotificationRepository } from '../../repositories/notification.repository';
 import { Role } from '@4hclub/shared';
 import { Context } from '../context';
 import { GraphQLError } from 'graphql';
@@ -16,11 +17,13 @@ export class UserResolver {
   private userRepo: UserRepository;
   private youthMemberRepo: YouthMemberRepository;
   private familyLinkRepo: FamilyLinkRepository;
+  private notifRepo: NotificationRepository;
 
   constructor() {
     this.userRepo = new UserRepository();
     this.youthMemberRepo = new YouthMemberRepository();
     this.familyLinkRepo = new FamilyLinkRepository();
+    this.notifRepo = new NotificationRepository();
   }
 
   private mapYouthMember(row: any): YouthMember {
@@ -221,6 +224,23 @@ export class UserResolver {
       `${updated.first_name} ${updated.last_name}`,
       updated.id
     );
+
+    // Notify ADMIN and ADULT_LEADER users about new member (fire-and-forget)
+    const memberName = `${updated.first_name} ${updated.last_name}`;
+    this.userRepo.findAll().then(allUsers => {
+      const leaderIds = allUsers
+        .filter(u => (u.role === Role.ADMIN || u.role === Role.ADULT_LEADER)
+          && u.approval_status === 'APPROVED' && u.is_active !== false)
+        .map(u => u.id);
+      if (leaderIds.length > 0) {
+        this.notifRepo.createForMultipleUsers(leaderIds, {
+          type: 'NEW_MEMBER',
+          actor_id: id,
+          related_user_id: id,
+          title: `New member joined: ${memberName}`,
+        }).catch(err => logger.warn('Failed to create new member notifications', { error: err?.message }));
+      }
+    }).catch(err => logger.warn('Failed to fetch users for member notifications', { error: err?.message }));
 
     return this.mapUser(updated);
   }
