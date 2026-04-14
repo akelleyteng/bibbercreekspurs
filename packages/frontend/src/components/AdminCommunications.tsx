@@ -111,9 +111,9 @@ export default function AdminCommunications() {
     (async () => {
       try {
         const usersResult = await authFetch(
-          `query { adminUsers { id role } }`,
+          `query { users { id role } }`,
         );
-        const users: { id: string; role: string }[] = usersResult.data?.adminUsers || [];
+        const users: { id: string; role: string }[] = usersResult.data?.users || [];
 
         const now = new Date();
         const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
