@@ -89,8 +89,8 @@ export default function CalendarPage() {
   };
 
   const getEventColor = (event: CalendarEvent) => {
-    if (event.externalRegistrationUrl) {
-      return 'bg-orange-100 text-orange-800 hover:bg-orange-200';
+    if (event.visibility === 'PUBLIC') {
+      return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
     }
     return 'bg-green-100 text-green-800 hover:bg-green-200';
   };
@@ -253,9 +253,9 @@ export default function CalendarPage() {
                     {event.isAllDay && (
                       <span className="text-base sm:text-lg font-bold text-primary-600">All Day</span>
                     )}
-                    {event.externalRegistrationUrl && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                        External
+                    {event.visibility === 'PUBLIC' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Public
                       </span>
                     )}
                   </div>
@@ -329,8 +329,8 @@ export default function CalendarPage() {
           <span className="text-gray-600">Club Event</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border border-orange-200 rounded"></div>
-          <span className="text-gray-600">External</span>
+          <div className="w-3 h-3 sm:w-4 sm:h-4 bg-yellow-100 border border-yellow-200 rounded"></div>
+          <span className="text-gray-600">Public Event</span>
         </div>
       </div>
 
