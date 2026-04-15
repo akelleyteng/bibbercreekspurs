@@ -1,13 +1,18 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 import AdaptiveLayout from './layouts/AdaptiveLayout';
 import PublicLayout from './layouts/PublicLayout';
 import RequireAuth from './layouts/RequireAuth';
+import { CartProvider } from './context/CartContext';
+import CartDrawer from './components/CartDrawer';
 import AdminPage from './pages/AdminPage';
 import BlogDetailPage from './pages/BlogDetailPage';
 import BlogPage from './pages/BlogPage';
 import CalendarPage from './pages/CalendarPage';
+import CartPage from './pages/CartPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import CheckoutPage from './pages/CheckoutPage';
 import DashboardPage from './pages/DashboardPage';
 import DriveFilesPage from './pages/DriveFilesPage';
 import EventDetailPage from './pages/EventDetailPage';
@@ -18,15 +23,24 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import MembersPage from './pages/MembersPage';
 import OfficersPage from './pages/OfficersPage';
+import OrderConfirmationPage from './pages/OrderConfirmationPage';
+import OrderStatusPage from './pages/OrderStatusPage';
 import PresentationsPage from './pages/PresentationsPage';
 import ProfilePage from './pages/ProfilePage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import RegisterPage from './pages/RegisterPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import NotificationsPage from './pages/NotificationsPage';
+import ShopPage from './pages/ShopPage';
 import SocialFeedPage from './pages/SocialFeedPage';
+
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test';
 
 function App() {
   return (
+    <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: 'USD' }}>
+    <CartProvider>
+    <CartDrawer />
     <Routes>
       {/* Auth pages: always use public layout */}
       <Route element={<PublicLayout />}>
@@ -44,6 +58,12 @@ function App() {
         <Route path="/events/:id" element={<EventDetailPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:slug" element={<BlogDetailPage />} />
+        <Route path="/shop" element={<ShopPage />} />
+        <Route path="/shop/cart" element={<CartPage />} />
+        <Route path="/shop/checkout" element={<CheckoutPage />} />
+        <Route path="/shop/order-confirmation" element={<OrderConfirmationPage />} />
+        <Route path="/shop/order-status" element={<OrderStatusPage />} />
+        <Route path="/shop/:productId" element={<ProductDetailPage />} />
 
         {/* Member-only routes (require authentication) */}
         <Route element={<RequireAuth />}>
@@ -63,6 +83,8 @@ function App() {
       {/* Redirect old Wix URLs that still rank on Google */}
       <Route path="/contact8" element={<Navigate to="/register" replace />} />
     </Routes>
+    </CartProvider>
+    </PayPalScriptProvider>
   );
 }
 

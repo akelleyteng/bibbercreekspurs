@@ -1,6 +1,8 @@
 import { Outlet, Link } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
 
 export default function PublicLayout() {
+  const { itemCount, openDrawer } = useCart();
   return (
     <div className="min-h-screen flex flex-col">
       {/* Skip to main content for keyboard navigation */}
@@ -39,9 +41,31 @@ export default function PublicLayout() {
                 >
                   Blog
                 </Link>
+                <Link
+                  to="/shop"
+                  className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-primary-600"
+                  aria-label="Browse club shop"
+                >
+                  Shop
+                </Link>
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Cart Icon */}
+              <button
+                onClick={openDrawer}
+                className="relative text-gray-500 hover:text-gray-700"
+                aria-label="Open cart"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                {itemCount > 0 && (
+                  <span className="absolute -top-2 -right-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary-600 rounded-full">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
               <Link
                 to="/login"
                 className="text-gray-700 hover:text-primary-600 font-medium"
@@ -85,6 +109,11 @@ export default function PublicLayout() {
                 <li>
                   <Link to="/blog" className="text-gray-300 hover:text-white focus:text-white">
                     Blog
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/shop" className="text-gray-300 hover:text-white focus:text-white">
+                    Shop
                   </Link>
                 </li>
                 <li>

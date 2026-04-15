@@ -49,6 +49,14 @@ interface EnvConfig {
   FACEBOOK_PAGE_ID: string;
   FACEBOOK_PAGE_ACCESS_TOKEN: string;
 
+  // Printful
+  PRINTFUL_API_TOKEN: string;
+
+  // PayPal
+  PAYPAL_CLIENT_ID: string;
+  PAYPAL_CLIENT_SECRET: string;
+  PAYPAL_WEBHOOK_ID: string;
+
   // Frontend
   FRONTEND_URL: string;
 
@@ -112,6 +120,14 @@ export const env: EnvConfig = {
   FACEBOOK_APP_SECRET: getEnvVar('FACEBOOK_APP_SECRET', ''),
   FACEBOOK_PAGE_ID: getEnvVar('FACEBOOK_PAGE_ID', ''),
   FACEBOOK_PAGE_ACCESS_TOKEN: getEnvVar('FACEBOOK_PAGE_ACCESS_TOKEN', ''),
+
+  // Printful
+  PRINTFUL_API_TOKEN: getEnvVar('PRINTFUL_API_TOKEN', ''),
+
+  // PayPal
+  PAYPAL_CLIENT_ID: getEnvVar('PAYPAL_CLIENT_ID', ''),
+  PAYPAL_CLIENT_SECRET: getEnvVar('PAYPAL_CLIENT_SECRET', ''),
+  PAYPAL_WEBHOOK_ID: getEnvVar('PAYPAL_WEBHOOK_ID', ''),
 
   // Frontend
   FRONTEND_URL: getEnvVar('FRONTEND_URL'),

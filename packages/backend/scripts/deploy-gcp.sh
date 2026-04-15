@@ -194,9 +194,49 @@ else
     print_warning "Google Calendar refresh token secret already exists, skipping..."
 fi
 
+if ! gcloud secrets describe printful-api-token &> /dev/null; then
+    print_warning "Printful API token not set yet."
+    print_warning "Store it with: echo -n 'TOKEN' | gcloud secrets create printful-api-token --data-file=- --replication-policy=automatic"
+    echo -n "PLACEHOLDER" | gcloud secrets create printful-api-token \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "Printful API token secret already exists, skipping..."
+fi
+
+if ! gcloud secrets describe paypal-client-id &> /dev/null; then
+    print_warning "PayPal client ID not set yet."
+    print_warning "Store it with: echo -n 'ID' | gcloud secrets create paypal-client-id --data-file=- --replication-policy=automatic"
+    echo -n "PLACEHOLDER" | gcloud secrets create paypal-client-id \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "PayPal client ID secret already exists, skipping..."
+fi
+
+if ! gcloud secrets describe paypal-client-secret &> /dev/null; then
+    print_warning "PayPal client secret not set yet."
+    print_warning "Store it with: echo -n 'SECRET' | gcloud secrets create paypal-client-secret --data-file=- --replication-policy=automatic"
+    echo -n "PLACEHOLDER" | gcloud secrets create paypal-client-secret \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "PayPal client secret already exists, skipping..."
+fi
+
+if ! gcloud secrets describe paypal-webhook-id &> /dev/null; then
+    print_warning "PayPal webhook ID not set yet."
+    print_warning "Store it with: echo -n 'WEBHOOK_ID' | gcloud secrets create paypal-webhook-id --data-file=- --replication-policy=automatic"
+    echo -n "PLACEHOLDER" | gcloud secrets create paypal-webhook-id \
+        --data-file=- \
+        --replication-policy="automatic"
+else
+    print_warning "PayPal webhook ID secret already exists, skipping..."
+fi
+
 # Step 9: Grant service account access to secrets
 print_message "Granting service account access to secrets..."
-for secret in db-password jwt-access-secret jwt-refresh-secret google-oauth-client-id google-oauth-client-secret google-drive-refresh-token google-calendar-refresh-token; do
+for secret in db-password jwt-access-secret jwt-refresh-secret google-oauth-client-id google-oauth-client-secret google-drive-refresh-token google-calendar-refresh-token printful-api-token paypal-client-id paypal-client-secret paypal-webhook-id; do
     gcloud secrets add-iam-policy-binding "$secret" \
         --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
         --role="roles/secretmanager.secretAccessor" || true

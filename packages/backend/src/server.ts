@@ -27,7 +27,10 @@ import { HomeContentResolver } from './graphql/resolvers/HomeContent.resolver';
 import { PresentationResolver } from './graphql/resolvers/Presentation.resolver';
 import { CommunicationResolver } from './graphql/resolvers/Communication.resolver';
 import { NotificationResolver } from './graphql/resolvers/Notification.resolver';
+import { ShopResolver } from './graphql/resolvers/Shop.resolver';
+import { OrderResolver } from './graphql/resolvers/Order.resolver';
 import uploadRouter from './routes/upload';
+import webhookRouter from './routes/webhooks';
 
 export async function createApp(includeGraphQL: boolean = false): Promise<Express> {
   const app = express();
@@ -85,13 +88,14 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
     }
   });
 
-  // REST API routes (file upload)
+  // REST API routes (file upload + webhooks)
   app.use('/api', uploadRouter);
+  app.use('/api/webhooks', webhookRouter);
 
   // Add GraphQL middleware if requested (for testing)
   if (includeGraphQL) {
     const schema = await buildSchema({
-      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver],
+      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver, ShopResolver, OrderResolver],
       validate: true, // Enable class-validator validation
     });
 
@@ -138,7 +142,7 @@ export async function startServer(): Promise<http.Server> {
 
   // Build GraphQL schema
   const schema = await buildSchema({
-    resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver],
+    resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver, ShopResolver],
     validate: true, // Enable class-validator validation
   });
 
