@@ -61,6 +61,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewType>('month');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     authFetch(`query { events { id title startTime endTime location description visibility externalRegistrationUrl isAllDay } }`)
@@ -69,7 +70,8 @@ export default function CalendarPage() {
           setEvents(result.data.events);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const handlePrevious = () => {
@@ -274,6 +276,15 @@ export default function CalendarPage() {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">Club Calendar</h1>
+        <p className="text-gray-500 text-center py-12">Loading calendar...</p>
+      </div>
+    );
+  }
 
   return (
     <div>

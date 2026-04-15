@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import MemberAvatar from '../components/MemberAvatar';
+import { authFetch } from '../utils/authFetch';
 
 interface OfficerHolder {
   firstName: string;
@@ -29,28 +30,17 @@ export default function OfficersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
     // Compute current term year (Oct-Sep)
     const now = new Date();
     const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
     const termYear = `${year}-${year + 1}`;
 
     Promise.all([
-      fetch(graphqlUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `query($termYear: String!) { officerPositions(termYear: $termYear) { id position holderUserId label description holder { firstName lastName holderType profilePhotoUrl } } }`,
-          variables: { termYear },
-        }),
-      }).then(res => res.json()),
-      fetch(graphqlUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `query { officerRoles { name sortOrder } }`,
-        }),
-      }).then(res => res.json()),
+      authFetch(
+        `query($termYear: String!) { officerPositions(termYear: $termYear) { id position holderUserId label description holder { firstName lastName holderType profilePhotoUrl } } }`,
+        { termYear },
+      ),
+      authFetch(`query { officerRoles { name sortOrder } }`),
     ])
       .then(([posResult, rolesResult]) => {
         if (posResult.data?.officerPositions) {
