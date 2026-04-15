@@ -1,6 +1,6 @@
 import { Visibility } from '@4hclub/shared';
 import { format } from 'date-fns';
-import { useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback } from 'react';
 
 import BlogPostModal from '../components/BlogPostModal';
 import RichTextEditor from '../components/RichTextEditor';
@@ -153,7 +153,7 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications'>('members');
+  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications' | 'shop' | 'orders'>('members');
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [officerRoles, setOfficerRoles] = useState<OfficerRole[]>([]);
   const [termYear, setTermYear] = useState(() => {
@@ -987,7 +987,7 @@ export default function AdminPage() {
             onChange={(e) => setActiveTab(e.target.value as any)}
             className="input w-full capitalize"
           >
-            {['members', 'officers', 'communications', 'blog', 'home', 'sponsors', 'testimonials'].map((tab) => (
+            {['members', 'officers', 'communications', 'blog', 'shop', 'orders', 'home', 'sponsors', 'testimonials'].map((tab) => (
               <option key={tab} value={tab} className="capitalize">{tab}</option>
             ))}
           </select>
@@ -995,7 +995,7 @@ export default function AdminPage() {
         {/* Desktop tabs */}
         <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
-            {['members', 'officers', 'communications', 'blog', 'home', 'sponsors', 'testimonials'].map((tab) => (
+            {['members', 'officers', 'communications', 'blog', 'shop', 'orders', 'home', 'sponsors', 'testimonials'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -1444,7 +1444,7 @@ export default function AdminPage() {
                 <span className="ml-1.5 text-xs opacity-75">
                   ({f.key === 'all' ? adminMembers.length
                     : f.key === 'youth' ? adminMembers.filter(m => m.role === 'YOUTH_MEMBER').length
-                    : f.key === 'adult_leader' ? adminMembers.filter(m => m.role === 'ADULT_LEADER').length
+                    : f.key === 'adult_leader' ? adminMembers.filter(m => m.role === 'ADULT_LEADER' || m.role === 'ADMIN').length
                     : f.key === 'parent' ? adminMembers.filter(m => m.role === 'PARENT').length
                     : adminMembers.filter(m => officerUserIds.has(m.id)).length})
                 </span>
@@ -1509,7 +1509,7 @@ export default function AdminPage() {
                 if (!matchesSearch) return false;
                 switch (memberFilter) {
                   case 'youth': return m.role === 'YOUTH_MEMBER';
-                  case 'adult_leader': return m.role === 'ADULT_LEADER';
+                  case 'adult_leader': return m.role === 'ADULT_LEADER' || m.role === 'ADMIN';
                   case 'parent': return m.role === 'PARENT';
                   case 'officer': return officerUserIds.has(m.id);
                   default: return true;
@@ -2443,6 +2443,605 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Shop Products Management */}
+      {activeTab === 'shop' && <AdminShopTab />}
+
+      {/* Orders Management */}
+      {activeTab === 'orders' && <AdminOrdersTab />}
+    </div>
+  );
+}
+
+// --- Admin Shop Tab (product curation) ---
+
+interface AdminShopVariant {
+  variantId: number;
+  name: string;
+  size?: string;
+  color?: string;
+  colorHex?: string;
+  inStock: boolean;
+  retailPriceCents?: number;
+  printfulRetailPrice?: string;
+}
+
+interface AdminShopProduct {
+  id: string;
+  shopProductId: string;
+  printfulId: number;
+  name: string;
+  description?: string;
+  thumbnailUrl?: string;
+  isVisible: boolean;
+  retailPriceCents?: number;
+  creditEligible: boolean;
+  sortOrder: number;
+  syncedAt: string;
+  variants: AdminShopVariant[];
+}
+
+const ADMIN_SHOP_QUERY = `
+  query {
+    adminShopProducts {
+      id shopProductId printfulId name description thumbnailUrl
+      isVisible retailPriceCents creditEligible sortOrder syncedAt
+      variants { variantId name size color colorHex inStock retailPriceCents printfulRetailPrice }
+    }
+  }
+`;
+
+const SYNC_MUTATION = `
+  mutation {
+    syncPrintfulProducts { synced removed syncedAt }
+  }
+`;
+
+const UPDATE_CURATION_MUTATION = `
+  mutation UpdateShopProductCuration($shopProductId: String!, $input: UpdateShopProductCurationInput!) {
+    updateShopProductCuration(shopProductId: $shopProductId, input: $input) {
+      id shopProductId isVisible retailPriceCents creditEligible
+    }
+  }
+`;
+
+function AdminShopTab() {
+  const [products, setProducts] = useState<AdminShopProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [editingPrice, setEditingPrice] = useState<{ id: string; value: string } | null>(null);
+
+  const loadProducts = useCallback(async () => {
+    const result = await authFetch(ADMIN_SHOP_QUERY);
+    if (result.data?.adminShopProducts) {
+      setProducts(result.data.adminShopProducts);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await authFetch(SYNC_MUTATION);
+      if (result.errors) {
+        showToast(result.errors[0]?.message || 'Sync failed', 'error');
+      } else {
+        const { synced, removed } = result.data.syncPrintfulProducts;
+        showToast(`Synced ${synced} products, removed ${removed}`, 'success');
+        await loadProducts();
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Sync failed', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleToggle = async (shopProductId: string, field: 'isVisible' | 'creditEligible', value: boolean) => {
+    const result = await authFetch(UPDATE_CURATION_MUTATION, {
+      shopProductId,
+      input: { [field]: value },
+    });
+    if (result.errors) {
+      showToast(result.errors[0]?.message || 'Update failed', 'error');
+    } else {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.shopProductId === shopProductId ? { ...p, [field]: value } : p
+        )
+      );
+    }
+  };
+
+  const handlePriceSave = async (shopProductId: string) => {
+    if (!editingPrice) return;
+    const cents = Math.round(parseFloat(editingPrice.value) * 100);
+    if (isNaN(cents) || cents < 0) {
+      showToast('Invalid price', 'error');
+      return;
+    }
+
+    const result = await authFetch(UPDATE_CURATION_MUTATION, {
+      shopProductId,
+      input: { retailPriceCents: cents },
+    });
+    if (result.errors) {
+      showToast(result.errors[0]?.message || 'Update failed', 'error');
+    } else {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.shopProductId === shopProductId ? { ...p, retailPriceCents: cents } : p
+        )
+      );
+      showToast('Price updated', 'success');
+    }
+    setEditingPrice(null);
+  };
+
+  const getMinPrintfulCost = (product: AdminShopProduct): number | null => {
+    const costs = product.variants
+      .map((v) => v.printfulRetailPrice ? parseFloat(v.printfulRetailPrice) : null)
+      .filter((c): c is number => c != null);
+    return costs.length > 0 ? Math.min(...costs) : null;
+  };
+
+  const lastSyncTime = products.length > 0
+    ? new Date(Math.max(...products.map((p) => new Date(p.syncedAt).getTime())))
+    : null;
+
+  if (loading) {
+    return <p className="text-gray-500 text-center py-12">Loading shop products...</p>;
+  }
+
+  return (
+    <div>
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Shop Products</h2>
+          {lastSyncTime && (
+            <p className="text-sm text-gray-500">
+              Last synced: {format(lastSyncTime, 'MMM d, yyyy h:mm a')}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="btn-primary flex items-center gap-2"
+        >
+          {syncing ? (
+            <>
+              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+              Syncing...
+            </>
+          ) : (
+            'Sync from Printful'
+          )}
+        </button>
+      </div>
+
+      {/* Empty state */}
+      {products.length === 0 && (
+        <div className="text-center py-12 card">
+          <span className="text-4xl mb-3 block" aria-hidden="true">📦</span>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">No products synced yet</h3>
+          <p className="text-gray-500 mb-4">
+            Click "Sync from Printful" to import your product catalog.
+          </p>
+        </div>
+      )}
+
+      {/* Product Table */}
+      {products.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-2 font-medium text-gray-600">Product</th>
+                <th className="text-left py-3 px-2 font-medium text-gray-600">Printful Cost</th>
+                <th className="text-left py-3 px-2 font-medium text-gray-600">Retail Price</th>
+                <th className="text-left py-3 px-2 font-medium text-gray-600">Margin</th>
+                <th className="text-center py-3 px-2 font-medium text-gray-600">Visible</th>
+                <th className="text-center py-3 px-2 font-medium text-gray-600">Credit Eligible</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {products.map((product) => {
+                const minCost = getMinPrintfulCost(product);
+                const retailDollars = product.retailPriceCents
+                  ? (product.retailPriceCents / 100)
+                  : null;
+                const margin = retailDollars && minCost
+                  ? (retailDollars - minCost)
+                  : null;
+
+                return (
+                  <tr key={product.shopProductId} className="hover:bg-gray-50">
+                    {/* Product */}
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                          {product.thumbnailUrl ? (
+                            <img
+                              src={product.thumbnailUrl}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg">
+                              👕
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{product.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {product.variants.length} variant{product.variants.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Printful Cost */}
+                    <td className="py-3 px-2 text-gray-600">
+                      {minCost != null ? `$${minCost.toFixed(2)}` : '—'}
+                    </td>
+
+                    {/* Retail Price */}
+                    <td className="py-3 px-2">
+                      {editingPrice?.id === product.shopProductId ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handlePriceSave(product.shopProductId);
+                              if (e.key === 'Escape') setEditingPrice(null);
+                            }}
+                            className="input w-20 py-1 px-2 text-sm"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handlePriceSave(product.shopProductId)}
+                            className="text-primary-600 hover:text-primary-700 text-xs font-medium"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setEditingPrice({
+                              id: product.shopProductId,
+                              value: product.retailPriceCents
+                                ? (product.retailPriceCents / 100).toFixed(2)
+                                : '',
+                            })
+                          }
+                          className="text-gray-900 hover:text-primary-600 font-medium"
+                        >
+                          {product.retailPriceCents
+                            ? `$${(product.retailPriceCents / 100).toFixed(2)}`
+                            : 'Set price'}
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Margin */}
+                    <td className="py-3 px-2">
+                      {margin != null ? (
+                        <span className={margin >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                          {margin >= 0 ? '+' : ''}${margin.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+
+                    {/* Visible Toggle */}
+                    <td className="py-3 px-2 text-center">
+                      <button
+                        onClick={() => handleToggle(product.shopProductId, 'isVisible', !product.isVisible)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          product.isVisible ? 'bg-primary-500' : 'bg-gray-300'
+                        }`}
+                        role="switch"
+                        aria-checked={product.isVisible}
+                        aria-label={`${product.isVisible ? 'Hide' : 'Show'} ${product.name} in shop`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            product.isVisible ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </td>
+
+                    {/* Credit Eligible Toggle */}
+                    <td className="py-3 px-2 text-center">
+                      <button
+                        onClick={() => handleToggle(product.shopProductId, 'creditEligible', !product.creditEligible)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          product.creditEligible ? 'bg-primary-500' : 'bg-gray-300'
+                        }`}
+                        role="switch"
+                        aria-checked={product.creditEligible}
+                        aria-label={`${product.creditEligible ? 'Disable' : 'Enable'} credit eligibility for ${product.name}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            product.creditEligible ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Admin Orders Tab ---
+
+interface AdminOrderItem {
+  id: string;
+  productName: string;
+  variantName: string;
+  quantity: number;
+  unitPriceCents: number;
+}
+
+interface AdminOrder {
+  id: string;
+  confirmationCode: string;
+  status: string;
+  buyerEmail: string;
+  buyerName: string;
+  subtotalCents: number;
+  shippingCents: number;
+  totalCents: number;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  carrier?: string;
+  paypalOrderId?: string;
+  printfulOrderId?: number;
+  shippingAddress: string;
+  items: AdminOrderItem[];
+  createdAt: string;
+}
+
+const ADMIN_ORDERS_QUERY = `
+  query AdminOrders($limit: Int, $offset: Int) {
+    adminOrders(limit: $limit, offset: $offset) {
+      id confirmationCode status buyerEmail buyerName
+      subtotalCents shippingCents totalCents
+      trackingNumber trackingUrl carrier
+      paypalOrderId printfulOrderId shippingAddress
+      items { id productName variantName quantity unitPriceCents }
+      createdAt
+    }
+    adminOrderCount
+  }
+`;
+
+const STATUS_COLORS: Record<string, string> = {
+  PENDING_PAYMENT: 'bg-yellow-100 text-yellow-800',
+  PAID: 'bg-blue-100 text-blue-800',
+  SUBMITTED: 'bg-blue-100 text-blue-800',
+  PROCESSING: 'bg-indigo-100 text-indigo-800',
+  SHIPPED: 'bg-green-100 text-green-800',
+  DELIVERED: 'bg-green-100 text-green-800',
+  CANCELLED: 'bg-gray-100 text-gray-800',
+  FAILED: 'bg-red-100 text-red-800',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: 'Pending',
+  PAID: 'Paid',
+  SUBMITTED: 'Submitted',
+  PROCESSING: 'Processing',
+  SHIPPED: 'Shipped',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+  FAILED: 'Failed',
+};
+
+function AdminOrdersTab() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const pageSize = 20;
+
+  const loadOrders = async (offset: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await authFetch(ADMIN_ORDERS_QUERY, { limit: pageSize, offset });
+      if (result.errors) {
+        setError(result.errors[0]?.message || 'Failed to load orders');
+      } else {
+        setOrders(result.data.adminOrders);
+        setTotalCount(result.data.adminOrderCount);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOrders(page * pageSize);
+  }, [page]);
+
+  const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const totalPages = Math.ceil(totalCount / pageSize);
+
+  if (loading) {
+    return <div className="text-center py-8 text-gray-500">Loading orders...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 text-red-700 p-4 rounded-lg">
+        {error}
+        <button onClick={() => loadOrders(page * pageSize)} className="ml-4 underline">Retry</button>
+      </div>
+    );
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        <p className="text-lg font-medium">No orders yet</p>
+        <p className="text-sm mt-1">Orders will appear here once customers make purchases.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">Orders ({totalCount})</h2>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-gray-500">
+              <th className="pb-2 font-medium">Date</th>
+              <th className="pb-2 font-medium">Code</th>
+              <th className="pb-2 font-medium">Buyer</th>
+              <th className="pb-2 font-medium">Status</th>
+              <th className="pb-2 font-medium text-right">Total</th>
+              <th className="pb-2 font-medium">Printful #</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <Fragment key={order.id}>
+                <tr
+                  className="border-b hover:bg-gray-50 cursor-pointer"
+                  onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                >
+                  <td className="py-3 text-gray-600">
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="py-3 font-mono text-xs">{order.confirmationCode}</td>
+                  <td className="py-3">
+                    <p className="font-medium text-gray-900">{order.buyerName}</p>
+                    <p className="text-xs text-gray-500">{order.buyerEmail}</p>
+                  </td>
+                  <td className="py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[order.status] || 'bg-gray-100'}`}>
+                      {STATUS_LABELS[order.status] || order.status}
+                    </span>
+                  </td>
+                  <td className="py-3 text-right font-medium">{formatPrice(order.totalCents)}</td>
+                  <td className="py-3 text-gray-500">
+                    {order.printfulOrderId || '—'}
+                  </td>
+                </tr>
+                {expandedId === order.id && (
+                  <tr>
+                    <td colSpan={6} className="bg-gray-50 px-4 py-4">
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Items</p>
+                          {order.items.map((item) => (
+                            <p key={item.id} className="text-gray-600">
+                              {item.productName} — {item.variantName} x{item.quantity} ({formatPrice(item.unitPriceCents)})
+                            </p>
+                          ))}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Shipping</p>
+                          <p className="text-gray-600">{order.shippingAddress}</p>
+                          {order.trackingNumber && (
+                            <p className="text-gray-600 mt-2">
+                              Tracking: {order.trackingUrl ? (
+                                <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+                                  {order.trackingNumber}
+                                </a>
+                              ) : order.trackingNumber}
+                              {order.carrier && ` (${order.carrier})`}
+                            </p>
+                          )}
+                          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+                            <p>Subtotal: {formatPrice(order.subtotalCents)}</p>
+                            <p>Shipping: {formatPrice(order.shippingCents)}</p>
+                            <p className="font-medium">Total: {formatPrice(order.totalCents)}</p>
+                          </div>
+                          {order.paypalOrderId && (
+                            <p className="text-xs text-gray-400 mt-1">PayPal: {order.paypalOrderId}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <button
+            onClick={() => setPage(Math.max(0, page - 1))}
+            disabled={page === 0}
+            className="btn-secondary text-sm disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-sm text-gray-600">
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+            disabled={page >= totalPages - 1}
+            className="btn-secondary text-sm disabled:opacity-40"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>
