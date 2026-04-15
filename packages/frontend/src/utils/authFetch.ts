@@ -2,6 +2,24 @@ const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/g
 
 const AUTH_ERROR_CODES = new Set(['UNAUTHENTICATED', 'INVALID_TOKEN']);
 
+/**
+ * Decode the JWT payload and check if it's expired or within 60s of expiry.
+ * Does NOT verify the signature — just reads the exp claim to decide whether
+ * to proactively refresh before sending a request.
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return true;
+    // JWT uses base64url; atob needs standard base64
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    // Refresh 60s before actual expiry to avoid race conditions
+    return !payload.exp || (payload.exp - 60) * 1000 < Date.now();
+  } catch {
+    return false; // Can't decode — let the server decide
+  }
+}
+
 export const SESSION_EXPIRED_EVENT = 'auth:session-expired';
 
 // Mutex: only one refresh at a time; concurrent callers piggyback on the same promise
@@ -106,20 +124,34 @@ export async function authFetch<T = any>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<GraphQLResult<T>> {
-  const token = localStorage.getItem('token');
+  let token = localStorage.getItem('token');
+
+  // Proactively refresh if the token is expired or within 60s of expiry.
+  // This prevents the backend from returning INTERNAL_SERVER_ERROR (instead of
+  // UNAUTHENTICATED) when verifyAccessToken throws a plain Error for expired tokens,
+  // which authFetch's hasAuthError check would miss.
+  if (token && isTokenExpired(token)) {
+    const freshToken = await refreshAccessToken();
+    if (freshToken) {
+      token = freshToken;
+    } else {
+      clearSession();
+      return { errors: [{ message: 'Session expired', extensions: { code: 'UNAUTHENTICATED' } }] };
+    }
+  }
+
   const result = await executeGraphQL<T>(query, variables, token);
 
   if (!hasAuthError(result.errors)) {
     return result;
   }
 
-  // Token expired — try to refresh
+  // Unexpected auth error despite a seemingly valid token — refresh and retry once
   const newToken = await refreshAccessToken();
   if (!newToken) {
     clearSession();
     return result;
   }
 
-  // Retry with the fresh token
   return executeGraphQL<T>(query, variables, newToken);
 }
