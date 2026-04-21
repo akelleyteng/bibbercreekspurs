@@ -101,7 +101,7 @@ The script will output:
 ```
 
 **Default admin credentials:**
-- Email: `admin@bibbercreekspurs4h.org`
+- Email: `bibbercreekspurs4h@gmail.com`
 - Password: `Admin123!`
 
 ⚠️ **IMPORTANT**: Change this password immediately after first login!

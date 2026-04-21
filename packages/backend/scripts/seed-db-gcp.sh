@@ -62,5 +62,5 @@ npm run seed
 kill $PROXY_PID
 
 print_message "Database seeded successfully!"
-print_message "Admin credentials: admin@bibbercreekspurs4h.org / Admin123!"
+print_message "Admin credentials: bibbercreekspurs4h@gmail.com / Admin123!"
 print_message "⚠️  IMPORTANT: Change the admin password after first login!"

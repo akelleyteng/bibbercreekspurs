@@ -10,18 +10,25 @@ import { logger } from '../utils/logger';
 
 const NEW_PASSWORD = 'bibbercreek';
 
-async function resetAllPasswords() {
+async function resetPasswordsForNewUsers() {
   try {
-    logger.info('Resetting all user passwords...');
+    logger.info('Resetting passwords for users who have never logged in...');
 
     const passwordHash = await bcrypt.hash(NEW_PASSWORD, 10);
 
-    const result = await db.query(
-      `UPDATE users SET password_hash = $1, password_reset_required = true`,
+    const result = await db.query<{ email: string }>(
+      `UPDATE users
+       SET password_hash = $1, password_reset_required = true
+       WHERE last_login IS NULL
+       RETURNING email`,
       [passwordHash]
     );
 
-    logger.info(`Updated ${result.rowCount} users — password set to "${NEW_PASSWORD}", password_reset_required = true`);
+    const affected = result.rows.map((r) => r.email);
+    logger.info(`Updated ${affected.length} users — password set to "${NEW_PASSWORD}", password_reset_required = true`);
+    if (affected.length > 0) {
+      logger.info('Affected accounts:\n' + affected.join('\n'));
+    }
 
     await db.close();
     process.exit(0);
@@ -32,4 +39,4 @@ async function resetAllPasswords() {
   }
 }
 
-resetAllPasswords();
+resetPasswordsForNewUsers();

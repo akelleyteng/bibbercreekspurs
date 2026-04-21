@@ -159,7 +159,7 @@ npm run seed
 ```
 
 This creates an initial admin user:
-- **Email**: admin@bibbercreekspurs4h.org
+- **Email**: bibbercreekspurs4h@gmail.com
 - **Password**: Admin123! (change this after first login!)
 - **Role**: ADMIN
 

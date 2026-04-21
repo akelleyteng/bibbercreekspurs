@@ -86,7 +86,7 @@ Server running at:
 ## Admin Credentials
 
 After seeding:
-- **Email**: admin@bibbercreekspurs4h.org
+- **Email**: bibbercreekspurs4h@gmail.com
 - **Password**: Admin123!
 
 ⚠️ **Change this password immediately!**

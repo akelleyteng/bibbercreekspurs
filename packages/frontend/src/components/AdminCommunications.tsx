@@ -546,7 +546,7 @@ export default function AdminCommunications() {
           </div>
 
           <p className="text-xs text-gray-400 mt-3">
-            Emails are sent via BCC from admin@bibbercreekspurs4h.org. Recipients cannot see other addresses.
+            Emails are sent via BCC from bibbercreekspurs4h@gmail.com. Recipients cannot see other addresses.
           </p>
         </div>
       )}

@@ -4,7 +4,7 @@ import { Role, Visibility, ReactionType } from '@4hclub/shared';
 export const mockUsers = [
   {
     id: '1',
-    email: 'admin@bibbercreekspurs4h.org',
+    email: 'bibbercreekspurs4h@gmail.com',
     firstName: 'Admin',
     lastName: 'User',
     role: Role.ADMIN,

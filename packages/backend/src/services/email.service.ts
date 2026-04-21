@@ -214,7 +214,7 @@ class EmailService {
       contentType?: string;
     }>;
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    const adminFrom = process.env.SMTP_ADMIN_FROM || 'admin@bibbercreekspurs4h.org';
+    const adminFrom = process.env.SMTP_ADMIN_FROM || 'bibbercreekspurs4h@gmail.com';
 
     try {
       const transport = this.getTransporter();

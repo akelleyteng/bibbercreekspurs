@@ -13,7 +13,7 @@ async function seed() {
     logger.info('Starting database seeding...');
 
     // Create admin user
-    const adminEmail = 'admin@bibbercreekspurs4h.org';
+    const adminEmail = 'bibbercreekspurs4h@gmail.com';
     const adminPassword = 'Admin123!'; // This should be changed immediately after first login
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
