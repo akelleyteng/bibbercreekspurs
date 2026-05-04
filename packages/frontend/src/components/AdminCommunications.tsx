@@ -130,7 +130,7 @@ export default function AdminCommunications() {
         setGroupCounts({
           [RecipientGroup.ALL_MEMBERS]: users.length,
           [RecipientGroup.YOUTH_MEMBERS]: users.filter(u => u.role === 'YOUTH_MEMBER').length,
-          [RecipientGroup.ADULT_LEADERS]: users.filter(u => u.role === 'ADULT_LEADER').length,
+          [RecipientGroup.ADULT_LEADERS]: users.filter(u => u.role === 'ADULT_LEADER' || u.role === 'ADMIN').length,
           [RecipientGroup.PARENTS]: users.filter(u => u.role === 'PARENT').length,
           [RecipientGroup.OFFICERS]: officerIds.size,
         });

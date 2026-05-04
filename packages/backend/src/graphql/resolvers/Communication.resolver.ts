@@ -45,7 +45,7 @@ export class CommunicationResolver {
       case 'YOUTH_MEMBERS':
         return approvedActive.filter(u => u.role === Role.YOUTH_MEMBER).map(u => u.email);
       case 'ADULT_LEADERS':
-        return approvedActive.filter(u => u.role === Role.ADULT_LEADER).map(u => u.email);
+        return approvedActive.filter(u => u.role === Role.ADULT_LEADER || u.role === Role.ADMIN).map(u => u.email);
       case 'PARENTS':
         return approvedActive.filter(u => u.role === Role.PARENT).map(u => u.email);
       case 'OFFICERS': {
