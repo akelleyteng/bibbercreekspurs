@@ -76,6 +76,8 @@ export default function AdminCommunications() {
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
+  const [allUsers, setAllUsers] = useState<{ id: string; role: string; email: string }[]>([]);
+  const [officerUserIds, setOfficerUserIds] = useState<Set<string>>(new Set());
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -111,9 +113,10 @@ export default function AdminCommunications() {
     (async () => {
       try {
         const usersResult = await authFetch(
-          `query { users { id role } }`,
+          `query { users { id role email } }`,
         );
-        const users: { id: string; role: string }[] = usersResult.data?.users || [];
+        const users: { id: string; role: string; email: string }[] = usersResult.data?.users || [];
+        setAllUsers(users);
 
         const now = new Date();
         const year = now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
@@ -126,6 +129,7 @@ export default function AdminCommunications() {
         for (const o of officerResult.data?.officerPositions || []) {
           if (o.holderUserId) officerIds.add(o.holderUserId);
         }
+        setOfficerUserIds(officerIds);
 
         setGroupCounts({
           [RecipientGroup.ALL_MEMBERS]: users.length,
@@ -435,6 +439,35 @@ export default function AdminCommunications() {
                   </option>
                 ))}
               </select>
+              {allUsers.length > 0 && (() => {
+                let emails: string[];
+                switch (recipientGroup) {
+                  case RecipientGroup.YOUTH_MEMBERS:
+                    emails = allUsers.filter(u => u.role === 'YOUTH_MEMBER').map(u => u.email);
+                    break;
+                  case RecipientGroup.ADULT_LEADERS:
+                    emails = allUsers.filter(u => u.role === 'ADULT_LEADER' || u.role === 'ADMIN').map(u => u.email);
+                    break;
+                  case RecipientGroup.PARENTS:
+                    emails = allUsers.filter(u => u.role === 'PARENT').map(u => u.email);
+                    break;
+                  case RecipientGroup.OFFICERS:
+                    emails = allUsers.filter(u => officerUserIds.has(u.id)).map(u => u.email);
+                    break;
+                  default:
+                    emails = allUsers.map(u => u.email);
+                }
+                return (
+                  <details className="mt-2 text-sm">
+                    <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
+                      {emails.length} recipient{emails.length !== 1 ? 's' : ''}
+                    </summary>
+                    <div className="mt-1 max-h-40 overflow-y-auto p-3 bg-gray-50 rounded-lg text-xs font-mono break-all">
+                      {emails.join(', ')}
+                    </div>
+                  </details>
+                );
+              })()}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Type</label>
