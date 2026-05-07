@@ -197,7 +197,9 @@ export default function PresentationsPage() {
       const results = await Promise.all(fetches);
       const [meetingsRes, eventsRes, folderRes, imgFolderRes, recFolderRes] = results;
 
-      if (meetingsRes.data?.presentationMeetings) {
+      if (meetingsRes.errors) {
+        setError(meetingsRes.errors[0]?.message || 'Failed to load meetings');
+      } else if (meetingsRes.data?.presentationMeetings) {
         setMeetings(meetingsRes.data.presentationMeetings);
       }
       if (eventsRes.data?.events) {
@@ -313,8 +315,8 @@ export default function PresentationsPage() {
       { input }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
     setShowReserveModal(null);
-    fetchData();
   };
 
   const handleUpdateReservation = async (id: string, title: string, description: string) => {
@@ -324,8 +326,8 @@ export default function PresentationsPage() {
       { input: { id, title, description: description || undefined } }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
     setShowEditModal(null);
-    fetchData();
   };
 
   const handleDelete = async (reservationId: string) => {
@@ -336,7 +338,7 @@ export default function PresentationsPage() {
       { id: reservationId }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
-    fetchData();
+    await fetchData();
   };
 
   const handleMove = async (reservationId: string, newMeetingId: string) => {
@@ -346,8 +348,8 @@ export default function PresentationsPage() {
       { input: { reservationId, newMeetingId } }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
     setShowMoveModal(null);
-    fetchData();
   };
 
   const handleUploadClick = (reservationId: string, fileType: FileType) => {
@@ -411,7 +413,7 @@ export default function PresentationsPage() {
       );
 
       if (linkRes.errors) { setError(linkRes.errors[0].message); return; }
-      fetchData();
+      await fetchData();
     } catch {
       setError('File upload failed');
     } finally {
@@ -428,7 +430,7 @@ export default function PresentationsPage() {
       { rid: reservationId, fid: fileId }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
-    fetchData();
+    await fetchData();
   };
 
   // ── Admin actions ──
@@ -440,8 +442,8 @@ export default function PresentationsPage() {
       { input: { googleEventId, totalSlots, notes: notes || undefined } }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
     setShowEnableModal(null);
-    fetchData();
   };
 
   const handleUpdateMeeting = async (id: string, totalSlots: number, notes: string) => {
@@ -451,8 +453,8 @@ export default function PresentationsPage() {
       { input: { id, totalSlots, notes: notes || undefined } }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
     setShowEditMeetingModal(null);
-    fetchData();
   };
 
   const handleDisablePresentations = async (meetingId: string) => {
@@ -463,7 +465,7 @@ export default function PresentationsPage() {
       { id: meetingId }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
-    fetchData();
+    await fetchData();
   };
 
   // ── Agenda actions ──
@@ -475,8 +477,8 @@ export default function PresentationsPage() {
       { input: { id: meetingId, agendaDriveFileId: file.id, agendaDriveFileName: file.name, agendaDriveFileUrl: file.webViewLink || '' } }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
     setShowAgendaPickerForMeeting(null);
-    fetchData();
   };
 
   const handleUnlinkAgenda = async (meetingId: string) => {
@@ -487,7 +489,7 @@ export default function PresentationsPage() {
       { input: { id: meetingId, agendaDriveFileId: '', agendaDriveFileName: '', agendaDriveFileUrl: '' } }
     );
     if (res.errors) { setError(res.errors[0].message); return; }
-    fetchData();
+    await fetchData();
   };
 
   const handleEmailAgenda = async (meetingId: string, message: string) => {
@@ -510,7 +512,7 @@ export default function PresentationsPage() {
         { meetingId }
       );
       if (res.errors) { setError(res.errors[0].message); return; }
-      fetchData();
+      await fetchData();
     } finally {
       setCreatingAgendaForMeeting(null);
     }
@@ -526,7 +528,7 @@ export default function PresentationsPage() {
         { meetingId }
       );
       if (res.errors) { setError(res.errors[0].message); return; }
-      fetchData();
+      await fetchData();
     } finally {
       setDeletingAgendaForMeeting(null);
     }
