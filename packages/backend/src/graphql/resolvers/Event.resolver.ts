@@ -170,11 +170,11 @@ export class EventResolver {
         if (reservations.length > 0) {
           gql.presenters = reservations.map((r) => {
             const p = new EventPresenterGQL();
-            p.userId = r.user_id;
-            p.firstName = r.first_name;
-            p.lastName = r.last_name;
+            p.userId = r.user_id || undefined;
+            p.firstName = r.user_first_name || r.youth_first_name || '';
+            p.lastName = r.user_last_name || r.youth_last_name || '';
             p.title = r.title;
-            p.profilePhotoUrl = r.profile_photo_url || undefined;
+            p.profilePhotoUrl = r.user_profile_photo_url || undefined;
             return p;
           });
         }
