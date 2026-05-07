@@ -188,7 +188,7 @@ export default function PresentationsPage() {
             users {
               id firstName lastName role
               linkedChildren { id firstName lastName }
-              youthMembers { id firstName lastName }
+              youthMembers { id firstName lastName userId }
             }
           }`)
         );
@@ -219,12 +219,14 @@ export default function PresentationsPage() {
         setMeetingsFolderId(results[6].data.meetingsDriveFolderId);
       }
 
-      // Process youth members for picker — combines User-account youths and YouthMember records
+      // Process youth members for picker — combines User-account youths and YouthMember records.
+      // When a YouthMember is linked to a User account (youth_members.user_id is set), we
+      // skip the YouthMember entry to avoid duplicates and prefer the User-account version.
       if (needsMemberPicker && results[7]?.data?.users) {
         const allUsers = results[7].data.users as Array<{
           id: string; firstName: string; lastName: string; role: string;
           linkedChildren?: Array<{ id: string; firstName: string; lastName: string }>;
-          youthMembers?: Array<{ id: string; firstName: string; lastName: string }>;
+          youthMembers?: Array<{ id: string; firstName: string; lastName: string; userId?: string }>;
         }>;
 
         const picker: PickerMember[] = [];
@@ -243,6 +245,7 @@ export default function PresentationsPage() {
               add({ id: u.id, firstName: u.firstName, lastName: u.lastName, kind: 'user' });
             }
             for (const ym of u.youthMembers || []) {
+              if (ym.userId) continue; // linked to a User account — already added above
               add({ id: ym.id, firstName: ym.firstName, lastName: ym.lastName, kind: 'youth_member' });
             }
           }
@@ -253,6 +256,7 @@ export default function PresentationsPage() {
             add({ id: c.id, firstName: c.firstName, lastName: c.lastName, kind: 'user' });
           }
           for (const ym of me?.youthMembers || []) {
+            if (ym.userId) continue; // linked to a User account — already in linkedChildren
             add({ id: ym.id, firstName: ym.firstName, lastName: ym.lastName, kind: 'youth_member' });
           }
         }
