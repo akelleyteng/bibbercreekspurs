@@ -18,6 +18,13 @@ interface ReservationUser {
   profilePhotoUrl?: string;
 }
 
+interface ReservationYouthMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  parentUserId: string;
+}
+
 interface PresentationFile {
   id: string;
   driveFileId: string;
@@ -33,7 +40,9 @@ interface Reservation {
   title: string;
   description?: string;
   files: PresentationFile[];
-  user: ReservationUser;
+  // Exactly one of user / youthMember is populated
+  user?: ReservationUser;
+  youthMember?: ReservationYouthMember;
   createdAt: string;
   updatedAt: string;
   googleEventId?: string;
@@ -76,6 +85,7 @@ interface PickerMember {
   id: string;
   firstName: string;
   lastName: string;
+  kind: 'user' | 'youth_member';
 }
 
 type FileType = 'presentation' | 'image' | 'recording';
@@ -110,6 +120,7 @@ const MEETINGS_QUERY = `query {
       id meetingId title description
       files { id driveFileId driveFileName driveFileUrl fileType createdAt }
       user { id firstName lastName profilePhotoUrl }
+      youthMember { id firstName lastName parentUserId }
       createdAt updatedAt
     }
   }
@@ -173,7 +184,13 @@ export default function PresentationsPage() {
       const needsMemberPicker = user && user.role !== 'YOUTH_MEMBER';
       if (needsMemberPicker) {
         fetches.push(
-          authFetch(`query { users { id firstName lastName role linkedChildren { id firstName lastName } } }`)
+          authFetch(`query {
+            users {
+              id firstName lastName role
+              linkedChildren { id firstName lastName }
+              youthMembers { id firstName lastName }
+            }
+          }`)
         );
       }
 
@@ -202,27 +219,48 @@ export default function PresentationsPage() {
         setMeetingsFolderId(results[6].data.meetingsDriveFolderId);
       }
 
-      // Process youth members for picker
+      // Process youth members for picker — combines User-account youths and YouthMember records
       if (needsMemberPicker && results[7]?.data?.users) {
         const allUsers = results[7].data.users as Array<{
           id: string; firstName: string; lastName: string; role: string;
           linkedChildren?: Array<{ id: string; firstName: string; lastName: string }>;
+          youthMembers?: Array<{ id: string; firstName: string; lastName: string }>;
         }>;
 
-        if (user.role === 'ADMIN') {
-          // Admin: show all youth members
-          setYouthMembers(
-            allUsers
-              .filter((u) => u.role === 'YOUTH_MEMBER')
-              .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }))
-          );
+        const picker: PickerMember[] = [];
+        const seen = new Set<string>();
+        const add = (m: PickerMember) => {
+          const key = `${m.kind}:${m.id}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          picker.push(m);
+        };
+
+        if (user.role === 'ADMIN' || user.role === 'ADULT_LEADER') {
+          // Admin / Adult Leader: any youth member in the club
+          for (const u of allUsers) {
+            if (u.role === 'YOUTH_MEMBER') {
+              add({ id: u.id, firstName: u.firstName, lastName: u.lastName, kind: 'user' });
+            }
+            for (const ym of u.youthMembers || []) {
+              add({ id: ym.id, firstName: ym.firstName, lastName: ym.lastName, kind: 'youth_member' });
+            }
+          }
         } else {
-          // Parent / Adult Leader: show linked children
+          // Parent: their linked children (User accounts) + their own YouthMember records
           const me = allUsers.find((u) => u.id === user.id);
-          setYouthMembers(
-            (me?.linkedChildren || []).map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName }))
-          );
+          for (const c of me?.linkedChildren || []) {
+            add({ id: c.id, firstName: c.firstName, lastName: c.lastName, kind: 'user' });
+          }
+          for (const ym of me?.youthMembers || []) {
+            add({ id: ym.id, firstName: ym.firstName, lastName: ym.lastName, kind: 'youth_member' });
+          }
         }
+
+        picker.sort((a, b) =>
+          a.firstName.localeCompare(b.firstName) || a.lastName.localeCompare(b.lastName)
+        );
+        setYouthMembers(picker);
       }
     } catch {
       setError('Failed to load presentations data');
@@ -251,11 +289,20 @@ export default function PresentationsPage() {
 
   // ── Actions ──
 
-  const handleReserve = async (meetingId: string, title: string, description: string, userId?: string) => {
+  const handleReserve = async (
+    meetingId: string,
+    title: string,
+    description: string,
+    presenter?: { id: string; kind: 'user' | 'youth_member' }
+  ) => {
     setError(null);
     const input: Record<string, any> = { meetingId, title, description: description || undefined };
-    if (userId && userId !== user?.id) {
-      input.userId = userId;
+    if (presenter) {
+      if (presenter.kind === 'youth_member') {
+        input.youthMemberId = presenter.id;
+      } else if (presenter.id !== user?.id) {
+        input.userId = presenter.id;
+      }
     }
     const res = await authFetch(
       `mutation($input: ReservePresentationInput!) { reservePresentation(input: $input) { id } }`,
@@ -526,14 +573,16 @@ export default function PresentationsPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-6">
-          {meetings.map((meeting) => (
+        <MeetingsList
+          meetings={meetings}
+          renderMeeting={(meeting, { isPast }) => (
             <MeetingCard
               key={meeting.id}
               meeting={meeting}
               currentUserId={user?.id}
               canManage={canManage}
               uploadingReservationId={uploadingReservationId}
+              defaultExpanded={!isPast}
               onReserve={() => setShowReserveModal(meeting.id)}
               onEdit={(r) => setShowEditModal(r)}
               onDelete={handleDelete}
@@ -561,19 +610,19 @@ export default function PresentationsPage() {
               isCreatingAgenda={creatingAgendaForMeeting === meeting.id}
               isDeletingAgenda={deletingAgendaForMeeting === meeting.id}
             />
-          ))}
-        </div>
+          )}
+        />
       )}
 
       {/* Modals */}
       {showReserveModal && (
         <ReserveModal
           onClose={() => setShowReserveModal(null)}
-          onSubmit={(title, desc, userId) => handleReserve(showReserveModal, title, desc, userId)}
+          onSubmit={(title, desc, presenter) => handleReserve(showReserveModal, title, desc, presenter)}
           isYouth={isYouth}
           isAdmin={isAdmin}
           youthMembers={youthMembers}
-          currentUser={user ? { id: user.id, firstName: user.firstName, lastName: user.lastName } : undefined}
+          currentUser={user ? { id: user.id, firstName: user.firstName, lastName: user.lastName, kind: 'user' as const } : undefined}
         />
       )}
       {showEditModal && (
@@ -745,6 +794,95 @@ function EditAgendaButton({ onRequestEditAccess }: { onRequestEditAccess: () => 
   );
 }
 
+// ── Meetings List (split into upcoming + paginated past) ──
+
+const PAST_PAGE_SIZE = 5;
+
+function MeetingsList({
+  meetings,
+  renderMeeting,
+}: {
+  meetings: PresentationMeeting[];
+  renderMeeting: (m: PresentationMeeting, opts: { isPast: boolean }) => React.ReactNode;
+}) {
+  const [pastPage, setPastPage] = useState(0);
+
+  const { upcoming, past } = useMemo(() => {
+    const now = Date.now();
+    const upcomingList: PresentationMeeting[] = [];
+    const pastList: PresentationMeeting[] = [];
+    for (const m of meetings) {
+      const ts = m.eventDate ? Date.parse(m.eventDate) : NaN;
+      if (Number.isFinite(ts) && ts < now) {
+        pastList.push(m);
+      } else {
+        upcomingList.push(m);
+      }
+    }
+    upcomingList.sort((a, b) => {
+      const da = a.eventDate ? Date.parse(a.eventDate) : Number.POSITIVE_INFINITY;
+      const db = b.eventDate ? Date.parse(b.eventDate) : Number.POSITIVE_INFINITY;
+      return da - db;
+    });
+    pastList.sort((a, b) => {
+      const da = a.eventDate ? Date.parse(a.eventDate) : 0;
+      const db = b.eventDate ? Date.parse(b.eventDate) : 0;
+      return db - da; // newest first
+    });
+    return { upcoming: upcomingList, past: pastList };
+  }, [meetings]);
+
+  const totalPages = Math.max(1, Math.ceil(past.length / PAST_PAGE_SIZE));
+  const safePage = Math.min(pastPage, totalPages - 1);
+  const pastSlice = past.slice(safePage * PAST_PAGE_SIZE, safePage * PAST_PAGE_SIZE + PAST_PAGE_SIZE);
+
+  return (
+    <div className="space-y-10">
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Current &amp; Upcoming Meetings</h2>
+        {upcoming.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">No upcoming meetings scheduled.</p>
+        ) : (
+          <div className="space-y-6">{upcoming.map((m) => renderMeeting(m, { isPast: false }))}</div>
+        )}
+      </section>
+
+      {past.length > 0 && (
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Past Meetings</h2>
+            <span className="text-xs text-gray-500">
+              {past.length} total
+            </span>
+          </div>
+          <div className="space-y-6">{pastSlice.map((m) => renderMeeting(m, { isPast: true }))}</div>
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <button
+                onClick={() => setPastPage((p) => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                className="text-sm text-primary-600 hover:text-primary-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+              >
+                &larr; Newer
+              </button>
+              <span className="text-xs text-gray-500">
+                Page {safePage + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPastPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={safePage >= totalPages - 1}
+                className="text-sm text-primary-600 hover:text-primary-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+              >
+                Older &rarr;
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
 // ── Meeting Card ──
 
 function MeetingCard({
@@ -752,6 +890,7 @@ function MeetingCard({
   currentUserId,
   canManage,
   uploadingReservationId,
+  defaultExpanded = true,
   onReserve,
   onEdit,
   onDelete,
@@ -773,6 +912,7 @@ function MeetingCard({
   currentUserId?: string;
   canManage: boolean;
   uploadingReservationId: string | null;
+  defaultExpanded?: boolean;
   onReserve: () => void;
   onEdit: (r: Reservation) => void;
   onDelete: (id: string) => void;
@@ -790,7 +930,7 @@ function MeetingCard({
   isCreatingAgenda: boolean;
   isDeletingAgenda: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const dateLong = meeting.eventDate
     ? format(parseEventDate(meeting.eventDate), 'EEEE, MMMM d, yyyy')
     : 'Date TBD';
@@ -917,7 +1057,11 @@ function MeetingCard({
           ) : (
             <div className="space-y-3">
               {meeting.reservations.map((res, idx) => {
-                const isOwn = res.user.id === currentUserId;
+                const presenterFirstName = res.user?.firstName ?? res.youthMember?.firstName ?? '';
+                const presenterLastName = res.user?.lastName ?? res.youthMember?.lastName ?? '';
+                const isOwn =
+                  (res.user?.id && res.user.id === currentUserId) ||
+                  (res.youthMember?.parentUserId && res.youthMember.parentUserId === currentUserId);
                 const canAct = isOwn || canManage;
                 const isUploading = uploadingReservationId === res.id;
 
@@ -934,7 +1078,7 @@ function MeetingCard({
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                           <span className="font-medium text-gray-900 text-sm sm:text-base">{res.title}</span>
                           <span className="text-xs sm:text-sm text-gray-500">
-                            &mdash; {res.user.firstName} {res.user.lastName}
+                            &mdash; {presenterFirstName} {presenterLastName}
                           </span>
                         </div>
                         {res.description && (
@@ -1100,7 +1244,7 @@ function ReserveModal({
   currentUser,
 }: {
   onClose: () => void;
-  onSubmit: (title: string, desc: string, userId?: string) => void;
+  onSubmit: (title: string, desc: string, presenter?: { id: string; kind: 'user' | 'youth_member' }) => void;
   isYouth: boolean;
   isAdmin: boolean;
   youthMembers: PickerMember[];
@@ -1110,16 +1254,19 @@ function ReserveModal({
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Member picker state
-  const showPicker = !isYouth && (youthMembers.length > 0 || isAdmin);
-  // Default: parent with exactly 1 child → auto-select; admin or multiple children → empty
+  // Member picker state — picker is always shown for non-youth users now since
+  // they may have YouthMember records to reserve for even without family_links.
+  const showPicker = !isYouth;
+  // Default: exactly 1 candidate → auto-select; otherwise empty
   const defaultMember = !isAdmin && youthMembers.length === 1 ? youthMembers[0] : null;
   const [selectedMember, setSelectedMember] = useState<PickerMember | null>(defaultMember);
   const [comboQuery, setComboQuery] = useState('');
 
+  const memberKey = (m: PickerMember) => `${m.kind}:${m.id}`;
+
   const filteredMembers = useMemo(() => {
     const allOptions = currentUser
-      ? [currentUser, ...youthMembers.filter((m) => m.id !== currentUser.id)]
+      ? [currentUser, ...youthMembers.filter((m) => memberKey(m) !== memberKey(currentUser))]
       : youthMembers;
     if (!comboQuery) return allOptions;
     const q = comboQuery.toLowerCase();
@@ -1132,7 +1279,11 @@ function ReserveModal({
     e.preventDefault();
     if (!title.trim()) return;
     setSubmitting(true);
-    await onSubmit(title.trim(), description.trim(), selectedMember?.id);
+    await onSubmit(
+      title.trim(),
+      description.trim(),
+      selectedMember ? { id: selectedMember.id, kind: selectedMember.kind } : undefined
+    );
     setSubmitting(false);
   };
 
@@ -1166,7 +1317,7 @@ function ReserveModal({
                     ) : (
                       filteredMembers.map((m) => (
                         <Combobox.Option
-                          key={m.id}
+                          key={memberKey(m)}
                           value={m}
                           className={({ active }) =>
                             `cursor-pointer px-3 py-2 ${active ? 'bg-primary-50 text-primary-900' : 'text-gray-900'}`
@@ -1175,7 +1326,7 @@ function ReserveModal({
                           {({ selected }) => (
                             <span className={selected ? 'font-semibold' : ''}>
                               {m.firstName} {m.lastName}
-                              {m.id === currentUser?.id && (
+                              {currentUser && memberKey(m) === memberKey(currentUser) && (
                                 <span className="ml-1 text-xs text-gray-400">(you)</span>
                               )}
                             </span>
@@ -1190,23 +1341,23 @@ function ReserveModal({
               /* Parent / Adult Leader: simple select */
               <select
                 className="input w-full"
-                value={selectedMember?.id || ''}
+                value={selectedMember ? memberKey(selectedMember) : ''}
                 onChange={(e) => {
                   const all = currentUser
-                    ? [currentUser, ...youthMembers.filter((m) => m.id !== currentUser.id)]
+                    ? [currentUser, ...youthMembers.filter((m) => memberKey(m) !== memberKey(currentUser))]
                     : youthMembers;
-                  setSelectedMember(all.find((m) => m.id === e.target.value) || null);
+                  setSelectedMember(all.find((m) => memberKey(m) === e.target.value) || null);
                 }}
               >
                 {currentUser && (
-                  <option value={currentUser.id}>
+                  <option value={memberKey(currentUser)}>
                     {currentUser.firstName} {currentUser.lastName} (you)
                   </option>
                 )}
                 {youthMembers
-                  .filter((m) => m.id !== currentUser?.id)
+                  .filter((m) => !currentUser || memberKey(m) !== memberKey(currentUser))
                   .map((m) => (
-                    <option key={m.id} value={m.id}>
+                    <option key={memberKey(m)} value={memberKey(m)}>
                       {m.firstName} {m.lastName}
                     </option>
                   ))}

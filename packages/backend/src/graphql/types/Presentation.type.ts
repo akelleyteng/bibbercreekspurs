@@ -15,6 +15,21 @@ export class PresentationReservationUserGQL {
   profilePhotoUrl?: string;
 }
 
+@ObjectType('PresentationReservationYouthMember')
+export class PresentationReservationYouthMemberGQL {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  firstName!: string;
+
+  @Field()
+  lastName!: string;
+
+  @Field(() => ID)
+  parentUserId!: string;
+}
+
 @ObjectType('PresentationFile')
 export class PresentationFileGQL {
   @Field(() => ID)
@@ -53,8 +68,12 @@ export class PresentationReservationGQL {
   @Field(() => [PresentationFileGQL])
   files!: PresentationFileGQL[];
 
-  @Field(() => PresentationReservationUserGQL)
-  user!: PresentationReservationUserGQL;
+  // Exactly one of `user` or `youthMember` is populated.
+  @Field(() => PresentationReservationUserGQL, { nullable: true })
+  user?: PresentationReservationUserGQL;
+
+  @Field(() => PresentationReservationYouthMemberGQL, { nullable: true })
+  youthMember?: PresentationReservationYouthMemberGQL;
 
   @Field()
   createdAt!: string;

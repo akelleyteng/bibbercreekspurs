@@ -145,6 +145,19 @@ export class YouthMemberRepository {
     }
   }
 
+  async findById(id: string): Promise<YouthMember | null> {
+    try {
+      const result = await db.query<YouthMember>(
+        `SELECT * FROM youth_members WHERE id = $1`,
+        [id]
+      );
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error) {
+      logger.error('Error finding youth member by id:', error);
+      throw error;
+    }
+  }
+
   async findByName(firstName: string, lastName: string): Promise<YouthMember | null> {
     try {
       const result = await db.query<YouthMember>(

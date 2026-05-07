@@ -71,6 +71,11 @@ export class ReservePresentationInput {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  youthMemberId?: string;
 }
 
 @InputType()

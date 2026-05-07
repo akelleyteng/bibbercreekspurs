@@ -9,6 +9,9 @@ export interface PresentationMeetingRow {
   agenda_drive_file_id: string | null;
   agenda_drive_file_name: string | null;
   agenda_drive_file_url: string | null;
+  event_title: string | null;
+  event_date: Date | null;
+  event_location: string | null;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -17,7 +20,8 @@ export interface PresentationMeetingRow {
 export interface PresentationReservationRow {
   id: string;
   meeting_id: string;
-  user_id: string;
+  user_id: string | null;
+  youth_member_id: string | null;
   title: string;
   description: string | null;
   created_at: Date;
@@ -35,9 +39,13 @@ export interface PresentationFileRow {
 }
 
 export interface ReservationWithUser extends PresentationReservationRow {
-  first_name: string;
-  last_name: string;
-  profile_photo_url: string | null;
+  // Either user (User account) OR youth (YouthMember record) is populated, never both.
+  user_first_name: string | null;
+  user_last_name: string | null;
+  user_profile_photo_url: string | null;
+  youth_first_name: string | null;
+  youth_last_name: string | null;
+  youth_parent_user_id: string | null;
 }
 
 export interface ReservationWithMeeting extends PresentationReservationRow {
@@ -52,16 +60,38 @@ export class PresentationRepository {
     googleEventId: string,
     totalSlots: number,
     notes: string | null,
-    createdBy: string
+    createdBy: string,
+    eventMetadata?: { title?: string | null; date?: string | null; location?: string | null }
   ): Promise<PresentationMeetingRow> {
     const result = await db.query<PresentationMeetingRow>(
-      `INSERT INTO presentation_meetings (google_event_id, total_slots, notes, created_by)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO presentation_meetings
+         (google_event_id, total_slots, notes, created_by, event_title, event_date, event_location)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [googleEventId, totalSlots, notes, createdBy]
+      [
+        googleEventId,
+        totalSlots,
+        notes,
+        createdBy,
+        eventMetadata?.title || null,
+        eventMetadata?.date || null,
+        eventMetadata?.location || null,
+      ]
     );
     logger.info(`Presentation meeting created: event=${googleEventId} slots=${totalSlots}`);
     return result.rows[0];
+  }
+
+  async updateMeetingEventMetadata(
+    id: string,
+    metadata: { title?: string | null; date?: string | null; location?: string | null }
+  ): Promise<void> {
+    await db.query(
+      `UPDATE presentation_meetings
+         SET event_title = $1, event_date = $2, event_location = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [metadata.title || null, metadata.date || null, metadata.location || null, id]
+    );
   }
 
   async updateMeeting(
@@ -161,17 +191,19 @@ export class PresentationRepository {
 
   async createReservation(
     meetingId: string,
-    userId: string,
+    presenter: { userId: string; youthMemberId?: undefined } | { userId?: undefined; youthMemberId: string },
     title: string,
     description: string | null
   ): Promise<PresentationReservationRow> {
+    const userId = presenter.userId ?? null;
+    const youthMemberId = presenter.youthMemberId ?? null;
     const result = await db.query<PresentationReservationRow>(
-      `INSERT INTO presentation_reservations (meeting_id, user_id, title, description)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO presentation_reservations (meeting_id, user_id, youth_member_id, title, description)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [meetingId, userId, title, description]
+      [meetingId, userId, youthMemberId, title, description]
     );
-    logger.info(`Presentation reserved: meeting=${meetingId} user=${userId} title="${title}"`);
+    logger.info(`Presentation reserved: meeting=${meetingId} user=${userId} youth=${youthMemberId} title="${title}"`);
     return result.rows[0];
   }
 
@@ -223,9 +255,12 @@ export class PresentationRepository {
 
   async findReservationsByMeeting(meetingId: string): Promise<ReservationWithUser[]> {
     const result = await db.query<ReservationWithUser>(
-      `SELECT r.*, u.first_name, u.last_name, u.profile_photo_url
+      `SELECT r.*,
+              u.first_name AS user_first_name, u.last_name AS user_last_name, u.profile_photo_url AS user_profile_photo_url,
+              ym.first_name AS youth_first_name, ym.last_name AS youth_last_name, ym.parent_user_id AS youth_parent_user_id
        FROM presentation_reservations r
-       JOIN users u ON u.id = r.user_id
+       LEFT JOIN users u ON u.id = r.user_id
+       LEFT JOIN youth_members ym ON ym.id = r.youth_member_id
        WHERE r.meeting_id = $1
        ORDER BY r.created_at ASC`,
       [meetingId]
@@ -234,11 +269,14 @@ export class PresentationRepository {
   }
 
   async findReservationsByUser(userId: string): Promise<ReservationWithMeeting[]> {
+    // Returns reservations the user owns directly (user_id) OR reservations made
+    // for YouthMember records they parent (youth_member_id whose parent_user_id matches).
     const result = await db.query<ReservationWithMeeting>(
       `SELECT r.*, m.google_event_id, m.total_slots
        FROM presentation_reservations r
        JOIN presentation_meetings m ON m.id = r.meeting_id
-       WHERE r.user_id = $1
+       LEFT JOIN youth_members ym ON ym.id = r.youth_member_id
+       WHERE r.user_id = $1 OR ym.parent_user_id = $1
        ORDER BY r.created_at DESC`,
       [userId]
     );
