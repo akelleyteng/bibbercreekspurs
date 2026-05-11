@@ -127,8 +127,8 @@ export default function PublicLayout() {
               <h3 className="text-lg font-bold mb-4">Contact</h3>
               <address className="text-gray-300 not-italic">
                 <p>
-                  <a href="mailto:info@bibbercreekspurs4h.org" className="hover:text-white focus:text-white">
-                    info@bibbercreekspurs4h.org
+                  <a href="mailto:bibbercreekspurs4h@gmail.com" className="hover:text-white focus:text-white">
+                    bibbercreekspurs4h@gmail.com
                   </a>
                 </p>
               </address>

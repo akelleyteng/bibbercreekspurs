@@ -41,7 +41,7 @@ class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions): Promise<boolean> {
-    const from = process.env.SMTP_FROM || 'noreply@bibbercreekspurs4h.org';
+    const from = process.env.SMTP_FROM || 'bibbercreekspurs4h@gmail.com';
 
     try {
       const transport = this.getTransporter();
