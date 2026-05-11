@@ -35,31 +35,52 @@ export class CommunicationResolver {
     return `${year}-${year + 1}`;
   }
 
-  private async getRecipientEmails(group: string): Promise<string[]> {
+  private async getRecipientEmails(groups: string[]): Promise<string[]> {
     const allUsers = await this.userRepo.findAll();
     const approvedActive = allUsers.filter(
       u => u.approval_status === 'APPROVED' && u.is_active !== false
     );
 
-    switch (group) {
-      case 'YOUTH_MEMBERS':
-        return approvedActive.filter(u => u.role === Role.YOUTH_MEMBER).map(u => u.email);
-      case 'ADULT_LEADERS':
-        return approvedActive.filter(u => u.role === Role.ADULT_LEADER || u.role === Role.ADMIN).map(u => u.email);
-      case 'PARENTS':
-        return approvedActive.filter(u => u.role === Role.PARENT).map(u => u.email);
-      case 'OFFICERS': {
-        const termYear = this.getCurrentTermYear();
-        const positions = await this.officerRepo.findByYear(termYear);
-        const officerUserIds = new Set(
-          positions.map(p => p.holder_user_id).filter(Boolean) as string[]
-        );
-        return approvedActive.filter(u => officerUserIds.has(u.id)).map(u => u.email);
-      }
-      case 'ALL_MEMBERS':
-      default:
-        return approvedActive.map(u => u.email);
+    if (groups.includes('ALL_MEMBERS')) {
+      return Array.from(new Set(approvedActive.map(u => u.email)));
     }
+
+    const emails = new Set<string>();
+    let officerUserIds: Set<string> | null = null;
+
+    for (const group of groups) {
+      switch (group) {
+        case 'YOUTH_MEMBERS':
+          approvedActive
+            .filter(u => u.role === Role.YOUTH_MEMBER)
+            .forEach(u => emails.add(u.email));
+          break;
+        case 'ADULT_LEADERS':
+          approvedActive
+            .filter(u => u.role === Role.ADULT_LEADER || u.role === Role.ADMIN)
+            .forEach(u => emails.add(u.email));
+          break;
+        case 'PARENTS':
+          approvedActive
+            .filter(u => u.role === Role.PARENT)
+            .forEach(u => emails.add(u.email));
+          break;
+        case 'OFFICERS': {
+          if (!officerUserIds) {
+            const positions = await this.officerRepo.findByYear(this.getCurrentTermYear());
+            officerUserIds = new Set(
+              positions.map(p => p.holder_user_id).filter(Boolean) as string[]
+            );
+          }
+          approvedActive
+            .filter(u => officerUserIds!.has(u.id))
+            .forEach(u => emails.add(u.email));
+          break;
+        }
+      }
+    }
+
+    return Array.from(emails);
   }
 
   @Query(() => CommunicationListResult)
@@ -94,7 +115,7 @@ export class CommunicationResolver {
     @Arg('subject') subject: string,
     @Arg('body') body: string,
     @Arg('emailType') emailType: string,
-    @Arg('recipientGroup') recipientGroup: string,
+    @Arg('recipientGroups', () => [String]) recipientGroups: string[],
     @Arg('attachmentsJson', { nullable: true }) attachmentsJson: string,
     @Ctx() context: Context
   ): Promise<Communication> {
@@ -106,9 +127,16 @@ export class CommunicationResolver {
       });
     }
 
-    const recipientEmails = await this.getRecipientEmails(recipientGroup);
+    const uniqueGroups = Array.from(new Set(recipientGroups));
+    if (uniqueGroups.length === 0) {
+      throw new GraphQLError('At least one recipient group is required', {
+        extensions: { code: 'BAD_INPUT' },
+      });
+    }
+
+    const recipientEmails = await this.getRecipientEmails(uniqueGroups);
     if (recipientEmails.length === 0) {
-      throw new GraphQLError('No recipients found for the selected group', {
+      throw new GraphQLError('No recipients found for the selected groups', {
         extensions: { code: 'BAD_INPUT' },
       });
     }
@@ -120,7 +148,7 @@ export class CommunicationResolver {
       subject,
       body,
       email_type: emailType,
-      recipient_group: recipientGroup,
+      recipient_group: uniqueGroups.join(','),
       recipient_count: recipientEmails.length,
       recipient_emails: recipientEmails,
       attachments,

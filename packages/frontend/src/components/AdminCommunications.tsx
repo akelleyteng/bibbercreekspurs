@@ -37,6 +37,15 @@ interface CommunicationRecord {
 const EMAIL_TYPE_OPTIONS = Object.entries(COMMUNICATION_EMAIL_TYPE_LABELS).map(([value, label]) => ({ value, label }));
 const RECIPIENT_OPTIONS = Object.entries(RECIPIENT_GROUP_LABELS).map(([value, label]) => ({ value, label }));
 
+function formatRecipientGroups(stored: string): string {
+  return stored
+    .split(',')
+    .map(g => g.trim())
+    .filter(Boolean)
+    .map(g => RECIPIENT_GROUP_LABELS[g as RecipientGroup] || g)
+    .join(' + ');
+}
+
 function htmlToPlainText(html: string): string {
   const div = document.createElement('div');
   div.innerHTML = html;
@@ -67,7 +76,7 @@ export default function AdminCommunications() {
   const [expandedComm, setExpandedComm] = useState<CommunicationRecord | null>(null);
 
   // Compose form state
-  const [recipientGroup, setRecipientGroup] = useState<string>(RecipientGroup.ALL_MEMBERS);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([RecipientGroup.ALL_MEMBERS]);
   const [emailType, setEmailType] = useState<string>(CommunicationEmailType.ANNOUNCEMENT);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -215,6 +224,37 @@ export default function AdminCommunications() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
+  const computeRecipientEmails = useCallback((groups: string[]): string[] => {
+    if (allUsers.length === 0) return [];
+    if (groups.includes(RecipientGroup.ALL_MEMBERS)) {
+      return Array.from(new Set(allUsers.map(u => u.email)));
+    }
+    const emails = new Set<string>();
+    for (const group of groups) {
+      switch (group) {
+        case RecipientGroup.YOUTH_MEMBERS:
+          allUsers.filter(u => u.role === 'YOUTH_MEMBER').forEach(u => emails.add(u.email));
+          break;
+        case RecipientGroup.ADULT_LEADERS:
+          allUsers.filter(u => u.role === 'ADULT_LEADER' || u.role === 'ADMIN').forEach(u => emails.add(u.email));
+          break;
+        case RecipientGroup.PARENTS:
+          allUsers.filter(u => u.role === 'PARENT').forEach(u => emails.add(u.email));
+          break;
+        case RecipientGroup.OFFICERS:
+          allUsers.filter(u => officerUserIds.has(u.id)).forEach(u => emails.add(u.email));
+          break;
+      }
+    }
+    return Array.from(emails);
+  }, [allUsers, officerUserIds]);
+
+  const toggleGroup = (group: string) => {
+    setSelectedGroups(prev => prev.includes(group)
+      ? prev.filter(g => g !== group)
+      : [...prev, group]);
+  };
+
   const handleSend = async () => {
     if (!subject.trim()) {
       showToast('Subject is required', 'error');
@@ -224,17 +264,23 @@ export default function AdminCommunications() {
       showToast('Email body is required', 'error');
       return;
     }
+    if (selectedGroups.length === 0) {
+      showToast('Select at least one recipient group', 'error');
+      return;
+    }
 
-    const groupLabel = RECIPIENT_GROUP_LABELS[recipientGroup as RecipientGroup] || recipientGroup;
-    const count = groupCounts[recipientGroup];
-    const countStr = count !== undefined ? ` (${count} member${count !== 1 ? 's' : ''})` : '';
-    if (!confirm(`Send this email to ${groupLabel}${countStr}? This action cannot be undone.`)) return;
+    const groupsLabel = selectedGroups
+      .map(g => RECIPIENT_GROUP_LABELS[g as RecipientGroup] || g)
+      .join(' + ');
+    const dedupedCount = computeRecipientEmails(selectedGroups).length;
+    const countStr = dedupedCount > 0 ? ` (${dedupedCount} recipient${dedupedCount !== 1 ? 's' : ''})` : '';
+    if (!confirm(`Send this email to ${groupsLabel}${countStr}? This action cannot be undone.`)) return;
 
     setSending(true);
     try {
       const result = await authFetch(
-        `mutation SendCommunication($subject: String!, $body: String!, $emailType: String!, $recipientGroup: String!, $attachmentsJson: String) {
-          sendCommunication(subject: $subject, body: $body, emailType: $emailType, recipientGroup: $recipientGroup, attachmentsJson: $attachmentsJson) {
+        `mutation SendCommunication($subject: String!, $body: String!, $emailType: String!, $recipientGroups: [String!]!, $attachmentsJson: String) {
+          sendCommunication(subject: $subject, body: $body, emailType: $emailType, recipientGroups: $recipientGroups, attachmentsJson: $attachmentsJson) {
             id status recipientCount errorMessage
           }
         }`,
@@ -242,7 +288,7 @@ export default function AdminCommunications() {
           subject,
           body,
           emailType,
-          recipientGroup,
+          recipientGroups: selectedGroups,
           attachmentsJson: attachments.length > 0 ? JSON.stringify(attachments) : null,
         },
       );
@@ -260,6 +306,7 @@ export default function AdminCommunications() {
         setSubject('');
         setBody('');
         setAttachments([]);
+        setSelectedGroups([RecipientGroup.ALL_MEMBERS]);
         setView('log');
         fetchLog();
       }
@@ -332,7 +379,7 @@ export default function AdminCommunications() {
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <span>{COMMUNICATION_EMAIL_TYPE_LABELS[comm.emailType as CommunicationEmailType] || comm.emailType}</span>
-                          <span>{RECIPIENT_GROUP_LABELS[comm.recipientGroup as RecipientGroup] || comm.recipientGroup} ({comm.recipientCount})</span>
+                          <span>{formatRecipientGroups(comm.recipientGroup)} ({comm.recipientCount})</span>
                           <span>by {comm.sender.firstName} {comm.sender.lastName}</span>
                         </div>
                       </div>
@@ -360,7 +407,7 @@ export default function AdminCommunications() {
                         </div>
                         <div>
                           <span className="font-medium text-gray-600">Recipients:</span>{' '}
-                          {RECIPIENT_GROUP_LABELS[expandedComm.recipientGroup as RecipientGroup]} ({expandedComm.recipientCount})
+                          {formatRecipientGroups(expandedComm.recipientGroup)} ({expandedComm.recipientCount})
                         </div>
                       </div>
 
@@ -422,45 +469,51 @@ export default function AdminCommunications() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Send to
-                {groupCounts[recipientGroup] !== undefined && (
-                  <span className="ml-2 text-xs font-normal text-gray-500">
-                    ({groupCounts[recipientGroup]} member{groupCounts[recipientGroup] !== 1 ? 's' : ''})
-                  </span>
-                )}
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  (select one or more)
+                </span>
               </label>
-              <select
-                className="input"
-                value={recipientGroup}
-                onChange={(e) => setRecipientGroup(e.target.value)}
-              >
-                {RECIPIENT_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}{groupCounts[o.value] !== undefined ? ` (${groupCounts[o.value]})` : ''}
-                  </option>
-                ))}
-              </select>
-              {allUsers.length > 0 && (() => {
-                let emails: string[];
-                switch (recipientGroup) {
-                  case RecipientGroup.YOUTH_MEMBERS:
-                    emails = allUsers.filter(u => u.role === 'YOUTH_MEMBER').map(u => u.email);
-                    break;
-                  case RecipientGroup.ADULT_LEADERS:
-                    emails = allUsers.filter(u => u.role === 'ADULT_LEADER' || u.role === 'ADMIN').map(u => u.email);
-                    break;
-                  case RecipientGroup.PARENTS:
-                    emails = allUsers.filter(u => u.role === 'PARENT').map(u => u.email);
-                    break;
-                  case RecipientGroup.OFFICERS:
-                    emails = allUsers.filter(u => officerUserIds.has(u.id)).map(u => u.email);
-                    break;
-                  default:
-                    emails = allUsers.map(u => u.email);
-                }
+              <div className="space-y-1.5 p-3 border border-gray-300 rounded-lg bg-white">
+                {RECIPIENT_OPTIONS.map(o => {
+                  const checked = selectedGroups.includes(o.value);
+                  const count = groupCounts[o.value];
+                  const isAllMembers = o.value === RecipientGroup.ALL_MEMBERS;
+                  const allMembersSelected = selectedGroups.includes(RecipientGroup.ALL_MEMBERS);
+                  // ALL_MEMBERS supersedes everything else; disable other rows when it's selected
+                  const disabled = !isAllMembers && allMembersSelected;
+                  return (
+                    <label
+                      key={o.value}
+                      className={`flex items-center gap-2 text-sm cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => {
+                          if (isAllMembers && !checked) {
+                            // Selecting "All Members" clears other selections
+                            setSelectedGroups([RecipientGroup.ALL_MEMBERS]);
+                          } else {
+                            toggleGroup(o.value);
+                          }
+                        }}
+                        className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="text-gray-700">{o.label}</span>
+                      {count !== undefined && (
+                        <span className="text-gray-400 text-xs">({count})</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+              {allUsers.length > 0 && selectedGroups.length > 0 && (() => {
+                const emails = computeRecipientEmails(selectedGroups);
                 return (
                   <details className="mt-2 text-sm">
                     <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-                      {emails.length} recipient{emails.length !== 1 ? 's' : ''}
+                      {emails.length} unique recipient{emails.length !== 1 ? 's' : ''}
                     </summary>
                     <div className="mt-1 max-h-40 overflow-y-auto p-3 bg-gray-50 rounded-lg text-xs font-mono break-all">
                       {emails.join(', ')}
