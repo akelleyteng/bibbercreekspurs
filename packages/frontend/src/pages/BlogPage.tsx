@@ -12,6 +12,7 @@ interface BlogPostData {
   id: string;
   title: string;
   slug: string;
+  content: string;
   excerpt?: string;
   featuredImageUrl?: string;
   visibility: string;
@@ -34,7 +35,7 @@ interface BlogGuidelines {
 const POSTS_QUERY = `
   query {
     blogPosts {
-      id title slug excerpt featuredImageUrl visibility publishedAt approvalStatus rejectionReason
+      id title slug content excerpt featuredImageUrl visibility publishedAt approvalStatus rejectionReason
       author { id firstName lastName }
     }
   }
@@ -132,6 +133,11 @@ export default function BlogPage() {
 
   const handleEditPost = async (data: any) => {
     if (!editingPost) return;
+    const content = (data.content || '').trim();
+    if (!content || content === '<p></p>') {
+      alert('Post content cannot be empty.');
+      return;
+    }
     await authFetch(
       `mutation UpdateBlogPost($id: String!, $input: UpdateBlogPostInput!) {
         updateBlogPost(id: $id, input: $input) {
@@ -470,7 +476,13 @@ export default function BlogPage() {
           onSave={handleEditPost}
           initialData={{
             title: editingPost.title,
+            content: editingPost.content,
+            excerpt: editingPost.excerpt,
             visibility: editingPost.visibility as any,
+            featuredImageUrl: editingPost.featuredImageUrl,
+            publishedAt: editingPost.publishedAt
+              ? new Date(editingPost.publishedAt).toISOString().slice(0, 16)
+              : '',
           }}
           mode="edit"
           isPrivileged={isPrivileged}

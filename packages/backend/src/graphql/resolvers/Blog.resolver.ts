@@ -116,6 +116,15 @@ export class BlogResolver {
     return stripped.substring(0, 200) + '...';
   }
 
+  private assertContentNotEmpty(content: string): void {
+    const stripped = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!stripped) {
+      throw new GraphQLError('Blog post content cannot be empty', {
+        extensions: { code: 'BAD_USER_INPUT' },
+      });
+    }
+  }
+
   // ─── Queries ─────────────────────────────────────────────────────────────
 
   @Query(() => [BlogPostGQL])
@@ -257,6 +266,8 @@ export class BlogResolver {
       });
     }
 
+    this.assertContentNotEmpty(input.content);
+
     const slug = this.slugify(input.title);
     const excerpt = input.excerpt || this.generateExcerpt(input.content);
     const approvalStatus = isPrivileged ? 'APPROVED' : 'PENDING';
@@ -305,6 +316,10 @@ export class BlogResolver {
       throw new GraphQLError('You do not have permission to edit this post', {
         extensions: { code: 'FORBIDDEN' },
       });
+    }
+
+    if (input.content !== undefined) {
+      this.assertContentNotEmpty(input.content);
     }
 
     const data: Record<string, any> = {};
