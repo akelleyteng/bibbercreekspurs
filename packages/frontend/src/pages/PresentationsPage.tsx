@@ -61,6 +61,9 @@ interface PresentationMeeting {
   agendaDriveFileId?: string;
   agendaDriveFileName?: string;
   agendaDriveFileUrl?: string;
+  minutesDriveFileId?: string;
+  minutesDriveFileName?: string;
+  minutesDriveFileUrl?: string;
   createdAt: string;
 }
 
@@ -116,6 +119,7 @@ const MEETINGS_QUERY = `query {
     id googleEventId totalSlots notes slotsRemaining
     eventTitle eventDate eventLocation createdAt
     agendaDriveFileId agendaDriveFileName agendaDriveFileUrl
+    minutesDriveFileId minutesDriveFileName minutesDriveFileUrl
     reservations {
       id meetingId title description
       files { id driveFileId driveFileName driveFileUrl fileType createdAt }
@@ -150,6 +154,7 @@ export default function PresentationsPage() {
   const [showEnableModal, setShowEnableModal] = useState<CalendarEvent | null>(null);
   const [showEditMeetingModal, setShowEditMeetingModal] = useState<PresentationMeeting | null>(null);
   const [showAgendaPickerForMeeting, setShowAgendaPickerForMeeting] = useState<PresentationMeeting | null>(null);
+  const [showMinutesPickerForMeeting, setShowMinutesPickerForMeeting] = useState<PresentationMeeting | null>(null);
   const [showEmailAgendaModal, setShowEmailAgendaModal] = useState<PresentationMeeting | null>(null);
 
   // Agenda action state
@@ -492,6 +497,30 @@ export default function PresentationsPage() {
     await fetchData();
   };
 
+  // ── Minutes actions (reuse updatePresentationMeeting; link existing Drive file) ──
+
+  const handleLinkMinutes = async (meetingId: string, file: DriveFile) => {
+    setError(null);
+    const res = await authFetch(
+      `mutation($input: UpdatePresentationMeetingInput!) { updatePresentationMeeting(input: $input) { id } }`,
+      { input: { id: meetingId, minutesDriveFileId: file.id, minutesDriveFileName: file.name, minutesDriveFileUrl: file.webViewLink || '' } }
+    );
+    if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
+    setShowMinutesPickerForMeeting(null);
+  };
+
+  const handleUnlinkMinutes = async (meetingId: string) => {
+    if (!confirm('Remove the linked minutes from this meeting?')) return;
+    setError(null);
+    const res = await authFetch(
+      `mutation($input: UpdatePresentationMeetingInput!) { updatePresentationMeeting(input: $input) { id } }`,
+      { input: { id: meetingId, minutesDriveFileId: '', minutesDriveFileName: '', minutesDriveFileUrl: '' } }
+    );
+    if (res.errors) { setError(res.errors[0].message); return; }
+    await fetchData();
+  };
+
   const handleEmailAgenda = async (meetingId: string, message: string) => {
     setError(null);
     const res = await authFetch(
@@ -599,6 +628,8 @@ export default function PresentationsPage() {
               onDisable={() => handleDisablePresentations(meeting.id)}
               onLinkAgenda={() => setShowAgendaPickerForMeeting(meeting)}
               onUnlinkAgenda={() => handleUnlinkAgenda(meeting.id)}
+              onLinkMinutes={() => setShowMinutesPickerForMeeting(meeting)}
+              onUnlinkMinutes={() => handleUnlinkMinutes(meeting.id)}
               onEmailAgenda={() => setShowEmailAgendaModal(meeting)}
               onCreateAgendaFromTemplate={() => handleCreateAgendaFromTemplate(meeting.id)}
               onDeleteAgenda={() => handleDeleteAgenda(meeting.id)}
@@ -665,6 +696,14 @@ export default function PresentationsPage() {
           meetingsFolderId={meetingsFolderId}
           onClose={() => setShowAgendaPickerForMeeting(null)}
           onSelect={(file) => handleLinkAgenda(showAgendaPickerForMeeting.id, file)}
+        />
+      )}
+      {showMinutesPickerForMeeting && meetingsFolderId && (
+        <AgendaPickerModal
+          meetingsFolderId={meetingsFolderId}
+          title="Link Meeting Minutes"
+          onClose={() => setShowMinutesPickerForMeeting(null)}
+          onSelect={(file) => handleLinkMinutes(showMinutesPickerForMeeting.id, file)}
         />
       )}
       {showEmailAgendaModal && (
@@ -907,6 +946,8 @@ function MeetingCard({
   onDisable,
   onLinkAgenda,
   onUnlinkAgenda,
+  onLinkMinutes,
+  onUnlinkMinutes,
   onEmailAgenda,
   onCreateAgendaFromTemplate,
   onDeleteAgenda,
@@ -929,6 +970,8 @@ function MeetingCard({
   onDisable: () => void;
   onLinkAgenda: () => void;
   onUnlinkAgenda: () => void;
+  onLinkMinutes: () => void;
+  onUnlinkMinutes: () => void;
   onEmailAgenda: () => void;
   onCreateAgendaFromTemplate: () => void;
   onDeleteAgenda: () => void;
@@ -1044,6 +1087,41 @@ function MeetingCard({
               </button>
               <button
                 onClick={onLinkAgenda}
+                className="text-sm text-blue-600 hover:text-blue-700 border border-blue-200 bg-blue-50 px-3 py-1 rounded font-medium"
+              >
+                + Link Existing
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Minutes section */}
+      {(meeting.minutesDriveFileId || canManage) && (
+        <div className="border-t border-gray-100 px-4 sm:px-6 py-2 sm:py-3 bg-gray-50">
+          {meeting.minutesDriveFileId ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Minutes:</span>
+              <a
+                href={agendaHref(meeting.minutesDriveFileUrl || `https://docs.google.com/document/d/${meeting.minutesDriveFileId}/edit`, false)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary-600 hover:text-primary-700 underline truncate max-w-[200px] sm:max-w-[300px]"
+              >
+                {meeting.minutesDriveFileName || 'View Minutes'}
+              </a>
+              {canManage && (
+                <button
+                  onClick={onUnlinkMinutes}
+                  className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-gray-50 px-2 py-0.5 rounded"
+                >Unlink</button>
+              )}
+            </div>
+          ) : canManage ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-500">Minutes:</span>
+              <button
+                onClick={onLinkMinutes}
                 className="text-sm text-blue-600 hover:text-blue-700 border border-blue-200 bg-blue-50 px-3 py-1 rounded font-medium"
               >
                 + Link Existing
@@ -1538,10 +1616,12 @@ function AgendaPickerModal({
   meetingsFolderId,
   onClose,
   onSelect,
+  title = 'Link Agenda File',
 }: {
   meetingsFolderId: string;
   onClose: () => void;
   onSelect: (file: DriveFile) => void;
+  title?: string;
 }) {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1589,7 +1669,7 @@ function AgendaPickerModal({
   };
 
   return (
-    <ModalWrapper title="Link Agenda File" onClose={onClose}>
+    <ModalWrapper title={title} onClose={onClose}>
       {/* Breadcrumbs */}
       <div className="flex flex-wrap items-center gap-1 text-sm text-gray-500 mb-3">
         {folderStack.map((f, i) => (
@@ -1662,6 +1742,9 @@ function EmailAgendaModal({
         )}
         {meeting.agendaDriveFileName && (
           <p className="mt-1">Agenda: <span className="text-primary-600">{meeting.agendaDriveFileName}</span></p>
+        )}
+        {meeting.minutesDriveFileName && (
+          <p className="mt-1">Minutes: <span className="text-primary-600">{meeting.minutesDriveFileName}</span></p>
         )}
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
