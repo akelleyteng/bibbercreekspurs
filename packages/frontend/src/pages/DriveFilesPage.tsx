@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
+import { ImportantLinksSection } from '../components/ImportantLinksSection';
 
 interface DriveFile {
   id: string;
@@ -240,11 +241,15 @@ export default function DriveFilesPage() {
   if (!currentFolderId) {
     return (
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Shared Files</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-8">Important Docs &amp; Links</h1>
+
+        <ImportantLinksSection isAdmin={isAdmin} />
 
         {error && (
           <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">{error}</div>
         )}
+
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Shared Files</h2>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
