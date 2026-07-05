@@ -9,6 +9,9 @@ export interface PresentationMeetingRow {
   agenda_drive_file_id: string | null;
   agenda_drive_file_name: string | null;
   agenda_drive_file_url: string | null;
+  minutes_drive_file_id: string | null;
+  minutes_drive_file_name: string | null;
+  minutes_drive_file_url: string | null;
   event_title: string | null;
   event_date: Date | null;
   event_location: string | null;
@@ -102,6 +105,9 @@ export class PresentationRepository {
       agendaDriveFileId?: string | null;
       agendaDriveFileName?: string | null;
       agendaDriveFileUrl?: string | null;
+      minutesDriveFileId?: string | null;
+      minutesDriveFileName?: string | null;
+      minutesDriveFileUrl?: string | null;
     }
   ): Promise<PresentationMeetingRow | null> {
     const sets: string[] = [];
@@ -127,6 +133,18 @@ export class PresentationRepository {
     if (updates.agendaDriveFileUrl !== undefined) {
       sets.push(`agenda_drive_file_url = $${idx++}`);
       values.push(updates.agendaDriveFileUrl || null);
+    }
+    if (updates.minutesDriveFileId !== undefined) {
+      sets.push(`minutes_drive_file_id = $${idx++}`);
+      values.push(updates.minutesDriveFileId || null);
+    }
+    if (updates.minutesDriveFileName !== undefined) {
+      sets.push(`minutes_drive_file_name = $${idx++}`);
+      values.push(updates.minutesDriveFileName || null);
+    }
+    if (updates.minutesDriveFileUrl !== undefined) {
+      sets.push(`minutes_drive_file_url = $${idx++}`);
+      values.push(updates.minutesDriveFileUrl || null);
     }
 
     if (sets.length === 0) return this.findMeetingById(id);

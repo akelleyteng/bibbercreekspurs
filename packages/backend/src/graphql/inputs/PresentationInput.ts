@@ -49,6 +49,21 @@ export class UpdatePresentationMeetingInput {
   @IsOptional()
   @IsString()
   agendaDriveFileUrl?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  minutesDriveFileId?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  minutesDriveFileName?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  minutesDriveFileUrl?: string;
 }
 
 @InputType()

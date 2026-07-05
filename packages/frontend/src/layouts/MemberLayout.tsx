@@ -49,7 +49,7 @@ export default function MemberLayout() {
     { name: 'Members', href: '/members', icon: '👥' },
     { name: 'Officers', href: '/officers', icon: '⭐' },
     { name: 'Club Meetings', href: '/presentations', icon: '🎤' },
-    { name: 'Files', href: '/files', icon: '📁' },
+    { name: 'Important Docs & Links', href: '/files', icon: '📁' },
     { name: 'Shop', href: '/shop', icon: '🛍️' },
   ];
 

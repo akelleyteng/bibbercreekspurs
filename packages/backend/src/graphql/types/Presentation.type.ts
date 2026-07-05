@@ -125,6 +125,15 @@ export class PresentationMeetingGQL {
   @Field({ nullable: true })
   agendaDriveFileUrl?: string;
 
+  @Field({ nullable: true })
+  minutesDriveFileId?: string;
+
+  @Field({ nullable: true })
+  minutesDriveFileName?: string;
+
+  @Field({ nullable: true })
+  minutesDriveFileUrl?: string;
+
   @Field()
   createdAt!: string;
 }

@@ -375,6 +375,9 @@ export class PresentationResolver {
       agendaDriveFileId: input.agendaDriveFileId,
       agendaDriveFileName: input.agendaDriveFileName,
       agendaDriveFileUrl: input.agendaDriveFileUrl,
+      minutesDriveFileId: input.minutesDriveFileId,
+      minutesDriveFileName: input.minutesDriveFileName,
+      minutesDriveFileUrl: input.minutesDriveFileUrl,
     });
 
     if (!meeting) {
@@ -407,6 +410,9 @@ export class PresentationResolver {
     gql.agendaDriveFileId = meeting.agenda_drive_file_id || undefined;
     gql.agendaDriveFileName = meeting.agenda_drive_file_name || undefined;
     gql.agendaDriveFileUrl = meeting.agenda_drive_file_url || undefined;
+    gql.minutesDriveFileId = meeting.minutes_drive_file_id || undefined;
+    gql.minutesDriveFileName = meeting.minutes_drive_file_name || undefined;
+    gql.minutesDriveFileUrl = meeting.minutes_drive_file_url || undefined;
     gql.reservations = await Promise.all(reservations.map((r) => this.mapReservation(r)));
     gql.createdAt = meeting.created_at.toISOString();
 
@@ -1020,6 +1026,9 @@ export class PresentationResolver {
     gql.agendaDriveFileId = updated!.agenda_drive_file_id || undefined;
     gql.agendaDriveFileName = updated!.agenda_drive_file_name || undefined;
     gql.agendaDriveFileUrl = updated!.agenda_drive_file_url || undefined;
+    gql.minutesDriveFileId = updated!.minutes_drive_file_id || undefined;
+    gql.minutesDriveFileName = updated!.minutes_drive_file_name || undefined;
+    gql.minutesDriveFileUrl = updated!.minutes_drive_file_url || undefined;
     gql.reservations = await Promise.all(reservations.map((r) => this.mapReservation(r)));
     gql.createdAt = updated!.created_at.toISOString();
 
