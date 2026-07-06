@@ -1,22 +1,33 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 
+// A chosen decoration on a cart line (e.g. front logo, or a back name with text).
+export interface CartDecoration {
+  decorationId: string;
+  label: string;
+  placement?: string;
+  text?: string; // personalization text, when the decoration requires it
+  priceCents: number;
+}
+
+// A configured, ready-to-order line: a product + color/size + decorations.
 export interface CartItem {
-  printfulVariantId: number;
-  printfulProductId: number;
+  lineId: string; // stable key derived from the configuration (identical configs merge)
+  productId: string;
   productName: string;
-  variantName: string;
-  size?: string;
+  itemType: string;
+  imageUrl?: string;
   color?: string;
+  size?: string;
+  decorations: CartDecoration[];
+  unitPriceCents: number; // blank cost + sum of decoration prices
   quantity: number;
-  unitPriceCents: number;
-  thumbnailUrl?: string;
 }
 
 interface CartContextValue {
   items: CartItem[];
-  addItem: (item: CartItem) => void;
-  removeItem: (variantId: number) => void;
-  updateQuantity: (variantId: number, qty: number) => void;
+  addItem: (item: Omit<CartItem, 'lineId'>) => void;
+  removeItem: (lineId: string) => void;
+  updateQuantity: (lineId: string, qty: number) => void;
   clearCart: () => void;
   itemCount: number;
   subtotalCents: number;
@@ -25,9 +36,19 @@ interface CartContextValue {
   closeDrawer: () => void;
 }
 
-const STORAGE_KEY = 'bibber-cart';
+// v2: custom screen-print cart shape (replaces the Printful variant cart).
+const STORAGE_KEY = 'bibber-cart-v2';
+const MAX_QTY = 20;
 
 const CartContext = createContext<CartContextValue | null>(null);
+
+/** Stable identity for a configured line so identical configs stack quantity. */
+function computeLineId(item: Omit<CartItem, 'lineId'>): string {
+  const decos = [...item.decorations]
+    .sort((a, b) => a.decorationId.localeCompare(b.decorationId))
+    .map((d) => `${d.decorationId}:${d.text ?? ''}:${d.placement ?? ''}`);
+  return [item.productId, item.color ?? '', item.size ?? '', ...decos].join('|');
+}
 
 function loadCart(): CartItem[] {
   try {
@@ -55,52 +76,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     saveCart(items);
   }, [items]);
 
-  const addItem = useCallback((newItem: CartItem) => {
+  const addItem = useCallback((newItem: Omit<CartItem, 'lineId'>) => {
+    const lineId = computeLineId(newItem);
     setItems((prev) => {
-      const existing = prev.find(
-        (i) => i.printfulVariantId === newItem.printfulVariantId,
-      );
+      const existing = prev.find((i) => i.lineId === lineId);
       if (existing) {
         return prev.map((i) =>
-          i.printfulVariantId === newItem.printfulVariantId
-            ? { ...i, quantity: Math.min(10, i.quantity + newItem.quantity) }
-            : i,
+          i.lineId === lineId ? { ...i, quantity: Math.min(MAX_QTY, i.quantity + newItem.quantity) } : i
         );
       }
-      return [...prev, newItem];
+      return [...prev, { ...newItem, lineId }];
     });
   }, []);
 
-  const removeItem = useCallback((variantId: number) => {
-    setItems((prev) => prev.filter((i) => i.printfulVariantId !== variantId));
+  const removeItem = useCallback((lineId: string) => {
+    setItems((prev) => prev.filter((i) => i.lineId !== lineId));
   }, []);
 
-  const updateQuantity = useCallback((variantId: number, qty: number) => {
+  const updateQuantity = useCallback((lineId: string, qty: number) => {
     if (qty < 1) return;
     setItems((prev) =>
-      prev.map((i) =>
-        i.printfulVariantId === variantId
-          ? { ...i, quantity: Math.min(10, qty) }
-          : i,
-      ),
+      prev.map((i) => (i.lineId === lineId ? { ...i, quantity: Math.min(MAX_QTY, qty) } : i))
     );
   }, []);
 
-  const clearCart = useCallback(() => {
-    setItems([]);
-  }, []);
-
+  const clearCart = useCallback(() => setItems([]), []);
   const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
 
-  const itemCount = useMemo(
-    () => items.reduce((sum, i) => sum + i.quantity, 0),
-    [items],
-  );
-
+  const itemCount = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
   const subtotalCents = useMemo(
     () => items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0),
-    [items],
+    [items]
   );
 
   const value: CartContextValue = {

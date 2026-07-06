@@ -2,12 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ShopPage from '../pages/ShopPage';
 
-// Mock authFetch
-jest.mock('../utils/authFetch', () => ({
-  authFetch: jest.fn(),
-}));
-
-// Mock AuthContext
+jest.mock('../utils/authFetch', () => ({ authFetch: jest.fn() }));
 jest.mock('../context/AuthContext', () => ({
   useAuth: () => ({ user: null, isAuthenticated: false, isLoading: false }),
 }));
@@ -23,136 +18,44 @@ function renderShopPage() {
   );
 }
 
+const products = [
+  { id: 'p1', itemType: 'Tee', name: 'Club Tee', brandStyle: 'Bella 3001CVC', imageUrl: null, blankCostCents: 500 },
+  { id: 'p2', itemType: 'Hoodie', name: 'Club Hoodie', brandStyle: 'Gildan SF500', imageUrl: null, blankCostCents: 1250 },
+];
+
 describe('ShopPage', () => {
-  beforeEach(() => {
-    mockAuthFetch.mockReset();
-  });
+  beforeEach(() => mockAuthFetch.mockReset());
 
-  it('renders loading skeletons initially', () => {
-    mockAuthFetch.mockReturnValue(new Promise(() => {})); // Never resolves
+  it('renders the heading immediately', () => {
+    mockAuthFetch.mockReturnValue(new Promise(() => {})); // never resolves
     renderShopPage();
-
     expect(screen.getByText('Club Shop')).toBeInTheDocument();
   });
 
-  it('renders product grid when products are loaded', async () => {
-    mockAuthFetch.mockResolvedValue({
-      data: {
-        shopProducts: [
-          {
-            id: '1',
-            printfulId: 123,
-            name: 'Club Tee',
-            description: 'A great tee',
-            thumbnailUrl: 'https://img.com/tee.jpg',
-            retailPriceCents: 2500,
-            creditEligible: false,
-            variants: [
-              { variantId: 1, name: 'S', size: 'S', color: 'Black', inStock: true },
-              { variantId: 2, name: 'M', size: 'M', color: 'Black', inStock: true },
-            ],
-          },
-          {
-            id: '2',
-            printfulId: 456,
-            name: 'Club Hoodie',
-            description: 'Warm and cozy',
-            thumbnailUrl: 'https://img.com/hoodie.jpg',
-            retailPriceCents: 4500,
-            creditEligible: true,
-            variants: [],
-          },
-        ],
-      },
-    });
-
+  it('renders the product grid from catalogProducts', async () => {
+    mockAuthFetch.mockResolvedValue({ data: { catalogProducts: products } });
     renderShopPage();
 
     await waitFor(() => {
       expect(screen.getByText('Club Tee')).toBeInTheDocument();
       expect(screen.getByText('Club Hoodie')).toBeInTheDocument();
     });
-
-    // Check price display
-    expect(screen.getByText('$25.00')).toBeInTheDocument();
-    expect(screen.getByText('$45.00')).toBeInTheDocument();
+    expect(screen.getByText('From $5.00')).toBeInTheDocument();
+    expect(screen.getByText('From $12.50')).toBeInTheDocument();
   });
 
-  it('renders empty state when no products', async () => {
-    mockAuthFetch.mockResolvedValue({
-      data: { shopProducts: [] },
-    });
-
+  it('renders the empty state when there are no products', async () => {
+    mockAuthFetch.mockResolvedValue({ data: { catalogProducts: [] } });
     renderShopPage();
-
-    await waitFor(() => {
-      expect(screen.getByText(/check back soon/i)).toBeInTheDocument();
-    });
+    await waitFor(() => expect(screen.getByText(/check back soon/i)).toBeInTheDocument());
   });
 
-  it('renders error state on fetch failure', async () => {
-    mockAuthFetch.mockResolvedValue({
-      errors: [{ message: 'Server error' }],
-    });
-
+  it('renders the error state on fetch failure', async () => {
+    mockAuthFetch.mockResolvedValue({ errors: [{ message: 'Server error' }] });
     renderShopPage();
-
     await waitFor(() => {
       expect(screen.getByText('Server error')).toBeInTheDocument();
       expect(screen.getByText('Try Again')).toBeInTheDocument();
-    });
-  });
-
-  it('displays size count for products with variants', async () => {
-    mockAuthFetch.mockResolvedValue({
-      data: {
-        shopProducts: [
-          {
-            id: '1',
-            printfulId: 123,
-            name: 'Club Tee',
-            retailPriceCents: 2500,
-            creditEligible: false,
-            variants: [
-              { variantId: 1, name: 'S', size: 'S', inStock: true },
-              { variantId: 2, name: 'M', size: 'M', inStock: true },
-              { variantId: 3, name: 'L', size: 'L', inStock: true },
-            ],
-          },
-        ],
-      },
-    });
-
-    renderShopPage();
-
-    await waitFor(() => {
-      expect(screen.getByText('3 sizes available')).toBeInTheDocument();
-    });
-  });
-
-  it('shows "From $X" when variants have different prices and no retail price', async () => {
-    mockAuthFetch.mockResolvedValue({
-      data: {
-        shopProducts: [
-          {
-            id: '1',
-            printfulId: 123,
-            name: 'Club Tee',
-            retailPriceCents: null,
-            creditEligible: false,
-            variants: [
-              { variantId: 1, name: 'S', retailPriceCents: 2000, inStock: true },
-              { variantId: 2, name: 'XL', retailPriceCents: 2500, inStock: true },
-            ],
-          },
-        ],
-      },
-    });
-
-    renderShopPage();
-
-    await waitFor(() => {
-      expect(screen.getByText('From $20.00')).toBeInTheDocument();
     });
   });
 });
