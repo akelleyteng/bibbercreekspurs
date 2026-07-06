@@ -19,208 +19,183 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   <CartProvider>{children}</CartProvider>
 );
 
-const teeItem: CartItem = {
-  printfulVariantId: 1001,
-  printfulProductId: 123,
+type NewItem = Omit<CartItem, 'lineId'>;
+
+const teeItem: NewItem = {
+  productId: 'p-tee',
   productName: 'Club Tee',
-  variantName: 'M / Black',
-  quantity: 1,
+  itemType: 'Tee',
+  color: 'Black',
+  size: 'M',
+  decorations: [],
   unitPriceCents: 2500,
+  quantity: 1,
 };
 
-const hoodieItem: CartItem = {
-  printfulVariantId: 2002,
-  printfulProductId: 456,
+const hoodieItem: NewItem = {
+  productId: 'p-hoodie',
   productName: 'Club Hoodie',
-  variantName: 'L / Navy',
-  quantity: 1,
+  itemType: 'Hoodie',
+  color: 'Navy',
+  size: 'L',
+  decorations: [],
   unitPriceCents: 4500,
+  quantity: 1,
 };
 
 describe('CartContext', () => {
   describe('useCart outside provider', () => {
     it('should throw when used outside CartProvider', () => {
-      // Suppress console.error from React for this test
       const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      expect(() => renderHook(() => useCart())).toThrow(
-        'useCart must be used within a CartProvider',
-      );
+      expect(() => renderHook(() => useCart())).toThrow('useCart must be used within a CartProvider');
       spy.mockRestore();
     });
   });
 
   describe('addItem', () => {
-    it('should add a new item to the cart', () => {
+    it('adds a new item and assigns a lineId', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
 
       expect(result.current.items).toHaveLength(1);
+      expect(result.current.items[0].lineId).toBeTruthy();
       expect(result.current.items[0].productName).toBe('Club Tee');
       expect(result.current.itemCount).toBe(1);
       expect(result.current.subtotalCents).toBe(2500);
     });
 
-    it('should merge quantity when adding same variant', () => {
+    it('merges quantity when the same configuration is added again', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
       act(() => result.current.addItem({ ...teeItem, quantity: 2 }));
 
       expect(result.current.items).toHaveLength(1);
       expect(result.current.items[0].quantity).toBe(3);
-      expect(result.current.itemCount).toBe(3);
     });
 
-    it('should cap merged quantity at 10', () => {
+    it('treats a different size as a separate line', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
+      act(() => result.current.addItem(teeItem));
+      act(() => result.current.addItem({ ...teeItem, size: 'L' }));
 
-      act(() => result.current.addItem({ ...teeItem, quantity: 7 }));
-      act(() => result.current.addItem({ ...teeItem, quantity: 5 }));
-
-      expect(result.current.items[0].quantity).toBe(10);
+      expect(result.current.items).toHaveLength(2);
     });
 
-    it('should add different variants as separate items', () => {
+    it('treats different personalization text as a separate line', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
+      const withName = (text: string): NewItem => ({
+        ...teeItem,
+        decorations: [{ decorationId: 'd1', label: 'Name', text, priceCents: 500 }],
+        unitPriceCents: 3000,
+      });
+      act(() => result.current.addItem(withName('Riley')));
+      act(() => result.current.addItem(withName('Cameran')));
 
+      expect(result.current.items).toHaveLength(2);
+    });
+
+    it('caps merged quantity at 20', () => {
+      const { result } = renderHook(() => useCart(), { wrapper });
+      act(() => result.current.addItem({ ...teeItem, quantity: 15 }));
+      act(() => result.current.addItem({ ...teeItem, quantity: 10 }));
+
+      expect(result.current.items[0].quantity).toBe(20);
+    });
+
+    it('adds different products as separate items', () => {
+      const { result } = renderHook(() => useCart(), { wrapper });
       act(() => result.current.addItem(teeItem));
       act(() => result.current.addItem(hoodieItem));
 
       expect(result.current.items).toHaveLength(2);
-      expect(result.current.itemCount).toBe(2);
       expect(result.current.subtotalCents).toBe(7000);
     });
   });
 
-  describe('removeItem', () => {
-    it('should remove an item by variant ID', () => {
+  describe('removeItem / updateQuantity by lineId', () => {
+    it('removes an item by lineId', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
       act(() => result.current.addItem(hoodieItem));
-      act(() => result.current.removeItem(1001));
+      const lineId = result.current.items[0].lineId;
+      act(() => result.current.removeItem(lineId));
 
       expect(result.current.items).toHaveLength(1);
       expect(result.current.items[0].productName).toBe('Club Hoodie');
     });
 
-    it('should do nothing when removing non-existent variant', () => {
+    it('updates quantity by lineId and caps at 20', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
-      act(() => result.current.removeItem(9999));
+      const lineId = result.current.items[0].lineId;
 
-      expect(result.current.items).toHaveLength(1);
-    });
-  });
-
-  describe('updateQuantity', () => {
-    it('should update quantity for a variant', () => {
-      const { result } = renderHook(() => useCart(), { wrapper });
-
-      act(() => result.current.addItem(teeItem));
-      act(() => result.current.updateQuantity(1001, 3));
-
+      act(() => result.current.updateQuantity(lineId, 3));
       expect(result.current.items[0].quantity).toBe(3);
-      expect(result.current.subtotalCents).toBe(7500);
+
+      act(() => result.current.updateQuantity(lineId, 99));
+      expect(result.current.items[0].quantity).toBe(20);
     });
 
-    it('should cap quantity at 10', () => {
+    it('ignores quantity less than 1', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
-      act(() => result.current.updateQuantity(1001, 15));
-
-      expect(result.current.items[0].quantity).toBe(10);
-    });
-
-    it('should ignore quantity less than 1', () => {
-      const { result } = renderHook(() => useCart(), { wrapper });
-
-      act(() => result.current.addItem(teeItem));
-      act(() => result.current.updateQuantity(1001, 0));
-
-      expect(result.current.items[0].quantity).toBe(1); // Unchanged
+      const lineId = result.current.items[0].lineId;
+      act(() => result.current.updateQuantity(lineId, 0));
+      expect(result.current.items[0].quantity).toBe(1);
     });
   });
 
-  describe('clearCart', () => {
-    it('should remove all items', () => {
+  describe('clearCart & computed values', () => {
+    it('clears all items', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
       act(() => result.current.addItem(hoodieItem));
       act(() => result.current.clearCart());
-
       expect(result.current.items).toHaveLength(0);
       expect(result.current.itemCount).toBe(0);
       expect(result.current.subtotalCents).toBe(0);
     });
-  });
 
-  describe('computed values', () => {
-    it('should calculate itemCount as total quantity', () => {
+    it('computes itemCount and subtotal across lines', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
-      act(() => result.current.addItem({ ...teeItem, quantity: 3 }));
-      act(() => result.current.addItem({ ...hoodieItem, quantity: 2 }));
-
-      expect(result.current.itemCount).toBe(5);
-    });
-
-    it('should calculate subtotalCents correctly', () => {
-      const { result } = renderHook(() => useCart(), { wrapper });
-
-      act(() => result.current.addItem({ ...teeItem, quantity: 2 }));   // 2500 * 2 = 5000
-      act(() => result.current.addItem({ ...hoodieItem, quantity: 1 })); // 4500 * 1 = 4500
-
+      act(() => result.current.addItem({ ...teeItem, quantity: 2 }));   // 5000
+      act(() => result.current.addItem({ ...hoodieItem, quantity: 1 })); // 4500
+      expect(result.current.itemCount).toBe(3);
       expect(result.current.subtotalCents).toBe(9500);
     });
   });
 
   describe('drawer state', () => {
-    it('should start with drawer closed', () => {
+    it('opens and closes the drawer', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
       expect(result.current.isDrawerOpen).toBe(false);
-    });
-
-    it('should open and close drawer', () => {
-      const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.openDrawer());
       expect(result.current.isDrawerOpen).toBe(true);
-
       act(() => result.current.closeDrawer());
       expect(result.current.isDrawerOpen).toBe(false);
     });
   });
 
   describe('localStorage persistence', () => {
-    it('should save cart to localStorage on change', () => {
+    it('saves the cart under the v2 key', () => {
       const { result } = renderHook(() => useCart(), { wrapper });
-
       act(() => result.current.addItem(teeItem));
-
-      const stored = JSON.parse(mockStorage['bibber-cart']);
+      const stored = JSON.parse(mockStorage['bibber-cart-v2']);
       expect(stored).toHaveLength(1);
       expect(stored[0].productName).toBe('Club Tee');
+      expect(stored[0].lineId).toBeTruthy();
     });
 
-    it('should load cart from localStorage on mount', () => {
-      mockStorage['bibber-cart'] = JSON.stringify([teeItem]);
-
+    it('loads the cart from localStorage on mount', () => {
+      mockStorage['bibber-cart-v2'] = JSON.stringify([{ ...teeItem, lineId: 'x' }]);
       const { result } = renderHook(() => useCart(), { wrapper });
-
       expect(result.current.items).toHaveLength(1);
       expect(result.current.items[0].productName).toBe('Club Tee');
     });
 
-    it('should handle invalid localStorage data gracefully', () => {
-      mockStorage['bibber-cart'] = 'not-json';
-
+    it('handles invalid localStorage data gracefully', () => {
+      mockStorage['bibber-cart-v2'] = 'not-json';
       const { result } = renderHook(() => useCart(), { wrapper });
-
       expect(result.current.items).toHaveLength(0);
     });
   });

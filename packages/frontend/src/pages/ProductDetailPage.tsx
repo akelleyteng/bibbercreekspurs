@@ -1,328 +1,307 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-
 import { authFetch } from '../utils/authFetch';
-import { useCart } from '../context/CartContext';
+import { useCart, CartDecoration } from '../context/CartContext';
 
-interface ShopVariant {
-  variantId: number;
+interface Color {
   name: string;
-  size?: string;
-  color?: string;
-  colorHex?: string;
-  thumbnailUrl?: string;
-  inStock: boolean;
-  retailPriceCents?: number;
+  hex?: string | null;
 }
 
-interface ShopProduct {
+interface Decoration {
   id: string;
-  printfulId: number;
-  name: string;
-  description?: string;
-  thumbnailUrl?: string;
-  retailPriceCents?: number;
-  creditEligible: boolean;
-  variants: ShopVariant[];
+  decorationType: string;
+  label: string;
+  placementOptions: string[];
+  priceCents: number;
+  requiresText: boolean;
+  sortOrder: number;
 }
 
-const PRODUCT_QUERY = `
-  query ShopProduct($printfulId: Int!) {
-    shopProduct(printfulId: $printfulId) {
-      id printfulId name description thumbnailUrl retailPriceCents creditEligible
-      variants { variantId name size color colorHex thumbnailUrl inStock retailPriceCents }
-    }
-  }
-`;
+interface CatalogProduct {
+  id: string;
+  itemType: string;
+  name: string;
+  brandStyle?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  blankCostCents: number;
+  colors: Color[];
+  sizes: string[];
+  creditEligible: boolean;
+  decorations: Decoration[];
+}
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+const PRODUCT_QUERY = `query CatalogProduct($id: String!) {
+  catalogProduct(id: $id) {
+    id itemType name brandStyle description imageUrl blankCostCents
+    colors { name hex } sizes creditEligible
+    decorations { id decorationType label placementOptions priceCents requiresText sortOrder }
+  }
+}`;
+
+const formatPrice = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+
+// Per-decoration selection state
+interface DecoSelection {
+  selected: boolean;
+  placement?: string;
+  text: string;
 }
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const { addItem, openDrawer } = useCart();
-  const [product, setProduct] = useState<ShopProduct | null>(null);
+
+  const [product, setProduct] = useState<CatalogProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [addedToCart, setAddedToCart] = useState(false);
 
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [color, setColor] = useState<string>('');
+  const [size, setSize] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
+  const [decoState, setDecoState] = useState<Record<string, DecoSelection>>({});
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
 
-  useEffect(() => {
-    async function loadProduct() {
-      if (!productId) return;
-      try {
-        const result = await authFetch(PRODUCT_QUERY, {
-          printfulId: parseInt(productId, 10),
-        });
-        if (result.errors) {
-          setError(result.errors[0]?.message || 'Failed to load product');
-        } else if (result.data?.shopProduct) {
-          const p = result.data.shopProduct;
-          setProduct(p);
-
-          // Auto-select first available size and color
-          const sizes = [...new Set(p.variants.map((v: ShopVariant) => v.size).filter(Boolean))];
-          const colors = [...new Set(p.variants.map((v: ShopVariant) => v.color).filter(Boolean))];
-          if (sizes.length > 0) setSelectedSize(sizes[0] as string);
-          if (colors.length > 0) setSelectedColor(colors[0] as string);
-        } else {
-          setError('Product not found');
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to load product');
-      } finally {
-        setLoading(false);
+  const fetchProduct = useCallback(async () => {
+    if (!productId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await authFetch(PRODUCT_QUERY, { id: productId });
+      if (res.errors) {
+        setError(res.errors[0]?.message || 'Failed to load product');
+        return;
       }
+      const p: CatalogProduct | null = res.data?.catalogProduct || null;
+      setProduct(p);
+      if (p) {
+        setColor(p.colors[0]?.name ?? '');
+        setSize(p.sizes[0] ?? '');
+        setDecoState(
+          Object.fromEntries(
+            p.decorations.map((d) => [d.id, { selected: false, placement: d.placementOptions[0], text: '' }])
+          )
+        );
+      }
+    } catch {
+      setError('Failed to load product');
+    } finally {
+      setLoading(false);
     }
-    loadProduct();
   }, [productId]);
 
-  // Extract unique sizes and colors
-  const sizes = useMemo(() => {
-    if (!product) return [];
-    return [...new Set(product.variants.map((v) => v.size).filter(Boolean))] as string[];
-  }, [product]);
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
 
-  const colors = useMemo(() => {
-    if (!product) return [];
-    const colorMap = new Map<string, string | undefined>();
-    product.variants.forEach((v) => {
-      if (v.color && !colorMap.has(v.color)) {
-        colorMap.set(v.color, v.colorHex);
+  const unitPriceCents = useMemo(() => {
+    if (!product) return 0;
+    const decoTotal = product.decorations.reduce(
+      (sum, d) => sum + (decoState[d.id]?.selected ? d.priceCents : 0),
+      0
+    );
+    return product.blankCostCents + decoTotal;
+  }, [product, decoState]);
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    setValidationError(null);
+
+    if (product.colors.length > 0 && !color) {
+      setValidationError('Please choose a color.');
+      return;
+    }
+    if (product.sizes.length > 0 && !size) {
+      setValidationError('Please choose a size.');
+      return;
+    }
+    const chosen: CartDecoration[] = [];
+    for (const d of product.decorations) {
+      const s = decoState[d.id];
+      if (!s?.selected) continue;
+      if (d.requiresText && !s.text.trim()) {
+        setValidationError(`Please enter the text for "${d.label}".`);
+        return;
       }
+      chosen.push({
+        decorationId: d.id,
+        label: d.label,
+        placement: s.placement,
+        text: d.requiresText ? s.text.trim() : undefined,
+        priceCents: d.priceCents,
+      });
+    }
+
+    addItem({
+      productId: product.id,
+      productName: product.name,
+      itemType: product.itemType,
+      imageUrl: product.imageUrl ?? undefined,
+      color: color || undefined,
+      size: size || undefined,
+      decorations: chosen,
+      unitPriceCents,
+      quantity,
     });
-    return Array.from(colorMap.entries()).map(([name, hex]) => ({ name, hex }));
-  }, [product]);
+    setAdded(true);
+    openDrawer();
+  };
 
-  // Find the selected variant
-  const selectedVariant = useMemo(() => {
-    if (!product) return null;
-    return product.variants.find((v) => {
-      const sizeMatch = !selectedSize || v.size === selectedSize;
-      const colorMatch = !selectedColor || v.color === selectedColor;
-      return sizeMatch && colorMatch;
-    }) || null;
-  }, [product, selectedSize, selectedColor]);
-
-  // Get current display price
-  const displayPrice = useMemo(() => {
-    if (!product) return null;
-    if (product.retailPriceCents) return formatPrice(product.retailPriceCents);
-    if (selectedVariant?.retailPriceCents) return formatPrice(selectedVariant.retailPriceCents);
-    return 'Price TBD';
-  }, [product, selectedVariant]);
-
-  // Get display image
-  const displayImage = selectedVariant?.thumbnailUrl || product?.thumbnailUrl;
+  const setDeco = (id: string, patch: Partial<DecoSelection>) =>
+    setDecoState((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
   if (loading) {
     return (
-      <div>
-        <Link to="/shop" className="text-primary-600 hover:text-primary-700 font-medium mb-6 inline-block">
-          &larr; Back to Shop
-        </Link>
-        <div className="grid md:grid-cols-2 gap-8 animate-pulse">
-          <div className="aspect-square bg-gray-200 rounded-lg" />
-          <div>
-            <div className="h-8 bg-gray-200 rounded w-3/4 mb-4" />
-            <div className="h-6 bg-gray-200 rounded w-1/4 mb-6" />
-            <div className="h-4 bg-gray-200 rounded w-full mb-2" />
-            <div className="h-4 bg-gray-200 rounded w-2/3" />
-          </div>
-        </div>
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+        <span className="ml-3 text-gray-600">Loading…</span>
       </div>
     );
   }
 
   if (error || !product) {
     return (
-      <div>
-        <Link to="/shop" className="text-primary-600 hover:text-primary-700 font-medium mb-6 inline-block">
-          &larr; Back to Shop
-        </Link>
-        <div className="text-center py-12">
-          <span className="text-4xl mb-4 block" aria-hidden="true">🔍</span>
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">
-            {error || 'Product not found'}
-          </h2>
-          <Link to="/shop" className="btn-primary mt-4 inline-block">
-            Browse Shop
-          </Link>
-        </div>
+      <div className="text-center py-16">
+        <p className="text-gray-600 mb-4">{error || 'Product not found.'}</p>
+        <Link to="/shop" className="btn-primary">Back to Shop</Link>
       </div>
     );
   }
 
   return (
     <div>
-      {/* Back Link */}
-      <Link to="/shop" className="text-primary-600 hover:text-primary-700 font-medium mb-6 inline-block">
-        &larr; Back to Shop
-      </Link>
+      <Link to="/shop" className="text-primary-600 hover:text-primary-700 text-sm">&larr; Back to Shop</Link>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Product Image */}
-        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-          {displayImage ? (
-            <img
-              src={displayImage}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
+      <div className="mt-4 grid gap-8 lg:grid-cols-2">
+        {/* Image */}
+        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <span className="text-6xl" aria-hidden="true">👕</span>
-            </div>
+            <span className="text-7xl" aria-hidden="true">👕</span>
           )}
         </div>
 
-        {/* Product Info */}
+        {/* Details + configurator */}
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            {product.name}
-          </h1>
-
-          <p className="text-2xl font-bold text-gray-800 mb-4">
-            {displayPrice}
-          </p>
-
-          {product.description && (
-            <p className="text-gray-600 mb-6">{product.description}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
+          <p className="text-gray-500">{product.itemType}{product.brandStyle ? ` · ${product.brandStyle}` : ''}</p>
+          {product.creditEligible && (
+            <span className="inline-block mt-2 text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+              Credit eligible
+            </span>
           )}
+          {product.description && <p className="text-gray-700 mt-3">{product.description}</p>}
 
-          {/* Size Selector */}
-          {sizes.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Size</label>
+          <p className="text-2xl font-bold text-gray-900 mt-4">{formatPrice(unitPriceCents)}</p>
+
+          {/* Color */}
+          {product.colors.length > 0 && (
+            <div className="mt-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
               <div className="flex flex-wrap gap-2">
-                {sizes.map((size) => {
-                  const isAvailable = product.variants.some(
-                    (v) => v.size === size && v.inStock && (!selectedColor || v.color === selectedColor)
-                  );
-                  return (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      disabled={!isAvailable}
-                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors
-                        ${selectedSize === size
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : isAvailable
-                            ? 'border-gray-300 text-gray-700 hover:border-gray-400'
-                            : 'border-gray-200 text-gray-300 cursor-not-allowed'
-                        }`}
-                    >
-                      {size}
-                    </button>
-                  );
-                })}
+                {product.colors.map((c) => (
+                  <button
+                    key={c.name}
+                    onClick={() => setColor(c.name)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${
+                      color === c.name ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-300 text-gray-700 hover:border-primary-300'
+                    }`}
+                  >
+                    <span className="inline-block h-4 w-4 rounded-full border border-gray-300" style={{ backgroundColor: c.hex || '#fff' }} aria-hidden="true" />
+                    {c.name}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Color Selector */}
-          {colors.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Color{selectedColor ? `: ${selectedColor}` : ''}
-              </label>
+          {/* Size */}
+          {product.sizes.length > 0 && (
+            <div className="mt-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
               <div className="flex flex-wrap gap-2">
-                {colors.map(({ name, hex }) => {
-                  const isAvailable = product.variants.some(
-                    (v) => v.color === name && v.inStock && (!selectedSize || v.size === selectedSize)
-                  );
-                  return (
-                    <button
-                      key={name}
-                      onClick={() => setSelectedColor(name)}
-                      disabled={!isAvailable}
-                      title={name}
-                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center
-                        ${selectedColor === name
-                          ? 'border-primary-500 ring-2 ring-primary-300'
-                          : isAvailable
-                            ? 'border-gray-300 hover:border-gray-400'
-                            : 'border-gray-200 opacity-40 cursor-not-allowed'
-                        }`}
-                    >
-                      <span
-                        className="w-7 h-7 rounded-full"
-                        style={{ backgroundColor: hex || '#ccc' }}
-                      />
-                    </button>
-                  );
-                })}
+                {product.sizes.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSize(s)}
+                    className={`px-3 py-1.5 rounded-lg border text-sm ${
+                      size === s ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-300 text-gray-700 hover:border-primary-300'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
+            </div>
+          )}
+
+          {/* Decorations */}
+          {product.decorations.length > 0 && (
+            <div className="mt-5 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Customizations</label>
+              {product.decorations.map((d) => {
+                const s = decoState[d.id];
+                return (
+                  <div key={d.id} className="border border-gray-200 rounded-lg p-3">
+                    <label className="flex items-center justify-between gap-2 cursor-pointer">
+                      <span className="flex items-center gap-2 text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={s?.selected ?? false}
+                          onChange={(e) => setDeco(d.id, { selected: e.target.checked })}
+                        />
+                        {d.label}
+                      </span>
+                      <span className="text-sm text-gray-500">+{formatPrice(d.priceCents)}</span>
+                    </label>
+                    {s?.selected && (
+                      <div className="mt-2 pl-6 space-y-2">
+                        {d.placementOptions.length > 0 && (
+                          <select
+                            className="input text-sm"
+                            value={s.placement}
+                            onChange={(e) => setDeco(d.id, { placement: e.target.value })}
+                          >
+                            {d.placementOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        )}
+                        {d.requiresText && (
+                          <input
+                            className="input text-sm"
+                            placeholder="Enter text (e.g. name)"
+                            value={s.text}
+                            onChange={(e) => setDeco(d.id, { text: e.target.value })}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {/* Quantity */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-10 h-10 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-lg font-medium"
-              >
-                -
-              </button>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                className="input w-16 text-center"
-              />
-              <button
-                onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                className="w-10 h-10 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-lg font-medium"
-              >
-                +
-              </button>
+              <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-9 h-9 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">-</button>
+              <span className="w-10 text-center">{quantity}</span>
+              <button onClick={() => setQuantity((q) => Math.min(20, q + 1))} className="w-9 h-9 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">+</button>
             </div>
           </div>
 
-          {/* Stock status */}
-          {selectedVariant && !selectedVariant.inStock && (
-            <p className="text-red-600 text-sm mb-4">This variant is currently out of stock.</p>
-          )}
+          {validationError && <p className="text-red-600 text-sm mt-4">{validationError}</p>}
 
-          {/* Add to Cart */}
-          <button
-            onClick={() => {
-              if (!product || !selectedVariant) return;
-              const price = product.retailPriceCents || selectedVariant.retailPriceCents || 0;
-              addItem({
-                printfulVariantId: selectedVariant.variantId,
-                printfulProductId: product.printfulId,
-                productName: product.name,
-                variantName: selectedVariant.name,
-                size: selectedVariant.size,
-                color: selectedVariant.color,
-                quantity,
-                unitPriceCents: price,
-                thumbnailUrl: selectedVariant.thumbnailUrl || product.thumbnailUrl,
-              });
-              setAddedToCart(true);
-              openDrawer();
-              setTimeout(() => setAddedToCart(false), 2000);
-            }}
-            disabled={!selectedVariant || !selectedVariant.inStock}
-            className={`w-full sm:w-auto px-8 py-3 rounded-lg font-semibold transition-colors ${
-              addedToCart
-                ? 'bg-green-600 text-white'
-                : !selectedVariant || !selectedVariant.inStock
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-primary-600 text-white hover:bg-primary-700'
-            }`}
-          >
-            {addedToCart ? 'Added!' : 'Add to Cart'}
+          <button onClick={handleAddToCart} className="btn-primary w-full sm:w-auto mt-6">
+            Add to Cart — {formatPrice(unitPriceCents * quantity)}
           </button>
+          {added && (
+            <p className="text-green-700 text-sm mt-2">Added to cart. <Link to="/shop/cart" className="underline">View cart</Link></p>
+          )}
         </div>
       </div>
     </div>

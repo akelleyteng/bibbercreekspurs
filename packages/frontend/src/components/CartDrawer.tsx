@@ -70,12 +70,12 @@ export default function CartDrawer() {
                       ) : (
                         <ul className="divide-y divide-gray-200">
                           {items.map((item) => (
-                            <li key={item.printfulVariantId} className="flex py-4 gap-4">
+                            <li key={item.lineId} className="flex py-4 gap-4">
                               {/* Thumbnail */}
                               <div className="h-16 w-16 flex-shrink-0 rounded-md bg-gray-100 overflow-hidden">
-                                {item.thumbnailUrl ? (
+                                {item.imageUrl ? (
                                   <img
-                                    src={item.thumbnailUrl}
+                                    src={item.imageUrl}
                                     alt={item.productName}
                                     className="h-full w-full object-cover"
                                   />
@@ -92,8 +92,17 @@ export default function CartDrawer() {
                                   {item.productName}
                                 </p>
                                 <p className="text-sm text-gray-500 truncate">
-                                  {item.variantName}
+                                  {[item.color, item.size].filter(Boolean).join(' · ') || item.itemType}
                                 </p>
+                                {item.decorations.length > 0 && (
+                                  <ul className="text-xs text-gray-500 mt-0.5">
+                                    {item.decorations.map((d, i) => (
+                                      <li key={i} className="truncate">
+                                        + {d.label}{d.text ? `: “${d.text}”` : ''}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
                                 <p className="text-sm font-medium text-gray-800 mt-1">
                                   {formatPrice(item.unitPriceCents)}
                                 </p>
@@ -101,7 +110,7 @@ export default function CartDrawer() {
                                 {/* Quantity controls */}
                                 <div className="flex items-center gap-2 mt-2">
                                   <button
-                                    onClick={() => updateQuantity(item.printfulVariantId, item.quantity - 1)}
+                                    onClick={() => updateQuantity(item.lineId, item.quantity - 1)}
                                     disabled={item.quantity <= 1}
                                     className="w-6 h-6 rounded border border-gray-300 text-gray-600 text-xs hover:bg-gray-50 disabled:opacity-40"
                                   >
@@ -109,14 +118,13 @@ export default function CartDrawer() {
                                   </button>
                                   <span className="text-sm w-6 text-center">{item.quantity}</span>
                                   <button
-                                    onClick={() => updateQuantity(item.printfulVariantId, item.quantity + 1)}
-                                    disabled={item.quantity >= 10}
+                                    onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
                                     className="w-6 h-6 rounded border border-gray-300 text-gray-600 text-xs hover:bg-gray-50 disabled:opacity-40"
                                   >
                                     +
                                   </button>
                                   <button
-                                    onClick={() => removeItem(item.printfulVariantId)}
+                                    onClick={() => removeItem(item.lineId)}
                                     className="ml-auto text-xs text-red-500 hover:text-red-700"
                                   >
                                     Remove
