@@ -17,7 +17,6 @@ interface HomeEventData {
   startTime: string;
   endTime: string;
   location?: string;
-  registrationCount: number;
 }
 
 interface TestimonialData {
@@ -104,7 +103,7 @@ export default function HomePage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        query: `query { events(publicOnly: true) { id title description startTime endTime location registrationCount } }`,
+        query: `query { events(publicOnly: true) { id title description startTime endTime location } }`,
       }),
     })
       .then((res) => res.json())
@@ -294,14 +293,11 @@ export default function HomePage() {
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                       {format(parseEventDate(event.startTime), 'MMM d, yyyy')}
                     </span>
-                    <span className="text-sm text-gray-500">
-                      {event.registrationCount} registered
-                    </span>
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
                   <div className="prose prose-sm max-w-none text-gray-600 mb-4 line-clamp-3" dangerouslySetInnerHTML={{ __html: formatDescription(event.description) }} />
                   <div className="flex items-center text-sm text-gray-500">
-                    <span className="mr-4">📍 {event.location}</span>
+                    {event.location && <span className="mr-4">📍 {event.location}</span>}
                     <span>⏰ {format(parseEventDate(event.startTime), 'h:mm a')}</span>
                   </div>
                 </Link>

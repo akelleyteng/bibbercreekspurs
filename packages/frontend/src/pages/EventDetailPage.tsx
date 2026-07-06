@@ -239,15 +239,17 @@ export default function EventDetailPage() {
             )}
           </div>
 
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-start">
-              <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#128101;</span>
-              <div>
-                <p className="font-semibold text-gray-900">Attendees</p>
-                <p className="text-gray-600">{event.registrationCount} attending</p>
+          {event.visibility !== 'PUBLIC' && (
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-start">
+                <span className="text-xl sm:text-2xl mr-2 sm:mr-3">&#128101;</span>
+                <div>
+                  <p className="font-semibold text-gray-900">Attendees</p>
+                  <p className="text-gray-600">{event.registrationCount} attending</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="mb-6 sm:mb-8">
@@ -319,8 +321,9 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* External Registration Link */}
-        {hasExternalRegistration && (
+        {/* External Registration Link — members see it here; logged-out
+            visitors get a single "Register now!" CTA below instead. */}
+        {hasExternalRegistration && isAuthenticated && (
           <div className="mb-6">
             <a
               href={event.externalRegistrationUrl}
@@ -425,10 +428,17 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {!isAuthenticated && (
-          <Link to="/login" className="btn-primary inline-block">
-            Log In to RSVP
-          </Link>
+        {/* Logged-out visitors: show "Register now!" only when the admin has
+            set an external registration link; otherwise no CTA (they can't RSVP). */}
+        {!isAuthenticated && hasExternalRegistration && (
+          <a
+            href={event.externalRegistrationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary inline-block"
+          >
+            Register now!
+          </a>
         )}
       </div>
     </div>
