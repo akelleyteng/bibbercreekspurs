@@ -93,10 +93,24 @@ export function invalidateEventCache(eventId?: string): void {
 interface ParsedDescription {
   description: string;
   isPublic: boolean;
-  externalRegistrationUrl?: string;
+}
+
+function firstCapture(re: RegExp, s: string): string | undefined {
+  const m = re.exec(s);
+  return m ? m[1] : undefined;
 }
 
 const PUBLIC_TAG_REGEX = /\[PUBLIC\]/i;
+
+// Google Calendar linkifies pasted URLs and HTML-encodes their query strings
+// (e.g. "&" becomes "&amp;"). Decode so the stored URL is usable as a link.
+function decodeUrlEntities(url: string): string {
+  return url.replace(/&amp;/gi, '&');
+}
+
+// A Google Form link (long form or forms.gle short link) in an event
+// description is effectively always a registration form.
+const GOOGLE_FORM_URL_SOURCE = 'https?:\\/\\/(?:docs\\.google\\.com\\/forms\\/|forms\\.gle\\/)[^\\s"\'<>\\]]+';
 
 /**
  * Determine whether a calendar event is publicly visible.
@@ -118,31 +132,66 @@ export function resolveEventVisibility(
   return nativePublic || taggedPublic ? 'PUBLIC' : 'MEMBER_ONLY';
 }
 
+/**
+ * Clean an event description for display: strip the [PUBLIC] and [REGISTER: ...]
+ * control tags (the latter may be HTML-linkified by Google Calendar). Returns
+ * the cleaned text plus whether a [PUBLIC] tag was present.
+ */
 export function parseEventDescription(raw: string | null | undefined): ParsedDescription {
   if (!raw) return { description: '', isPublic: false };
 
   let text = raw;
   let isPublic = false;
-  let externalRegistrationUrl: string | undefined;
 
-  // [PUBLIC] - case insensitive
-  if (/\[PUBLIC\]/i.test(text)) {
+  if (PUBLIC_TAG_REGEX.test(text)) {
     isPublic = true;
     text = text.replace(/\[PUBLIC\]/gi, '');
   }
 
-  // [REGISTER: url]
-  const registerMatch = /\[REGISTER:\s*(https?:\/\/[^\]\s]+)\s*\]/i.exec(text);
+  // Strip the whole [REGISTER: ...] block (up to the closing "]") so the raw
+  // tag never shows in the description, regardless of its (possibly HTML) body.
+  text = text.replace(/\[REGISTER:\s*.*?\]/is, '');
+
+  return { description: text.trim(), isPublic };
+}
+
+const HREF_URL = /href=["'](https?:\/\/[^"']+)["']/i;
+const BARE_URL = /(https?:\/\/[^\s"'<>\]]+)/i;
+
+/**
+ * Resolve an event's external registration URL from its (raw) description.
+ *
+ * For PUBLIC events we always try to give visitors something to click, in
+ * priority order:
+ *   1. a Google Form link (docs.google.com/forms or forms.gle),
+ *   2. the URL inside an explicit [REGISTER: ...] tag,
+ *   3. any other link in the description (last resort).
+ *
+ * For non-public events only a Google Form or an explicit [REGISTER: ...] tag
+ * counts — we never turn an arbitrary link in a member event into a CTA.
+ * URLs may be plain or auto-linkified by Google Calendar; href attributes are
+ * preferred and &amp; entities are decoded.
+ */
+export function resolveRegistrationUrl(raw: string | null | undefined, isPublic: boolean): string | undefined {
+  if (!raw) return undefined;
+
+  // 1. Google Form link
+  const formUrl =
+    firstCapture(new RegExp(`href=["'](${GOOGLE_FORM_URL_SOURCE})["']`, 'i'), raw) ||
+    firstCapture(new RegExp(`(${GOOGLE_FORM_URL_SOURCE})`, 'i'), raw);
+
+  // 2. explicit [REGISTER: ...] tag (URL may be plain or inside an <a href>)
+  let registerUrl: string | undefined;
+  const registerMatch = /\[REGISTER:\s*(.*?)\]/is.exec(raw);
   if (registerMatch) {
-    externalRegistrationUrl = registerMatch[1];
-    text = text.replace(/\[REGISTER:\s*https?:\/\/[^\]\s]+\s*\]/gi, '');
+    registerUrl = firstCapture(HREF_URL, registerMatch[1]) || firstCapture(BARE_URL, registerMatch[1]);
   }
 
-  return {
-    description: text.trim(),
-    isPublic,
-    externalRegistrationUrl,
-  };
+  // 3. any link at all — only as a last resort, and only for public events
+  const anyUrl = isPublic ? firstCapture(HREF_URL, raw) || firstCapture(BARE_URL, raw) : undefined;
+
+  const chosen = isPublic ? formUrl || registerUrl || anyUrl : formUrl || registerUrl;
+  return chosen ? decodeUrlEntities(chosen) : undefined;
 }
 
 // ── Mapped Event Type ────────────────────────────────────────────────
@@ -163,6 +212,7 @@ export interface MappedCalendarEvent {
 
 function mapGoogleEvent(event: any): MappedCalendarEvent {
   const parsed = parseEventDescription(event.description);
+  const visibility = resolveEventVisibility(event.visibility, event.description);
 
   // Filter out resource rooms and the calendar itself from attendee count
   const attendees = (event.attendees || []).filter(
@@ -177,8 +227,8 @@ function mapGoogleEvent(event: any): MappedCalendarEvent {
     endTime: event.end?.dateTime || event.end?.date || '',
     location: event.location || undefined,
     isAllDay: !event.start?.dateTime,
-    visibility: resolveEventVisibility(event.visibility, event.description),
-    externalRegistrationUrl: parsed.externalRegistrationUrl,
+    visibility,
+    externalRegistrationUrl: resolveRegistrationUrl(event.description, visibility === 'PUBLIC'),
     registrationCount: attendees.length,
     attendees,
   };
