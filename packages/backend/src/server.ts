@@ -30,6 +30,7 @@ import { NotificationResolver } from './graphql/resolvers/Notification.resolver'
 import { ShopResolver } from './graphql/resolvers/Shop.resolver';
 import { OrderResolver } from './graphql/resolvers/Order.resolver';
 import { ImportantLinkResolver } from './graphql/resolvers/ImportantLink.resolver';
+import { CatalogResolver } from './graphql/resolvers/Catalog.resolver';
 import uploadRouter from './routes/upload';
 import webhookRouter from './routes/webhooks';
 
@@ -96,7 +97,7 @@ export async function createApp(includeGraphQL: boolean = false): Promise<Expres
   // Add GraphQL middleware if requested (for testing)
   if (includeGraphQL) {
     const schema = await buildSchema({
-      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver, ShopResolver, OrderResolver, ImportantLinkResolver],
+      resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver, ShopResolver, OrderResolver, ImportantLinkResolver, CatalogResolver],
       validate: true, // Enable class-validator validation
     });
 
@@ -143,7 +144,7 @@ export async function startServer(): Promise<http.Server> {
 
   // Build GraphQL schema
   const schema = await buildSchema({
-    resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver, ShopResolver, ImportantLinkResolver],
+    resolvers: [AuthResolver, TestimonialResolver, EventResolver, BlogResolver, DriveResolver, UserResolver, OfficerPositionResolver, PostResolver, FamilyLinkResolver, SponsorResolver, HomeContentResolver, PresentationResolver, CommunicationResolver, NotificationResolver, ShopResolver, ImportantLinkResolver, CatalogResolver],
     validate: true, // Enable class-validator validation
   });
 
