@@ -8,6 +8,7 @@ import SponsorModal, { SponsorFormData } from '../components/SponsorModal';
 import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
 import AdminCommunications from '../components/AdminCommunications';
+import AdminCatalog from '../components/AdminCatalog';
 import MemberAvatar, { seedAvatarCache } from '../components/MemberAvatar';
 import MemberProfileFields from '../components/MemberProfileFields';
 import { authFetch } from '../utils/authFetch';
@@ -153,7 +154,7 @@ interface BlogPostData {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications' | 'shop' | 'orders'>('members');
+  const [activeTab, setActiveTab] = useState<'home' | 'members' | 'blog' | 'sponsors' | 'testimonials' | 'officers' | 'communications' | 'shop' | 'catalog' | 'orders'>('members');
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [officerRoles, setOfficerRoles] = useState<OfficerRole[]>([]);
   const [termYear, setTermYear] = useState(() => {
@@ -987,7 +988,7 @@ export default function AdminPage() {
             onChange={(e) => setActiveTab(e.target.value as any)}
             className="input w-full capitalize"
           >
-            {['members', 'officers', 'communications', 'blog', 'shop', 'orders', 'home', 'sponsors', 'testimonials'].map((tab) => (
+            {['members', 'officers', 'communications', 'blog', 'shop', 'catalog', 'orders', 'home', 'sponsors', 'testimonials'].map((tab) => (
               <option key={tab} value={tab} className="capitalize">{tab}</option>
             ))}
           </select>
@@ -995,7 +996,7 @@ export default function AdminPage() {
         {/* Desktop tabs */}
         <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
-            {['members', 'officers', 'communications', 'blog', 'shop', 'orders', 'home', 'sponsors', 'testimonials'].map((tab) => (
+            {['members', 'officers', 'communications', 'blog', 'shop', 'catalog', 'orders', 'home', 'sponsors', 'testimonials'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -2448,6 +2449,8 @@ export default function AdminPage() {
 
       {/* Shop Products Management */}
       {activeTab === 'shop' && <AdminShopTab />}
+
+      {activeTab === 'catalog' && <AdminCatalog />}
 
       {/* Orders Management */}
       {activeTab === 'orders' && <AdminOrdersTab />}
