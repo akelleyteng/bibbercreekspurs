@@ -98,6 +98,16 @@ interface ParsedDescription {
 
 const PUBLIC_TAG_REGEX = /\[PUBLIC\]/i;
 
+// Google Calendar linkifies pasted URLs and HTML-encodes their query strings
+// (e.g. "&" becomes "&amp;"). Decode so the stored URL is usable as a link.
+function decodeUrlEntities(url: string): string {
+  return url.replace(/&amp;/gi, '&');
+}
+
+// A Google Form link (long form or forms.gle short link) in an event
+// description is effectively always a registration form.
+const GOOGLE_FORM_URL_SOURCE = 'https?:\\/\\/(?:docs\\.google\\.com\\/forms\\/|forms\\.gle\\/)[^\\s"\'<>\\]]+';
+
 /**
  * Determine whether a calendar event is publicly visible.
  *
@@ -131,17 +141,39 @@ export function parseEventDescription(raw: string | null | undefined): ParsedDes
     text = text.replace(/\[PUBLIC\]/gi, '');
   }
 
-  // [REGISTER: url]
-  const registerMatch = /\[REGISTER:\s*(https?:\/\/[^\]\s]+)\s*\]/i.exec(text);
+  // [REGISTER: url] — the URL may be plain, or Google Calendar may have
+  // auto-linkified it into an <a href="..."> tag (and wrapped it in
+  // <pre><code>). Capture the whole [REGISTER: ...] block up to the closing
+  // "]", then pull the first URL out of it — preferring an href attribute,
+  // falling back to a bare http(s) URL.
+  const registerMatch = /\[REGISTER:\s*(.*?)\]/is.exec(text);
   if (registerMatch) {
-    externalRegistrationUrl = registerMatch[1];
-    text = text.replace(/\[REGISTER:\s*https?:\/\/[^\]\s]+\s*\]/gi, '');
+    const inner = registerMatch[1];
+    const urlMatch =
+      /href=["'](https?:\/\/[^"']+)["']/i.exec(inner) ||
+      /(https?:\/\/[^\s"'<>\]]+)/i.exec(inner);
+    if (urlMatch) {
+      externalRegistrationUrl = urlMatch[1];
+    }
+    text = text.replace(registerMatch[0], '');
+  }
+
+  // Fallback: no explicit [REGISTER] tag, but a Google Form link is almost
+  // always a registration form. Match the Form URL specifically so we don't
+  // grab unrelated links (e.g. an event website in the same description).
+  if (!externalRegistrationUrl) {
+    const formMatch =
+      new RegExp(`href=["'](${GOOGLE_FORM_URL_SOURCE})["']`, 'i').exec(text) ||
+      new RegExp(`(${GOOGLE_FORM_URL_SOURCE})`, 'i').exec(text);
+    if (formMatch) {
+      externalRegistrationUrl = formMatch[1];
+    }
   }
 
   return {
     description: text.trim(),
     isPublic,
-    externalRegistrationUrl,
+    externalRegistrationUrl: externalRegistrationUrl ? decodeUrlEntities(externalRegistrationUrl) : undefined,
   };
 }
 
