@@ -1,9 +1,8 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart, CartItem } from '../context/CartContext';
-
-// Interim checkout for Phase A3. Order collection (login-gated, pay-now /
-// pay-at-pickup) lands in Phase A4 — this page reviews the cart in the
-// meantime so the flow stays coherent after the Printful pivot.
+import { useAuth } from '../context/AuthContext';
+import { authFetch } from '../utils/authFetch';
 
 function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -15,8 +14,53 @@ function lineSummary(item: CartItem): string {
   return [base, ...decos].join(' · ');
 }
 
+const CREATE_ORDER = `mutation($input: CreateCatalogOrderInput!) {
+  createCatalogOrder(input: $input) { confirmationCode }
+}`;
+
 export default function CheckoutPage() {
-  const { items, subtotalCents } = useCart();
+  const navigate = useNavigate();
+  const { items, subtotalCents, clearCart } = useCart();
+  const { isAuthenticated, isLoading } = useAuth();
+  const [placing, setPlacing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const placeOrder = async () => {
+    setPlacing(true);
+    setError(null);
+    try {
+      const res = await authFetch(CREATE_ORDER, {
+        input: {
+          items: items.map((i) => ({
+            productId: i.productId,
+            productName: i.productName,
+            itemType: i.itemType,
+            color: i.color,
+            size: i.size,
+            decorations: i.decorations.map((d) => ({
+              label: d.label,
+              text: d.text,
+              placement: d.placement,
+              priceCents: d.priceCents,
+            })),
+            unitPriceCents: i.unitPriceCents,
+            quantity: i.quantity,
+          })),
+        },
+      });
+      if (res.errors) {
+        setError(res.errors[0]?.message || 'Failed to place your order');
+        return;
+      }
+      const code = res.data?.createCatalogOrder?.confirmationCode;
+      clearCart();
+      navigate(`/shop/order-confirmation?code=${code}`);
+    } catch {
+      setError('Failed to place your order');
+    } finally {
+      setPlacing(false);
+    }
+  };
 
   return (
     <div className="max-w-2xl">
@@ -46,15 +90,31 @@ export default function CheckoutPage() {
               ))}
             </ul>
             <div className="flex justify-between font-semibold text-gray-900 border-t pt-3 mt-1">
-              <span>Subtotal</span>
+              <span>Total</span>
               <span>{formatPrice(subtotalCents)}</span>
             </div>
           </div>
 
-          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-            <strong>Ordering is almost ready.</strong> Placing orders (with pay-now or
-            pay-at-pickup) is coming in the next update. Items will be produced with the
-            club's next bulk order and handed out at a meeting.
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+            Items are produced with the club's next bulk order and <strong>handed out at a meeting</strong>.
+            Payment is collected at pickup.
+          </div>
+
+          {error && <div className="bg-red-50 text-red-700 p-3 rounded-lg mt-4 text-sm">{error}</div>}
+
+          <div className="mt-6">
+            {isLoading ? (
+              <p className="text-gray-500 text-sm">Checking your account…</p>
+            ) : isAuthenticated ? (
+              <button onClick={placeOrder} disabled={placing} className="btn-primary w-full sm:w-auto">
+                {placing ? 'Placing order…' : 'Place Order'}
+              </button>
+            ) : (
+              <div className="p-4 border border-gray-200 rounded-lg">
+                <p className="text-gray-700 mb-3">Please log in to place your order.</p>
+                <Link to="/login" className="btn-primary inline-block">Log In</Link>
+              </div>
+            )}
           </div>
         </>
       )}

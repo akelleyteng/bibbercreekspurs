@@ -3,34 +3,40 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { authFetch } from '../utils/authFetch';
 
+interface OrderItem {
+  productName: string;
+  itemType: string;
+  color?: string;
+  size?: string;
+  quantity: number;
+  unitPriceCents: number;
+  decorations: Array<{ label: string; text?: string }>;
+}
+
 interface OrderData {
   confirmationCode: string;
   status: string;
-  buyerEmail: string;
+  paymentStatus: string;
   buyerName: string;
   subtotalCents: number;
-  shippingCents: number;
-  totalCents: number;
-  items: Array<{
-    productName: string;
-    variantName: string;
-    quantity: number;
-    unitPriceCents: number;
-  }>;
+  items: OrderItem[];
 }
 
-const ORDER_QUERY = `
-  query OrderStatus($confirmationCode: String!) {
-    orderStatus(confirmationCode: $confirmationCode) {
-      confirmationCode status buyerEmail buyerName
-      subtotalCents shippingCents totalCents
-      items { productName variantName quantity unitPriceCents }
-    }
+const ORDER_QUERY = `query CatalogOrderStatus($confirmationCode: String!) {
+  catalogOrderStatus(confirmationCode: $confirmationCode) {
+    confirmationCode status paymentStatus buyerName subtotalCents
+    items { productName itemType color size quantity unitPriceCents decorations { label text } }
   }
-`;
+}`;
 
 function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function itemLine(item: OrderItem): string {
+  const base = [item.color, item.size].filter(Boolean).join(' · ') || item.itemType;
+  const decos = item.decorations.map((d) => (d.text ? `${d.label}: “${d.text}”` : d.label));
+  return [base, ...decos].join(' · ');
 }
 
 export default function OrderConfirmationPage() {
@@ -53,18 +59,17 @@ export default function OrderConfirmationPage() {
         setLoading(false);
         return;
       }
-
       try {
         const result = await authFetch(ORDER_QUERY, { confirmationCode: code });
         if (result.errors) {
           setError(result.errors[0]?.message || 'Failed to load order');
-        } else if (result.data?.orderStatus) {
-          setOrder(result.data.orderStatus);
+        } else if (result.data?.catalogOrderStatus) {
+          setOrder(result.data.catalogOrderStatus);
         } else {
           setError('Order not found');
         }
-      } catch (err: any) {
-        setError(err.message || 'Failed to load order');
+      } catch {
+        setError('Failed to load order');
       } finally {
         setLoading(false);
       }
@@ -86,81 +91,61 @@ export default function OrderConfirmationPage() {
     return (
       <div className="text-center py-16">
         <span className="text-4xl mb-4 block" aria-hidden="true">😕</span>
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">
-          {error || 'Order not found'}
-        </h2>
-        <Link to="/shop" className="btn-primary mt-4 inline-block">
-          Back to Shop
-        </Link>
+        <h2 className="text-xl font-semibold text-gray-700 mb-2">{error || 'Order not found'}</h2>
+        <Link to="/shop" className="btn-primary mt-4 inline-block">Back to Shop</Link>
       </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Success header */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
           <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
-        <p className="text-gray-600">Thank you for your purchase, {order.buyerName}.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Order Received!</h1>
+        <p className="text-gray-600">Thanks, {order.buyerName}. Your order has been collected.</p>
       </div>
 
-      {/* Confirmation code */}
       <div className="bg-gray-50 rounded-lg p-6 text-center mb-8">
         <p className="text-sm text-gray-500 mb-1">Confirmation Code</p>
         <p className="text-2xl font-mono font-bold text-gray-900">{order.confirmationCode}</p>
-        <p className="text-sm text-gray-500 mt-2">
-          Save this code to check your order status.
-        </p>
+        <p className="text-sm text-gray-500 mt-2">Save this code to check your order status.</p>
       </div>
 
-      {/* Order items */}
       <div className="border rounded-lg p-6 mb-6">
         <h2 className="font-semibold text-gray-900 mb-4">Order Details</h2>
         <ul className="divide-y">
           {order.items.map((item, i) => (
-            <li key={i} className="py-3 flex justify-between">
+            <li key={i} className="py-3 flex justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-900">{item.productName}</p>
-                <p className="text-xs text-gray-500">{item.variantName} x {item.quantity}</p>
+                <p className="text-sm font-medium text-gray-900">{item.quantity}× {item.productName}</p>
+                <p className="text-xs text-gray-500">{itemLine(item)}</p>
               </div>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-gray-900 whitespace-nowrap">
                 {formatPrice(item.unitPriceCents * item.quantity)}
               </p>
             </li>
           ))}
         </ul>
-        <div className="border-t mt-3 pt-3 space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Subtotal</span>
-            <span>{formatPrice(order.subtotalCents)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Shipping</span>
-            <span>{formatPrice(order.shippingCents)}</span>
-          </div>
-          <div className="flex justify-between text-base font-semibold border-t pt-2">
-            <span>Total</span>
-            <span>{formatPrice(order.totalCents)}</span>
-          </div>
+        <div className="flex justify-between text-base font-semibold border-t mt-3 pt-3">
+          <span>Total</span>
+          <span>{formatPrice(order.subtotalCents)}</span>
         </div>
       </div>
 
-      {/* Next steps */}
       <div className="bg-blue-50 rounded-lg p-6 mb-8">
         <p className="text-sm text-blue-800">
-          You'll receive tracking information at <strong>{order.buyerEmail}</strong> once your order ships.
+          Your items will be produced with the club's next bulk order and <strong>handed out at a
+          meeting</strong>. Payment is collected at pickup.
         </p>
       </div>
 
-      {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Link
-          to="/shop/order-status"
+          to={`/shop/order-status?code=${order.confirmationCode}`}
           className="flex-1 text-center px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors"
         >
           Track Order
