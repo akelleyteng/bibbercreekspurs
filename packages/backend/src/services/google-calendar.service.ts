@@ -96,6 +96,28 @@ interface ParsedDescription {
   externalRegistrationUrl?: string;
 }
 
+const PUBLIC_TAG_REGEX = /\[PUBLIC\]/i;
+
+/**
+ * Determine whether a calendar event is publicly visible.
+ *
+ * An event is PUBLIC if EITHER signal says so, so leaders can mark events
+ * either way and have them show on the public Events page:
+ *   1. The native Google Calendar visibility dropdown is set to "Public", OR
+ *   2. The event description contains a [PUBLIC] tag.
+ *
+ * Everything else — "private", "confidential", "default", or unset — is
+ * treated as members-only (fail-closed: never leak an event by accident).
+ */
+export function resolveEventVisibility(
+  visibility: string | null | undefined,
+  description?: string | null
+): 'PUBLIC' | 'MEMBER_ONLY' {
+  const nativePublic = typeof visibility === 'string' && visibility.toLowerCase() === 'public';
+  const taggedPublic = !!description && PUBLIC_TAG_REGEX.test(description);
+  return nativePublic || taggedPublic ? 'PUBLIC' : 'MEMBER_ONLY';
+}
+
 export function parseEventDescription(raw: string | null | undefined): ParsedDescription {
   if (!raw) return { description: '', isPublic: false };
 
@@ -155,7 +177,7 @@ function mapGoogleEvent(event: any): MappedCalendarEvent {
     endTime: event.end?.dateTime || event.end?.date || '',
     location: event.location || undefined,
     isAllDay: !event.start?.dateTime,
-    visibility: parsed.isPublic ? 'PUBLIC' : 'MEMBER_ONLY',
+    visibility: resolveEventVisibility(event.visibility, event.description),
     externalRegistrationUrl: parsed.externalRegistrationUrl,
     registrationCount: attendees.length,
     attendees,
