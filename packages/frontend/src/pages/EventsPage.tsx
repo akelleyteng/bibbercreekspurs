@@ -215,10 +215,12 @@ export default function EventsPage() {
                       <span>{format(parseEventDate(event.startTime), 'h:mm a')} - {format(parseEventDate(event.endTime), 'h:mm a')}</span>
                     </div>
                   )}
-                  <div className="flex items-center">
-                    <span className="mr-2">&#128101;</span>
-                    <span>{event.registrationCount} attending</span>
-                  </div>
+                  {event.visibility !== 'PUBLIC' && (
+                    <div className="flex items-center">
+                      <span className="mr-2">&#128101;</span>
+                      <span>{event.registrationCount} attending</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* RSVP button */}
