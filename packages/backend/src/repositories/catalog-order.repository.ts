@@ -147,6 +147,34 @@ export class CatalogOrderRepository {
     return result.rows[0] ? this.attachItems(result.rows[0]) : null;
   }
 
+  /** Update an order's fulfillment and/or payment status (admin). */
+  async updateStatus(
+    id: string,
+    updates: { status?: string; paymentStatus?: string }
+  ): Promise<CatalogOrderWithItems | null> {
+    const sets: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+    if (updates.status !== undefined) {
+      sets.push(`status = $${idx++}`);
+      values.push(updates.status);
+    }
+    if (updates.paymentStatus !== undefined) {
+      sets.push(`payment_status = $${idx++}`);
+      values.push(updates.paymentStatus);
+    }
+    if (sets.length === 0) return this.findById(id);
+
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+    const result = await db.query<CatalogOrderRow>(
+      `UPDATE catalog_orders SET ${sets.join(', ')} WHERE id = $${idx} RETURNING ${ORDER_COLUMNS}`,
+      values
+    );
+    if (result.rows.length === 0) return null;
+    return this.attachItems(result.rows[0]);
+  }
+
   /** All orders (admin), newest first, each with items. */
   async findAll(): Promise<CatalogOrderWithItems[]> {
     const result = await db.query<CatalogOrderRow>(

@@ -113,11 +113,42 @@ export class CatalogOrderResolver {
 
   @Query(() => [CatalogOrderGQL])
   async adminCatalogOrders(@Ctx() context: Context): Promise<CatalogOrderGQL[]> {
+    await this.requireAdmin(context);
+    const orders = await this.orderRepo.findAll();
+    return orders.map((o) => this.mapOrder(o));
+  }
+
+  @Mutation(() => CatalogOrderGQL)
+  async updateCatalogOrder(
+    @Arg('id') id: string,
+    @Ctx() context: Context,
+    @Arg('status', { nullable: true }) status?: string,
+    @Arg('paymentStatus', { nullable: true }) paymentStatus?: string
+  ): Promise<CatalogOrderGQL> {
+    await this.requireAdmin(context);
+
+    if (status !== undefined && !VALID_STATUSES.includes(status)) {
+      throw new GraphQLError('Invalid order status', { extensions: { code: 'BAD_USER_INPUT' } });
+    }
+    if (paymentStatus !== undefined && !VALID_PAYMENT_STATUSES.includes(paymentStatus)) {
+      throw new GraphQLError('Invalid payment status', { extensions: { code: 'BAD_USER_INPUT' } });
+    }
+
+    const order = await this.orderRepo.updateStatus(id, { status, paymentStatus });
+    if (!order) {
+      throw new GraphQLError('Order not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+    return this.mapOrder(order);
+  }
+
+  private async requireAdmin(context: Context) {
     const user = await this.getAuthUser(context);
     if (user.role !== Role.ADMIN) {
       throw new GraphQLError('Admin access required', { extensions: { code: 'FORBIDDEN' } });
     }
-    const orders = await this.orderRepo.findAll();
-    return orders.map((o) => this.mapOrder(o));
+    return user;
   }
 }
+
+const VALID_STATUSES = ['PENDING', 'SUBMITTED', 'IN_PRODUCTION', 'RECEIVED', 'DISTRIBUTED', 'CANCELLED'];
+const VALID_PAYMENT_STATUSES = ['UNPAID', 'PAID', 'CREDITED'];
