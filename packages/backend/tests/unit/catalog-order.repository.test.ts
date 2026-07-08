@@ -81,6 +81,37 @@ describe('CatalogOrderRepository', () => {
     });
   });
 
+  describe('updateStatus', () => {
+    it('updates only the provided fields and bumps updated_at', async () => {
+      mockDb.query
+        .mockResolvedValueOnce(q([{ ...orderRow, status: 'SUBMITTED' }])) // UPDATE ... RETURNING
+        .mockResolvedValueOnce(q([itemRow])); // attachItems
+      await repo.updateStatus('o1', { status: 'SUBMITTED' });
+
+      const [sql, values] = mockDb.query.mock.calls[0];
+      expect(sql).toContain('status = $1');
+      expect(sql).toContain('updated_at = CURRENT_TIMESTAMP');
+      expect(sql).not.toContain('payment_status =');
+      expect(values).toEqual(['SUBMITTED', 'o1']);
+    });
+
+    it('can update payment status', async () => {
+      mockDb.query
+        .mockResolvedValueOnce(q([{ ...orderRow, payment_status: 'PAID' }]))
+        .mockResolvedValueOnce(q([itemRow]));
+      await repo.updateStatus('o1', { paymentStatus: 'PAID' });
+
+      const [sql, values] = mockDb.query.mock.calls[0];
+      expect(sql).toContain('payment_status = $1');
+      expect(values).toEqual(['PAID', 'o1']);
+    });
+
+    it('returns null when the order does not exist', async () => {
+      mockDb.query.mockResolvedValueOnce(q([]));
+      expect(await repo.updateStatus('nope', { status: 'RECEIVED' })).toBeNull();
+    });
+  });
+
   describe('findByConfirmationCode', () => {
     it('returns the order with items', async () => {
       mockDb.query.mockResolvedValueOnce(q([orderRow])).mockResolvedValueOnce(q([itemRow]));

@@ -9,6 +9,7 @@ import TestimonialModal from '../components/TestimonialModal';
 import { mockHomeContent } from '../data/mockData';
 import AdminCommunications from '../components/AdminCommunications';
 import AdminCatalog from '../components/AdminCatalog';
+import AdminShopOrders from '../components/AdminShopOrders';
 import MemberAvatar, { seedAvatarCache } from '../components/MemberAvatar';
 import MemberProfileFields from '../components/MemberProfileFields';
 import { authFetch } from '../utils/authFetch';
@@ -2452,8 +2453,8 @@ export default function AdminPage() {
 
       {activeTab === 'catalog' && <AdminCatalog />}
 
-      {/* Orders Management */}
-      {activeTab === 'orders' && <AdminOrdersTab />}
+      {/* Orders Management (custom apparel orders) */}
+      {activeTab === 'orders' && <AdminShopOrders />}
     </div>
   );
 }
