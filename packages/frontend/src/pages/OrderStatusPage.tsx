@@ -2,50 +2,57 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authFetch } from '../utils/authFetch';
 
+interface OrderItem {
+  productName: string;
+  itemType: string;
+  color?: string;
+  size?: string;
+  quantity: number;
+  unitPriceCents: number;
+  decorations: Array<{ label: string; text?: string }>;
+}
+
 interface OrderData {
   confirmationCode: string;
   status: string;
+  paymentStatus: string;
   buyerName: string;
   subtotalCents: number;
-  shippingCents: number;
-  totalCents: number;
-  trackingNumber?: string;
-  trackingUrl?: string;
-  carrier?: string;
   createdAt: string;
-  items: Array<{
-    productName: string;
-    variantName: string;
-    quantity: number;
-    unitPriceCents: number;
-  }>;
+  items: OrderItem[];
 }
 
-const ORDER_QUERY = `
-  query OrderStatus($confirmationCode: String!) {
-    orderStatus(confirmationCode: $confirmationCode) {
-      confirmationCode status buyerName
-      subtotalCents shippingCents totalCents
-      trackingNumber trackingUrl carrier createdAt
-      items { productName variantName quantity unitPriceCents }
-    }
+const ORDER_QUERY = `query CatalogOrderStatus($confirmationCode: String!) {
+  catalogOrderStatus(confirmationCode: $confirmationCode) {
+    confirmationCode status paymentStatus buyerName subtotalCents createdAt
+    items { productName itemType color size quantity unitPriceCents decorations { label text } }
   }
-`;
+}`;
 
 function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  PENDING_PAYMENT: { label: 'Payment Pending', color: 'bg-yellow-100 text-yellow-800' },
-  PAID: { label: 'Paid', color: 'bg-blue-100 text-blue-800' },
-  SUBMITTED: { label: 'Submitted to Printer', color: 'bg-blue-100 text-blue-800' },
-  PROCESSING: { label: 'Processing', color: 'bg-indigo-100 text-indigo-800' },
-  SHIPPED: { label: 'Shipped', color: 'bg-green-100 text-green-800' },
-  DELIVERED: { label: 'Delivered', color: 'bg-green-100 text-green-800' },
+  PENDING: { label: 'Collected — awaiting club order', color: 'bg-yellow-100 text-yellow-800' },
+  SUBMITTED: { label: 'Submitted to printer', color: 'bg-blue-100 text-blue-800' },
+  IN_PRODUCTION: { label: 'In production', color: 'bg-indigo-100 text-indigo-800' },
+  RECEIVED: { label: 'Received — ready for pickup', color: 'bg-green-100 text-green-800' },
+  DISTRIBUTED: { label: 'Handed out', color: 'bg-green-100 text-green-800' },
   CANCELLED: { label: 'Cancelled', color: 'bg-gray-100 text-gray-800' },
-  FAILED: { label: 'Failed', color: 'bg-red-100 text-red-800' },
 };
+
+const PAYMENT_CONFIG: Record<string, { label: string; color: string }> = {
+  UNPAID: { label: 'Pay at pickup', color: 'bg-amber-100 text-amber-800' },
+  PAID: { label: 'Paid', color: 'bg-green-100 text-green-800' },
+  CREDITED: { label: 'Club credit', color: 'bg-blue-100 text-blue-800' },
+};
+
+function itemLine(item: OrderItem): string {
+  const base = [item.color, item.size].filter(Boolean).join(' · ') || item.itemType;
+  const decos = item.decorations.map((d) => (d.text ? `${d.label}: “${d.text}”` : d.label));
+  return [base, ...decos].join(' · ');
+}
 
 export default function OrderStatusPage() {
   const [searchParams] = useSearchParams();
@@ -67,33 +74,28 @@ export default function OrderStatusPage() {
     setSearched(true);
 
     try {
-      const result = await authFetch(ORDER_QUERY, {
-        confirmationCode: code.trim().toUpperCase(),
-      });
-
+      const result = await authFetch(ORDER_QUERY, { confirmationCode: code.trim().toUpperCase() });
       if (result.errors) {
         setError(result.errors[0]?.message || 'Failed to look up order');
-      } else if (result.data?.orderStatus) {
-        setOrder(result.data.orderStatus);
+      } else if (result.data?.catalogOrderStatus) {
+        setOrder(result.data.catalogOrderStatus);
       } else {
         setError('Order not found. Please check the confirmation code.');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to look up order');
+    } catch {
+      setError('Failed to look up order');
     } finally {
       setLoading(false);
     }
   };
 
-  // Auto-lookup if code provided in URL
   useEffect(() => {
-    if (initialCode) {
-      handleLookup();
-    }
+    if (initialCode) handleLookup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const statusConfig = order ? STATUS_CONFIG[order.status] || { label: order.status, color: 'bg-gray-100 text-gray-800' } : null;
+  const paymentConfig = order ? PAYMENT_CONFIG[order.paymentStatus] : null;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -103,7 +105,6 @@ export default function OrderStatusPage() {
 
       <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Order Status</h1>
 
-      {/* Lookup form */}
       <form onSubmit={handleLookup} className="flex gap-3 mb-8">
         <input
           type="text"
@@ -112,19 +113,13 @@ export default function OrderStatusPage() {
           placeholder="Enter confirmation code (e.g. BCS-A7K2M3)"
           className="input flex-1"
         />
-        <button
-          type="submit"
-          disabled={loading || !code.trim()}
-          className="btn-primary whitespace-nowrap"
-        >
+        <button type="submit" disabled={loading || !code.trim()} className="btn-primary whitespace-nowrap">
           {loading ? 'Looking up...' : 'Look Up'}
         </button>
       </form>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">{error}</div>
       )}
 
       {searched && !loading && !order && !error && (
@@ -136,69 +131,44 @@ export default function OrderStatusPage() {
 
       {order && (
         <div>
-          {/* Status badge */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
             <div>
               <p className="text-sm text-gray-500">Confirmation Code</p>
               <p className="text-xl font-mono font-bold">{order.confirmationCode}</p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig?.color}`}>
-              {statusConfig?.label}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig?.color}`}>
+                {statusConfig?.label}
+              </span>
+              {paymentConfig && (
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${paymentConfig.color}`}>
+                  {paymentConfig.label}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Tracking info */}
-          {order.trackingNumber && (
-            <div className="bg-green-50 rounded-lg p-4 mb-6">
-              <p className="text-sm font-medium text-green-800 mb-1">
-                {order.carrier ? `Shipped via ${order.carrier}` : 'Shipped'}
-              </p>
-              <p className="text-sm text-green-700">
-                Tracking: {order.trackingUrl ? (
-                  <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
-                    {order.trackingNumber}
-                  </a>
-                ) : (
-                  <span className="font-mono">{order.trackingNumber}</span>
-                )}
-              </p>
-            </div>
-          )}
-
-          {/* Order items */}
           <div className="border rounded-lg p-6 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-semibold text-gray-900">Order Details</h2>
-              <p className="text-sm text-gray-500">
-                {new Date(order.createdAt).toLocaleDateString()}
-              </p>
+              <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
             </div>
             <ul className="divide-y">
               {order.items.map((item, i) => (
-                <li key={i} className="py-3 flex justify-between">
+                <li key={i} className="py-3 flex justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{item.productName}</p>
-                    <p className="text-xs text-gray-500">{item.variantName} x {item.quantity}</p>
+                    <p className="text-sm font-medium text-gray-900">{item.quantity}× {item.productName}</p>
+                    <p className="text-xs text-gray-500">{itemLine(item)}</p>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 whitespace-nowrap">
                     {formatPrice(item.unitPriceCents * item.quantity)}
                   </p>
                 </li>
               ))}
             </ul>
-            <div className="border-t mt-3 pt-3 space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal</span>
-                <span>{formatPrice(order.subtotalCents)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Shipping</span>
-                <span>{formatPrice(order.shippingCents)}</span>
-              </div>
-              <div className="flex justify-between text-base font-semibold border-t pt-2">
-                <span>Total</span>
-                <span>{formatPrice(order.totalCents)}</span>
-              </div>
+            <div className="flex justify-between text-base font-semibold border-t mt-3 pt-3">
+              <span>Total</span>
+              <span>{formatPrice(order.subtotalCents)}</span>
             </div>
           </div>
         </div>
